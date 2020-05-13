@@ -7,7 +7,9 @@ What does Frhodo do?
 
 Frhodo is an open-source, GUI-based Python application to simulate 
 experimental data and optimize chemical kinetics mechanisms using `Cantera <https://cantera.org>`_ 
-as its chemistry solver. Features include:
+as its chemistry solver. 
+
+Features include:
 
 * Easing user workload through an intuitive and extensive GUI
 * Simulating chemical kinetics experiments using:
@@ -21,6 +23,9 @@ as its chemistry solver. Features include:
 * Altering mechanisms within memory and update simulation automatically
 * Investigating non-observable variables of simulation using Sim Explorer
 * Optimizing mechanism based upon obervables (by hand or by machine learning routine)
+
+  * Automatic routine requires bounds on reaction rate constants
+  * Automatic routine can optimize all three Arrhenius parameters
 
 Installation and Documentation
 ============
