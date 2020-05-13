@@ -25,12 +25,12 @@ as its chemistry solver. Among other things, it can be used to:
 Installation and Documentation
 ============
 
-Installation instructions and documentation can be found in the provided `Manual <https://github.com/Argonne-National-Laboratory/Frhodo/master/Doc/Manual.pdf>`_. 
+Installation instructions and documentation can be found in the provided `Manual <https://github.com/Argonne-National-Laboratory/Frhodo/blob/master/Doc/Manual.pdf>`_. 
 
 Frhodo uses an Anaconda
 environment and has been tested on Windows, macOS, and Linux.
 
-.. |Frhodo| image:: https://github.com/Argonne-National-Laboratory/Frhodo/master/Doc//Logo.png
+.. |Frhodo| image:: https://github.com/Argonne-National-Laboratory/Frhodo/blob/master/Doc/Logo.png
     :target: https://github.com/Argonne-National-Laboratory/Frhodo/
     :alt: Frhodo logo
     :width: 100
