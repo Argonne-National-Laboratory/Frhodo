@@ -17,11 +17,11 @@ Features include:
   * 0D closed, homogeneous, constant-volume reactor
   * 0D closed, homogeneous, constant-pressure reactor
   * Custom incident shock reactor for reactions behind incident shock waves
-* Importing any Cantera-valid mechanism (except YAML input format, for now)
+* Importing any Cantera-valid mechanism (except YAML input format, is currently not supported)
 * Reading an experimental directory to quickly switch between experimental conditions and measured data
 * Displaying simulated observable over experimental data
 * Altering mechanisms within memory and update simulation automatically
-* Investigating non-observable variables of simulation using Sim Explorer
+* Investigating non-observable variables of simulation using the Sim Explorer within Frhodo
 * Optimizing mechanism based upon obervables (by hand or by machine learning routine)
 
   * Automatic routine requires bounds on reaction rate constants
