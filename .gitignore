@@ -122,8 +122,5 @@ venv.bak/
 
 # Development Folders
 Documentation/
-Environment/
-Extras/
-Old Versions/
-Franklin/
+Development/
 *.7z
