@@ -1,0 +1,146 @@
+[Date]
+Date="4/4/2019;10:44 AM"
+
+[File Info]
+Expt="Shock1"
+File Path="/Z/Laser Schlieren/Experimental/Data_Feb 2019 on/Cycloheptane/4%Cycloheptane_96%Kr_Apr2019/Shock1"
+
+[Mixture]
+NumMols=4    
+Mol_0_Name="Krypton"
+Mol_0_Formula="Kr"
+Mol_0_Manf="Aga"
+Mol_0_Date Pur="Sept 2011"
+Mol_0_Purity="99.999%"
+Mol_0_Comments="none"
+Mol_0_Mol frc=0.960    
+Mol_0_Pressure=96.00    
+Mol_0_Rmm=83.80    
+Mol_0_Mol Refrac=6.3700    
+Mol_0_Hf298=0.000000E+0    
+Mol_0_Hf298-0=1.480000E+3    
+Mol_0_a=2.498700E+0    
+Mol_0_b=6.396300E+0    
+Mol_0_c=-2.022700E+4    
+Mol_0_d=2.504300E+7    
+Mol_0_e=-1.091100E+10    
+Mol_0_f=4.385300E+0    
+Mol_0_Structure=0    
+Mol_0_No Int Rot=0    
+Mol_1_Name="Cycloheptane"
+Mol_1_Formula="cC7H14"
+Mol_1_Manf="Sigma Aldrich"
+Mol_1_Date Pur="May 2012"
+Mol_1_Purity="99%"
+Mol_1_Comments="Degassed 1 time with LN2"
+Mol_1_Mol frc=0.040    
+Mol_1_Pressure=4.00    
+Mol_1_Rmm=98.19    
+Mol_1_Mol Refrac=32.2230    
+Mol_1_Hf298=-2.627740E+4    
+Mol_1_Hf298-0=4.990600E+3    
+Mol_1_a=6.210789E+1    
+Mol_1_b=-7.020985E+4    
+Mol_1_c=4.587857E+7    
+Mol_1_d=-1.687154E+10    
+Mol_1_e=2.605727E+12    
+Mol_1_f=-3.677594E+2    
+Mol_1_Structure=2    
+Mol_1_No Int Rot=0    
+Mol_2_Name=""
+Mol_2_Formula=""
+Mol_2_Manf=""
+Mol_2_Date Pur=""
+Mol_2_Purity=""
+Mol_2_Comments=""
+Mol_2_Mol frc=0.000    
+Mol_2_Pressure=0.00    
+Mol_2_Rmm=0.00    
+Mol_2_Mol Refrac=0.0000    
+Mol_2_Hf298=0.000000E+0    
+Mol_2_Hf298-0=0.000000E+0    
+Mol_2_a=0.000000E+0    
+Mol_2_b=0.000000E+0    
+Mol_2_c=0.000000E+0    
+Mol_2_d=0.000000E+0    
+Mol_2_e=0.000000E+0    
+Mol_2_f=0.000000E+0    
+Mol_2_Structure=0    
+Mol_2_No Int Rot=0    
+Mol_3_Name=""
+Mol_3_Formula=""
+Mol_3_Manf=""
+Mol_3_Date Pur=""
+Mol_3_Purity=""
+Mol_3_Comments=""
+Mol_3_Mol frc=0.000
+Mol_3_Pressure=0.00
+Mol_3_Rmm=0.00
+Mol_3_Mol Refrac=0.0000
+Mol_3_Hf298=0.000000E+0
+Mol_3_Hf298-0=0.000000E+0
+Mol_3_a=0.000000E+0
+Mol_3_b=0.000000E+0
+Mol_3_c=0.000000E+0
+Mol_3_d=0.000000E+0
+Mol_3_e=0.000000E+0
+Mol_3_f=0.000000E+0
+Mol_3_Structure=0
+Mol_3_No Int Rot=0
+
+[t0Corr]
+DtCurv=0.218704    
+Dels=0.059486    
+Dett=0.409883    
+Date Tauc=-0.492066    
+TimC=-0.191180    
+Fact=45458366.510065    
+
+[BBCorr]
+M^2=0.000000E+0    
+M1Sqr=0.000000E+0    
+Rho2Alpha1=0.000000E+0    
+DRho=0.000000E+0    
+GammAlpha=0.000000E+0    
+CpAlpha=0.000000E+0    
+
+[PostShk]
+T2=1622.23    
+P2=155.70    
+U2=18.2704E+3    
+Rho2=129.8533E-6    
+T5=3133.03    
+P5=1297.77    
+U5=4.2333E+3    
+Rho5=560.4335E-6    
+Rho12=0.0000    
+Rho1=177.4621E-3    
+
+[BaseLineVals]
+V0=-91.3659    
+Tc=0.000009020743185    
+Amin=976.1930    
+IVMax=16053.2500    
+Index=479.0000    
+
+[Expt Params]
+P1=5.010000    
+T1=21.000000    
+P4=30.000000    
+tOpt=116.557292    
+PT Spacing=120.000000    
+Times="117.050000;116.625000;116.316667;116.237500"
+dV/dt=39.196667    
+Gain=1.000000    
+SampRate=50000000.000000    
+PBellows=45.000000    
+Range_Cal=4    
+Range_Shk=4    
+
+[Tube Params]
+Beam radius=0.40    
+Lm=325.0    
+Lt=340.0    
+Period=1.666700E+7    
+TubeDia=6.350    
+Wavelength=633.0    

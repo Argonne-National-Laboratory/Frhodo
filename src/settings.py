@@ -1,0 +1,935 @@
+# This file is part of Frhodo. Copyright © 2020, UChicago Argonne, LLC
+# and licensed under BSD-3-Clause. See License.txt in the top-level 
+# directory for license and copyright information.
+
+import numpy as np
+import sys, pathlib, shutil, configparser, re, csv
+from copy import deepcopy
+from dateutil.parser import parse
+from scipy import integrate      # used to integrate weights numerically
+
+class user_settings:
+    def __init__(self, parent):
+        self.parent = parent    # Need to find a better solution than passing parent
+        self.config = configparser.RawConfigParser()
+    
+    def load(self, file_path):
+        parent = self.parent
+        self.config.read(file_path)
+        
+        parent.path['path_file'] = pathlib.Path(self.config['Directory File']['file'])
+        parent.path_file_box.setPlainText(str(parent.path['path_file']))
+        
+        parent.shock_choice_box.setValue(1)
+        # parent.time_offset_box.setValue(float(self.config['Experiment Settings']['time_offset']))
+        # parent.time_unc_box.setValue(float(self.config['Experiment Settings']['time_unc']))
+        # parent.start_ind_box.setValue(float(self.config['Experiment Settings']['start_ind']))
+        # parent.weight_k_box.setValue(float(self.config['Experiment Settings']['weight_k']))
+        # parent.weight_shift_box.setValue(float(self.config['Experiment Settings']['weight_shift']))
+        # parent.weight_min_box.setValue(float(self.config['Experiment Settings']['weight_min'])*100)
+    
+    def save(self, file_path, save_all):
+        parent = self.parent
+        if save_all:
+            self.config['Directory File'] = {'file': str(parent.path['path_file'])}
+            
+            # self.config['Experiment Settings'] = {'start_ind':       parent.var['start ind'],
+                                                  # 'time_offset':     parent.var['time_offset'],
+                                                  # 'time_unc':        parent.var['time_unc'],
+                                                  # 'weight_k':        parent.var['weight_k'],
+                                                  # 'weight_shift':    parent.var['weight_shift'],
+                                                  # 'weight_min':      parent.var['weight_min']}
+                    
+        else:
+            self.config.set('Directory File', 'file', str(parent.path['path_file']))
+                                                    
+        with open(file_path, 'w') as configfile:
+            self.config.write(configfile)
+
+            
+class path:
+    def __init__(self, parent):
+        self.parent = parent
+        self.loading_dir_file = False
+        
+        parent.path = {'main': pathlib.Path(sys.argv[0]).parents[0].resolve()}
+        parent.path['default_settings.ini'] = parent.path['main']/'default_settings.ini'
+        parent.path['graphics'] = parent.path['main']/'UI'/'graphics'
+        self.config = configparser.RawConfigParser()
+    
+    def mech(self):
+        parent = self.parent
+        
+        # Test for existance of mech folder and return if it doesn't
+        if parent.path['mech_main'].is_dir():
+            self.mech_main_exists = True
+        else:
+            self.mech_main_exists = False
+        
+        unsorted_mech_files = []
+        thermo_files = []
+        trans_files = []
+        for file in parent.path['mech_main'].glob('*'):
+            if not file.is_file():
+                continue
+                
+            name = file.name
+            ext = file.suffix.lower()
+            
+            if ext == '.therm':
+                thermo_files.append(name)
+            if ext == '.tran':      # currently unused, but store transport files anyways
+                trans_files.append(name)
+            elif ext in ['.mech', '.cti', '.ck']:
+                if 'generated_mech.cti' == name: continue
+                unsorted_mech_files.append(name)
+        
+        # Sort Mechs
+        mech = {'base': [], 'suffix': [], 'num': [], 'ext': []}
+        suffix = ' - Opt '
+        for file in unsorted_mech_files:
+            match_opt = re.findall('(.*){:s}(\d+).(.*)'.format(suffix), file)
+            if match_opt is not None and len(match_opt) > 0:    # if match, then optimized mech with number
+                mech['base'].append(match_opt[0][0])
+                mech['suffix'].append(suffix)
+                mech['num'].append(int(match_opt[0][1]))
+                mech['ext'].append(match_opt[0][2])
+            else:                                               # if no - Opt then it's a new mechanism
+                match = re.findall('(.*)\.(.*)', file)
+                mech['base'].append(match[0][0])
+                mech['suffix'].append('')
+                mech['num'].append(np.inf)          # Makes unedited mech first
+                mech['ext'].append(match[0][1])
+
+        # Sort by descending opt num and default sorting of mech name
+        sort_idx = np.lexsort((-np.array(mech['num']), mech['base'])) 
+        mech_files = []
+        for n in sort_idx:
+            if mech['suffix'][n] != '':
+                num = str(mech['num'][n])
+            else:
+                num = ''
+            name = mech['base'][n] + mech['suffix'][n] + num + '.' + mech['ext'][n]
+            mech_files.append(name)
+        
+        # Add items to combobox
+        for obj in [parent.mech_select_comboBox, parent.thermo_select_comboBox]:
+            obj.blockSignals(True)
+            oldText = obj.currentText()
+            obj.clear()
+            if obj is parent.mech_select_comboBox:
+                obj.addItems(mech_files)
+            else:
+                obj.addItems(thermo_files)
+            
+            idx = obj.findText(oldText) # if the previous selection exists, reselect it
+            obj.blockSignals(False)
+            if idx >= 0:
+                obj.setCurrentIndex(idx)
+                
+        # Specify cantera files
+        parent.path['Cantera_Mech'] = parent.path['mech_main'] / 'generated_mech.cti'
+        parent.path['Cantera_Mech_ctml'] = parent.path['mech_main'] / 'generated_mech.ctml'
+     
+    def shock_paths(self, prefix, ext, max_depth=2):
+        parent = self.parent
+        path = parent.path
+        path['shock'] = parent.path['exp_main']
+        
+        shock_num = np.array([]).astype(int)
+        shock_path = []
+        for file in parent.path['exp_main'].rglob('*'):
+            if not file.is_file():  # only looking for files
+                continue
+            
+            depth = len(file.relative_to(parent.path['exp_main']).parts)
+            if depth > max_depth:   # skip if the depth is greater than allowed
+                continue
+            
+            match = re.search(prefix + '.*\.' + ext + '$', file.name)   # search for prefix + ext
+            if match:
+                numMatch = re.search('(\d+)', file.name)   # search for numbers
+                n = int(numMatch.group(0))
+                
+                # skip appending duplicates with larger path depth
+                append_shock = True
+                shock_match = np.argwhere(shock_num == n)
+                if np.shape(shock_match)[0] > 0:
+                    i = shock_match[0,0]
+                    depth_old = len(shock_path[i].relative_to(parent.path['exp_main']).parts)
+                    if depth > depth_old:
+                        append_shock = False
+                        
+                if append_shock:
+                    shock_num = np.append(shock_num, n)
+                    shock_path.append(file.parents[0])  # appends root directory of shock
+                
+        if len(shock_num) == 0: # in case no shocks in directory
+            return []
+        
+        # Sort based on shock number
+        idx_sort = np.argsort(shock_num)
+        shock_num = shock_num[idx_sort]
+        shock_path = np.array(shock_path)[idx_sort]
+        
+        # Create sorted list of shock_num and shock_path
+        return np.column_stack((shock_num, shock_path))
+        
+    def shock(self, shock_num):
+        def find_nearest(array, value): # Finds the nearest value
+            array = np.asarray(array)
+            if value in array:
+                idx = np.where(value == array)[0][0]
+            elif np.max(array) < value:
+                idx = np.argmax(array)
+            elif np.min(array) > value:
+                idx = np.argmin(array)
+            else:
+                idx = np.argmin(np.abs(array - value))
+                
+            return idx, array[idx]
+            
+        parent = self.parent
+        
+        change = parent.var['shock_choice'] - parent.var['old_shock_choice']
+        if np.abs(change) == 1: # if stepping through experiments
+            idx = np.where(parent.var['old_shock_choice'] == shock_num)[0] + change
+            
+            if np.shape(idx)[0] == 0:   # if shock cannot be found, find nearest
+                idx, Shock_Choice = find_nearest(shock_num, parent.var['shock_choice'])
+            else:                       # if shock can be found, step
+                idx = idx[0]
+                if idx >= len(shock_num):
+                    idx = 0
+                elif idx < 0:
+                    idx = len(shock_num) - 1
+                Shock_Choice = shock_num[idx]
+        else:                   # if selecting experiment or loading a new exp directory
+            idx, Shock_Choice = find_nearest(shock_num, parent.var['shock_choice'])
+        
+        # Update shock_choice_box and var['shock_choice']
+        parent.var['shock_choice'] = Shock_Choice
+        parent.shock_choice_box.blockSignals(True)
+        parent.shock_choice_box.setValue(Shock_Choice)
+        parent.shock_choice_box.blockSignals(False)
+        
+        return idx
+    
+    def shock_output(self):
+        parent = self.parent
+        
+        # Add Exp_set_name if exists
+        shock_num = str(parent.var['shock_choice'])
+        if not parent.display_shock['series_name']:
+            parent.path['output_dir'] = parent.path['sim_main'] / ('Shock ' + str(shock_num))
+        else:
+            parent.path['output_dir'] = ((parent.path['sim_main'] / parent.display_shock['series_name'])
+                                         / ('Shock ' + str(shock_num)))
+        
+        # Create folders if needed
+        if not parent.path['output_dir'].exists():
+            parent.path['output_dir'].mkdir(exist_ok=True, parents=True)
+        
+        parent.path['Sim log'] = parent.path['output_dir'] / 'Sim log.txt'
+        
+        # Find next sim number based on Sim log
+        self.sim_num = 0
+        if parent.path['Sim log'].exists():
+            with open(parent.path['Sim log'], 'r') as f:
+                for line in f:
+                    if len(re.findall('Sim \d+:', line)) > 0:
+                        self.sim_num += 1
+        
+        self.sim_num += 1
+        
+        # Assign sim directory
+        if self.sim_num == 1:
+            parent.path['sim_dir'] = parent.path['output_dir']
+        elif self.sim_num > 1:
+            parent.path['sim_dir'] = parent.path['output_dir'] / 'Sim {:d}'.format(self.sim_num)
+            parent.path['sim_dir'].mkdir(exist_ok=True, parents=True)
+            
+            # Move files if second sim
+            if self.sim_num == 2:
+                sim_1_dir = parent.path['output_dir'] / 'Sim 1'
+                sim_1_dir.mkdir(exist_ok=True, parents=True)
+                for entry in parent.path['output_dir'].glob('*'):
+                    if entry.is_file():
+                        if len(re.findall('Sim \d+ - ', entry.name)) > 0:    # if files starts with Sim ####
+                            shutil.move(entry, sim_1_dir / entry.name)
+        
+        for file in ['Mech.cti', 'Mech.ck', 'Plot.png', 'Legend.txt']:
+            parent.path[file] = parent.path['sim_dir'] / 'Sim {:d} - {:s}'.format(self.sim_num, file)
+    
+    def sim_output(self, var_name):  # takes variable name and creates path for it
+        name = 'Sim {:d} - {:s}.txt'.format(self.sim_num, var_name)
+        self.parent.path[var_name] = self.parent.path['sim_dir'] / name
+        
+        return self.parent.path[var_name]
+    
+    def optimized_mech(self):
+        parent = self.parent
+        
+        mech_name = parent.path['mech'].stem
+        mech_name = re.sub(r' - Opt \d+$', '', str(mech_name))   # strip opt and trailing number
+        mech_name += ' - Opt '                             # add opt back in
+        
+        num = [0]  
+        for file in parent.path['mech_main'].glob('*'):
+            if not file.is_file():
+                continue
+                
+            num_found = re.findall(r'{:s}\s*(-?\d+(?:\.\d+)?)'.format(mech_name), file.name)
+            if len(num_found) > 0:
+                num.append(*[int(num) for num in num_found])
+        
+        file = '{:s}{:.0f}.mech'.format(mech_name, np.max(num)+1)
+        parent.path['Optimized_Mech.mech'] = parent.path['mech_main'] / file
+        
+        return parent.path['Optimized_Mech.mech']
+    
+    def load_dir_file(self, file_path):
+        parent = self.parent
+        self.loading_dir_file = True
+        self.config.read(file_path)
+        
+        # loading exp_main creates a new series
+        parent.exp_main_box.setPlainText(self.config['Directories']['exp_main'])
+        
+        if ('exp_main' not in parent.directory.invalid and 
+            ': ' in self.config['Species Default Aliases']['aliases']):
+            
+            for pair in self.config['Species Default Aliases']['aliases'].split('; '):
+                exp_name, thermo_name = pair.split(': ')
+                parent.series.current['species_alias'][exp_name] = thermo_name
+        
+        parent.mech_main_box.setPlainText(self.config['Directories']['mech_main'])
+        parent.sim_main_box.setPlainText(self.config['Directories']['sim_main'])
+        if len(self.config['Experiment Set Name']['name']) > 0:
+            parent.exp_series_name_box.setText(self.config['Experiment Set Name']['name'])
+        
+        # parent.option_tab_widget.setCurrentIndex(1)
+        # if len(parent.series.current['species_alias']) > 0: # if species_alias exists
+            # parent.mix.update_species()                     # update species
+
+        self.mech()                         # This updates the mech and thermo combo boxes
+        self.loading_dir_file = False
+    
+    def save_dir_file(self, file_path):
+        self.config['Experiment Set Name'] = {'name':     self.parent.display_shock['series_name']}
+                  
+        self.config['Species Default Aliases'] = {'aliases': self._alias_str()}
+            
+        self.config['Directories'] = {'exp_main':        self.parent.path['exp_main'],
+                                      'mech_main':       self.parent.path['mech_main'],
+                                      'sim_main':        self.parent.path['sim_main']}
+                                          
+        with open(file_path, 'w') as configfile:
+            self.config.write(configfile)
+
+        
+    def save_aliases(self, file_path):
+        self.config.set('Species Default Aliases', 'aliases', self._alias_str())
+        
+        with open(file_path, 'w') as configfile:
+            self.config.write(configfile)
+            
+    def _alias_str(self):
+        # The path file isn't the ideal place based on name, but works functionally 
+        species_aliases_str = []
+        for alias, species in self.parent.series.current['species_alias'].items():
+            species_aliases_str.append(alias + ': ' + species)
+            
+        return '; '.join(species_aliases_str)
+
+
+class experiment:
+    def __init__(self, parent):
+        self.parent = parent
+        self.path = parent.path
+        self.convert_units = parent.convert_units
+        # self.load_full_series_box = parent.load_full_series_box
+        # self.set_load_full_set()
+        # self.load_full_series_box.stateChanged.connect(lambda: self.set_load_full_set())
+
+           
+    def parameters(self, file_path):    
+        def get_config(section, key):
+            val = self.config[section][key]
+            for delimiter in ['"', "'"]:    # remove delimiters
+                val = val.strip(delimiter)
+            
+            return val
+                
+        self.config = configparser.RawConfigParser()
+        self.config.read(file_path)
+        
+        # find all species numbers
+        species_num = []
+        keys = [item[0] for item in self.config.items('Mixture')]   # search all keys in section
+        for key in keys:
+            match_opt = re.findall('mol_(\d+)_name', key)   # if found, append species number
+            if match_opt is not None and len(match_opt) > 0:
+                species_num.append(match_opt[0])
+        
+        # Get mixture composition
+        mix = {}
+        for i in species_num:
+            formula = 'Mol_'+i+'_Formula'
+            if self.config.has_option('Mixture', formula):  # in case there are fewer
+                species = get_config('Mixture', formula)
+                mol_frac = float(get_config('Mixture', 'Mol_'+i+'_Mol frc'))
+                if mol_frac != 0:  # continue if mole fraction is not zero
+                    mix[species] = mol_frac
+        
+        # Throw errors if P1, T1, tOpt, or PT Spacing are zero
+        if float(get_config('Expt Params', 'P1')) == 0:
+            raise Exception('Exception in Experiment File: P1 is zero')
+        elif float(get_config('Expt Params', 'T1')) == 0:
+            raise Exception('Exception in Experiment File: T1 is zero')
+        elif float(get_config('Expt Params', 'tOpt')) == 0:
+            raise Exception('Exception in Experiment File: tOpt is zero')
+        elif float(get_config('Expt Params', 'PT Spacing')) == 0:
+            raise Exception('Exception in Experiment File: PT Spacing is zero')
+        elif float(get_config('Expt Params', 'SampRate')) == 0:
+            raise Exception('Exception in Experiment File: Sample Rate is zero')
+                          
+        parameters = {'T1': float(get_config('Expt Params', 'T1')),
+                'P1': float(get_config('Expt Params', 'P1')),
+                'u1': float(get_config('Expt Params', 'PT Spacing'))/float(get_config('Expt Params', 'tOpt')),
+                'P4': float(get_config('Expt Params', 'P4')),
+                'exp_mix': deepcopy(mix), 'thermo_mix': deepcopy(mix),
+                'Sample_Rate': float(get_config('Expt Params', 'SampRate'))}
+        
+        # Convert to cantera units
+        # parameters['T1'] += 273.15                      # Celcius to Kelvin
+        # parameters['P1'] *= 101325/760                  # Torr    to Pa
+        # parameters['u1'] *= 1000                        # mm/μs   to m/s
+        # parameters['P4'] *= 4.4482216152605/0.00064516  # Psi     to Pa
+        # parameters['Sample_Rate'] *= 1E-6               # Hz      to MHz ?
+        
+        # Units are assumed to be: T1 [°C], P1 [Torr], u1 [mm/μs], P4 [psi]
+        parameters['T1'] = self.convert_units(parameters['T1'], '°C', '2ct')
+        parameters['P1'] = self.convert_units(parameters['P1'], 'Torr', '2ct')
+        parameters['u1'] = self.convert_units(parameters['u1'], 'mm/μs', '2ct')
+        parameters['P4'] = self.convert_units(parameters['P4'], 'psi', '2ct')
+        parameters['Sample_Rate'] *= 1E-6               # Hz      to MHz ?
+        
+        return parameters
+                
+    def csv(self, file):
+        def is_numeric(strings):
+            for str in strings:        # test for all strings
+                try:
+                    float(str)         # attempt to turn each item into float
+                except ValueError:
+                    return False
+                    
+            return True                 # if all items are floats, strings are numeric
+            
+        if file is None:
+            return None
+            
+        data = []
+        data_nonnumeric = []
+        with open(file, newline='') as f:
+            reader = csv.reader(f)
+            try:
+                for n, row in enumerate(reader):
+                    if is_numeric(row):      # THIS SKIPS ALL NON NUMERIC LINES
+                        data.append(row)
+                    else:
+                        data_nonnumeric.append([n, row[0]])
+            except csv.Error as e:
+                sys.exit('file {}, line {}: {}'.format(file.name, reader.line_num, e))
+        
+        data = np.array(data, float)
+        
+        if np.logical_not(np.isfinite(data)).any():
+            raise Exception('Exception in {:s}: Nonfinite values found in data'.format(file.name))
+        elif np.shape(data)[0] == 0:
+            raise Exception('Exception in {:s}: No data found'.format(file.name))
+
+        return data, data_nonnumeric
+    
+    def exp_data(self, file_path):
+        exp_data, nonnumeric = self.csv(file_path)
+        
+        return exp_data
+    
+    def raw_signal(self, file_path):
+        def is_date(string, fuzzy=False):
+            try: 
+                parse(string, fuzzy=fuzzy)
+                return True
+
+            except ValueError:
+                return False
+            
+        raw_sig, nonnumeric = self.csv(file_path)
+        if nonnumeric:  # if anything is nonnumeric
+            # if first line is a date, assume format is Tranter's new format
+            if is_date(nonnumeric[0][1].replace('-', ' '), fuzzy=True): 
+                raw_sig = raw_sig[2:]
+        
+        return raw_sig
+        
+    def load_data(self, shock_num, main_path):       
+        def try_load(fcn, path):
+            try:
+                return fcn(path)
+            except Exception as e:
+                # self.option_tabs.setCurrentWidget(self.option_tabs.findChild(QWidget, 'log_tab'))
+                log.append('Error in loading Shock {:d}:'.format(shock_num))
+                log.append(e)  
+        
+        log = self.parent.log
+        shock_num = int(shock_num)
+        # Search for exp, rho, and raw signal files. They default to None
+        paths = {'Shock.exp': None, 'Shock.rho': None, 'ShockRaw1.sig': None}
+        for item in main_path.glob('*'):
+            if item.is_file():
+                if 'Shock{:d}.exp'.format(shock_num) in item.name:
+                    paths['Shock.exp'] = item
+                elif 'Shock{:d}.rho'.format(shock_num) in item.name:
+                    paths['Shock.rho'] = item
+                elif 'Shock{:d}raw1.sig'.format(shock_num) in item.name:
+                    paths['ShockRaw1.sig'] = item
+                elif all(x in item.name for x in ['LS', 'L-R']):
+                    paths['ShockRaw1.sig'] = item
+        
+        # Produce error messages for missing files
+        data = {}
+        load_fcn = {'Shock.exp': self.parameters, 'Shock.rho': self.exp_data, 
+                     'ShockRaw1.sig': self.raw_signal}
+        for file, path in paths.items():
+            if path is None:
+                log.append('Error in loading Shock {:d}:'.format(shock_num))
+                log.append(file + ' is missing')
+                data[file] = None
+            else:
+                data[file] = try_load(load_fcn[file], path)
+                if file == 'Shock.rho' and data[file] is not None:
+                    data[file][:,0] *= 1E-6
+            
+            if data[file] is None:
+                if file == 'Shock.exp':
+                    data[file] = {}
+                else:
+                    data[file] = np.array([])
+        
+        return data.values()
+
+        
+class series:
+    def __init__(self, parent):
+        self.parent = parent
+        self.exp = experiment(parent)
+        
+        self.idx = 0        # series index number
+        self.shock_idx = 0  # shock index number
+        
+        self.path = []
+        self.name = []
+        self.shock_num = []
+        self.shock = []
+        self.species_alias = []
+        self.in_table = [False]
+        
+        self.initialize_shock()
+        self.parent.display_shock = self.shock[self.idx][self.shock_idx]
+    
+    def initialize_shock(self):
+        parent = self.parent
+        
+        self.path.append([])
+        self.name.append([])
+        self.shock_num.append([])
+        self.species_alias.append({})
+        self.in_table.append(False)
+        
+        self.update_current()
+        
+        shock = []
+        shock.append(self._create_shock(1, []))
+        
+        # Shock Parameters: In case no experimental series is loaded
+        for var in ['T1', 'P1', 'u1']:
+            units = eval('str(parent.' + var + '_units_box.currentText())')
+            value = float(eval('str(parent.' + var + '_value_box.value())'))
+            shock[-1][var] = parent.convert_units(value, units, unit_dir = 'in')
+ 
+        self.shock.append(shock)
+    
+    def _create_shock(self, num, shock_path):
+        parent = self.parent
+        shock = {'num': num, 'path': deepcopy(shock_path), 'include': True, 
+                'series_name': self.name[-1], 'run_SIM': True,      # TODO: make run_SIM a trigger to calculate or not
+                    
+                # Shock Parameters
+                'T1': np.nan, 'P1': np.nan, 'u1': np.nan,
+                'rho1': np.nan, 'P4': np.nan,
+                'exp_mix': {}, 'thermo_mix': {}, 'zone': 2,
+                'T2': np.nan, 'P2': np.nan, 'u2': np.nan,
+                'T5': np.nan, 'P5': np.nan,
+                'T_reactor': np.nan, 'P_reactor': np.nan,
+                'time_offset': parent.time_offset_box.value(),
+                'Sample_Rate': np.nan,
+                
+                # Weight parameters
+                'weight_max': [np.nan],
+                'weight_k': [np.nan, np.nan],
+                'weight_shift': [np.nan, np.nan],
+                'weight_min': [np.nan, np.nan],
+                
+                # Mechanism parameters
+                'species_alias': self.species_alias[-1],
+                'rate_val': [],
+                'rate_reset_val': [],
+                'rate_bnds_type': [],
+                'rate_bnds_val': [],
+                'rate_bnds': [],
+                
+                # Data
+                'observable': {'main': '', 'sub': None},
+                'raw_data': np.array([]),
+                'exp_data': np.array([]),
+                'weights': np.array([]),
+                'normalized_weights': np.array([]),
+                'SIM': np.array([]),
+                
+                # Load error
+                'err': []}
+        
+        return shock
+    
+    def add_series(self):              # need to think about what to do when mech changes, anything?
+        parent = self.parent           # how do I know when I'm looking at a new compound? base on mech change?
+        
+        if parent.path['exp_main'] in self.path:    # check if series already exists before adding
+            self.change_shock()
+            return
+        
+        parent.path['shock'] = parent.path_set.shock_paths(prefix='Shock', ext='exp')
+        if len(parent.path['shock']) == 0:  # if there are no shocks in listed directory
+            parent.directory.update_icons(invalid = 'exp_main')
+            return
+        
+        if self.in_table and not self.in_table[-1]: # if list exists and last item not in table, clear it
+            self.clear_series(-1)
+        
+        self.path.append(deepcopy(parent.path['exp_main']))
+        self.name.append(parent.exp_series_name_box.text())
+        self.shock_num.append(list(parent.path['shock'][:,0].astype(int)))
+        self.species_alias.append({})
+        self.in_table.append(False)
+        
+        shock = []
+        for (shock_num, shock_path) in parent.path['shock']:
+            shock.append(self._create_shock(shock_num, shock_path))
+        
+        self.shock.append(shock)
+        self.change_shock()
+    
+    def change_series(self):
+        self.change_shock()
+    
+    def added_to_table(self, n):    # update if in table
+        self.in_table[n] = True
+    
+    def clear_series(self, n):
+        del self.path[n], self.name[n], self.shock_num[n], self.species_alias[n]
+        del self.shock[n], self.in_table[n]
+    
+    def clear_shocks(self):
+        if self.parent.load_full_series: return
+        
+        self.update_idx()   # in case series are changed and load full set not selected
+        for shock in self.shock[self.idx]:
+            shock['exp_data'] = np.array([])
+            shock['weights'] = np.array([])
+            shock['raw_data'] = np.array([])
+            shock['SIM'] = np.array([])
+    
+    def update_current(self):
+        # update series.current
+        self.current = {'path': self.path[self.idx], 'name': self.name[self.idx], 
+                        'shock_num': self.shock_num[self.idx], 'species_alias': self.species_alias[self.idx]}
+    
+    def update_idx(self):
+        parent = self.parent
+        
+        self.idx = self.path.index(parent.path['exp_main'])
+        self.shock_idx = parent.path_set.shock(self.shock_num[self.idx])   # correct shock num to valid
+        self.update_current()
+        
+
+    def weights(self, time, shock=[], calcIntegral=True):
+        def sig(x):     # Numerically stable sigmoid function
+            # return np.where(x >= 0, 1/(1 + np.exp(-x)),   # should work, doesn't
+                                    # np.exp(x)/(1 + np.exp(x)))
+            eval = np.empty_like(x)
+            pos_val_f = np.exp(-x[x >= 0])
+            eval[x >= 0] = 1/(1 + pos_val_f)
+            neg_val_f = np.exp(x[x < 0])
+            eval[x < 0] = neg_val_f/(1 + neg_val_f)
+            return eval
+        
+        def b_eval(x, k, x0):
+            if k == 0:             # assign values if k = 0 aka infinite growth rate
+                b = np.ones_like(x)*np.inf
+                if isinstance(x,(list,np.ndarray)):
+                    b[x < x0] *= -1
+                elif x <= x0:
+                    b *= -1             
+            else:
+                b = 1.5/k*(x - x0)
+            
+            return b
+                    
+        if not shock:
+            shock = self.shock[self.idx][self.shock_idx]    # sets parameters based on selected shock
+            
+        if len(shock['exp_data']) == 0: return np.array([])
+        
+        parameters = [shock[key] for key in ['weight_max', 'weight_min', 'weight_shift', 'weight_k']]
+        if np.isnan(np.hstack(parameters)).any():  # if weight parameters aren't set, default to gui
+            self.parent.weight.update()
+            
+        shift     = np.array(shock['weight_shift'])*self.parent.var['reactor']['t_unit_conv']
+        k         = np.array(shock['weight_k'])*self.parent.var['reactor']['t_unit_conv']
+        w_min     = np.array(shock['weight_min'])/100
+        w_max     = shock['weight_max'][0]/100
+        
+        # weights are based a general logistic function scaled 0-1
+        t0 = shock['exp_data'][0,0]
+        x0 = t0 + shift
+        b = [[],[]]
+        for i in range(0,2):
+            b[i] = b_eval(time, k[i], x0[i])
+        
+        if not np.isfinite(b).any():                                # if all infinity, don't use mean
+            a = (w_min[1] - w_min[0])*sig(b[0]) + w_min[0]          # a is the changing minimum
+        else:
+            a = (w_min[1] - w_min[0])*sig(np.mean(b,0)) + w_min[0]  # a is the changing minimum
+        
+        weights = (w_max - a)*sig(b[0])*sig(-b[1]) + a
+
+        if calcIntegral:    # using trapazoidal method for efficiency, no simple analytical integral
+            integral = integrate.cumtrapz(weights, time)[-1] # based on weights at data points
+
+            if integral == 0.0:
+                shock['normalized_weights'] = np.zeros_like(weights)
+            else:
+                # normalize by the integral and then by the t_unit_conv
+                # TODO: normalizing by the t_unit_conv could cause a problem if the scale changes?
+                weights_norm = weights.copy()/(integral/self.parent.var['reactor']['t_unit_conv'])
+                shock['normalized_weights'] = weights_norm
+        
+        return weights
+    
+    def _integrate_weights(self, shock):    # Defunct, but it works!
+        weights = lambda time: self.weights(time, shock=shock, calcIntegral=False)
+        t0 = shock['exp_data'][ 0, 0]
+        tf = shock['exp_data'][-1, 0]
+        integral, err = integrate.quad(weights, t0, tf)   # integrate from t0 to tf using gaussian quad
+        # integral = integrate.romberg(weights, t0, tf, divmax=15)
+        
+        return integral
+    
+    def set(self, key, val=[]):
+        parent = self.parent
+        if key == 'exp_data':
+            if parent.load_full_series:
+                shocks = self.shock[self.idx]
+            else:
+                self.clear_shocks()
+                shocks = [self.shock[self.idx][self.shock_idx]]
+            
+            for shock in shocks:
+                parameters, exp_data, raw_signal = self.exp.load_data(shock['num'], shock['path'])
+                shock.update(parameters)
+                shock['exp_data'] = exp_data
+                shock['raw_data'] = raw_signal
+                
+                for key in ['exp_data', 'raw_data']:
+                    if shock[key].size == 0:
+                        shock['err'].append(key)
+        
+        elif key == 'series_name':          # being called many times when weights changing, don't know why yet
+            self.name[self.idx] = val
+            for shock in self.shock[self.idx]:
+                shock[key] = self.name[self.idx]
+        
+        elif key == 'observable':
+            for shock in self.shock[self.idx]:
+                shock[key]['main'] = val[0]
+                shock[key]['sub'] = val[1]
+        
+        elif key == 'time_offset':
+            for shock in self.shock[self.idx]:
+                shock[key] = val
+                
+        elif key == 'zone':
+            for shock in self.shock[self.idx]:
+                shock[key] = val
+                shock['T_reactor'] = shock['T{:d}'.format(val)]
+                shock['P_reactor'] = shock['P{:d}'.format(val)]
+    
+    def thermo_mix(self, shock=[]):
+        parent = self.parent
+        alias = self.current['species_alias']
+        
+        if len(shock) == 0: # if no shock given, assume shock is display_shock
+            exp_mix = parent.display_shock['exp_mix']
+            parent.display_shock['thermo_mix'] = mix = deepcopy(parent.display_shock['exp_mix'])
+        else:
+            exp_mix = shock['exp_mix']
+            shock['thermo_mix'] = mix = deepcopy(shock['exp_mix'])
+        
+        for species in exp_mix:
+            if species in alias:
+                mix[alias[species]] = mix.pop(species)
+            # don't run if a species isn't in the mech or mech doesn't exist
+            # elif not hasattr(parent.mech.gas, 'species_names'): return
+            # elif species not in parent.mech.gas.species_names: return  
+    
+    def rates(self, shock, rxnIdx=[]): # This resets and updates all rates in shock
+        if not self.parent.mech.isLoaded: return
+        mech = self.parent.mech
+        
+        mech_out = mech.set_TPX(shock['T_reactor'], shock['P_reactor'], shock['thermo_mix'])
+        if not mech_out['success']:
+            self.parent.log.append(mech_out['message'])
+            return
+        
+        if not rxnIdx:
+            rxnIdxRange = range(mech.gas.n_reactions)
+        elif not isinstance(rxns, list):    # does not function right now
+            rxnIdxRange = [rxnIdx]
+        else:
+            rxnIdxRange = rxnIdx
+        
+        shock['rate_val'] = []
+        for rxnIdx in rxnIdxRange: # TODO: an improvement would be to update given rxns
+            shock['rate_val'].append(mech.gas.forward_rate_constants[rxnIdx])
+        
+        # print(shock['rate_val'])
+        
+        return shock['rate_val']
+    
+    def rate_bnds(self, shock):
+        if not self.parent.mech.isLoaded: return
+        mech = self.parent.mech
+        
+        mech.set_TPX(shock['T_reactor'], shock['P_reactor'], shock['thermo_mix'])
+            
+        # reset mech back to reset values
+        coefVals = []
+        for rxnIdx in range(mech.gas.n_reactions):
+            coefVal = {}
+            for coefName in mech.coeffs[rxnIdx].keys():
+                coefVal[coefName] = deepcopy(mech.coeffs[rxnIdx][coefName])
+                resetVal = mech.coeffs_bnds[rxnIdx][coefName]['resetVal']
+                mech.coeffs[rxnIdx][coefName] = resetVal 
+            
+            coefVals.append(coefVal)
+            
+        mech.modify_reactions(mech.coeffs)
+        
+        # Get reset rates and rate bounds
+        shock['rate_reset_val'] = []
+        shock['rate_bnds'] = []
+        for rxnIdx in range(mech.gas.n_reactions):
+            if 'Arrhenius' in self.parent.mech_tree.rxn[rxnIdx]['rxnType']:
+                resetVal = mech.gas.forward_rate_constants[rxnIdx]
+                shock['rate_reset_val'].append(resetVal)
+                rate_bnds = self.parent.mech_tree.rxn[rxnIdx]['uncBox'][0].uncFcn(resetVal)
+                shock['rate_bnds'].append(rate_bnds)
+                
+                # reset coeffs to prior values
+                for coefName in mech.coeffs[rxnIdx].keys():
+                    mech.coeffs[rxnIdx][coefName] = coefVals[rxnIdx][coefName]
+            
+            else:   # skip if not Arrhenius type
+                shock['rate_reset_val'].append(np.nan)
+                shock['rate_bnds'].append([np.nan, np.nan])
+        
+        mech.modify_reactions(mech.coeffs)
+    
+    def set_coef_reset(self, rxnIdx, coefName):
+        mech = self.parent.mech
+        reset_val = self.parent.mech.coeffs[rxnIdx][coefName]
+        mech.coeffs_bnds[rxnIdx][coefName]['resetVal'] = reset_val  
+    
+    def load_full_series(self):
+        self.set('exp_data')
+        self.parent.series_viewer.update()
+
+    def change_shock(self):
+        parent = self.parent
+        parent.user_settings.save(parent.path['default_settings.ini'], save_all = False)
+        
+        self.update_idx()
+        # if current exp path doesn't match the current loaded path
+        if parent.path['exp_main'] != self.path[self.idx]:
+            parent.exp_main_box.setText(self.path[self.idx])
+            self.update_idx()
+        
+        # Assign shock to main's display_shock
+        shock = self.shock[self.idx][self.shock_idx]
+        parent.display_shock = shock
+        
+        # load data and set if not already loaded
+        if 'exp_data' not in shock['err']:
+            if shock['exp_data'].size == 0:
+                self.set('exp_data')
+        
+        if np.isnan(shock['T_reactor']):
+            self.set('zone', shock['zone'])
+        
+        # if weights not set, set them otherwise load
+        parameters = [shock[key] for key in ['weight_max', 'weight_min', 'weight_shift', 
+                      'weight_k']]
+        if np.isnan(np.hstack(parameters)).any():  # if weight parameters aren't set, create from gui
+            parent.weight.update()
+        else:                           # set weights if they're set upon reloading shock
+            parent.weight.set_boxes()
+        
+        # Set rate bnds if unassigned
+        if not shock['rate_bnds']:
+            shock['rate_bnds'] = deepcopy(parent.display_shock['rate_bnds'])
+        
+        # Set observable if unassigned
+        if shock['observable'] == {'main': '', 'sub': None}:
+            parent.plot.observable_widget.update_observable()
+        else:
+            parent.plot.observable_widget.set_observable(shock['observable'])
+        
+        # Update exp parameters (this assumes units are K, Pa, m/s)
+        for var_type in ['T1', 'P1', 'u1']:
+            parent.shock_widgets.set_shock_value_box(var_type)
+
+        # Update mix
+        parent.plot.signal.clear_sim()
+        parent.mix.update_species()   # post-shock conditions called within, which runs SIM
+        
+        # Update rate bnds
+        # self.rates(shock)
+        self.rate_bnds(shock)
+        
+        # Update set (if exp path matches)
+        parent.series_viewer.update()
+        
+        # Update signal and raw_signal plots
+        if parent.display_shock['exp_data'].size > 0:
+            parent.plot.signal.update(update_lim=True)     
+            parent.plot.signal.set_background()           # Reset background
+        else:
+            parent.plot.signal.clear_plot() 
+
+        if parent.display_shock['raw_data'].size > 0:
+            parent.plot.raw_sig.update(update_lim=True)
+            parent.plot.raw_sig.canvas.draw()
+        else:
+            parent.plot.raw_sig.clear_plot()
