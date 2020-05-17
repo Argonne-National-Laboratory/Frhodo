@@ -259,9 +259,10 @@ class Error_Window(QDialog):
         self.path = path
         uic.loadUi(str(self.path['main']/'UI'/'error_window.ui'), self)
         self.setWindowIcon(QtGui.QIcon(str(self.path['main']/'UI'/'graphics'/'main_icon.png')))
-        self.setWindowTitle('Critical Error')
-        
-        self.close_button.clicked.connect(lambda: QApplication.quit())
+        self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.CustomizeWindowHint | QtCore.Qt.WindowTitleHint |
+                            QtCore.Qt.WindowCloseButtonHint | QtCore.Qt.WindowStaysOnTopHint)
+
+        self.close_button.clicked.connect(self.closeEvent) 
         self.installEventFilter(self)
         
         self.exec_()
@@ -274,6 +275,9 @@ class Error_Window(QDialog):
                 return True
                     
         return super().eventFilter(obj, event)
+    
+    def closeEvent(self, event):
+        QApplication.quit() # some errors can be recovered from, maybe I shouldn't autoclose the program
 
 def excepthook(type, value, tback):
     # log the exception
@@ -297,8 +301,7 @@ def excepthook(type, value, tback):
     # call the default handler
     sys.__excepthook__(type, value, tback)
     
-    Error_Window(path)
-    QApplication.quit()     # some errors can be recovered from, maybe I shouldn't autoclose the program
+    Error_Window(path)    
 
 sys.excepthook = excepthook
             
