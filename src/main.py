@@ -5,10 +5,11 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level 
 # directory for license and copyright information.
 
-import os, sys, platform, multiprocessing
+import os, sys, platform, multiprocessing, pathlib, logging, traceback
+from logging.handlers import RotatingFileHandler
 # os.environ['QT_API'] = 'pyside2'        # forces pyside2
 
-from qtpy.QtWidgets import QMainWindow, QApplication, QWidget, QProgressBar, QLabel, QShortcut
+from qtpy.QtWidgets import QMainWindow, QApplication, QWidget, QDialog
 from qtpy import uic, QtCore, QtGui
 
 import numpy as np
@@ -249,11 +250,63 @@ class Main(QMainWindow):
                 self.sim_explorer.update_plot(None)
             return # If mech error exit function
 
+    # def raise_error(self):
+        # assert False
+
+class Error_Window(QDialog):
+    def __init__(self, path):
+        super().__init__()
+        self.path = path
+        uic.loadUi(str(self.path['main']/'UI'/'error_window.ui'), self)
+        self.setWindowIcon(QtGui.QIcon(str(self.path['main']/'UI'/'graphics'/'main_icon.png')))
+        self.setWindowTitle('Critical Error')
+        
+        self.close_button.clicked.connect(lambda: QApplication.quit())
+        self.installEventFilter(self)
+        
+        self.exec_()
+        
+    def eventFilter(self, obj, event):
+        # intercept enter, space and escape
+        if event.type() == QtCore.QEvent.KeyPress:
+            if event.key() in [QtCore.Qt.Key_Escape, QtCore.Qt.Key_Return, QtCore.Qt.Key_Space]:
+                self.close_button.click()
+                return True
+                    
+        return super().eventFilter(obj, event)
+
+def excepthook(type, value, tback):
+    # log the exception
+    path = {'main': pathlib.Path(sys.argv[0]).parents[0].resolve()}
+    path['log'] = path['main']/'error.log'
+    
+    log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    
+    log_handler = RotatingFileHandler(path['log'], mode='a', maxBytes=1*1024*1024, # maximum of 1 MB
+                                     backupCount=1, encoding=None, delay=0)        # maximum of 2 error files
+    log_handler.setFormatter(log_formatter)
+    log_handler.setLevel(logging.DEBUG)
+
+    app_log = logging.getLogger('root')
+    app_log.setLevel(logging.DEBUG)
+    app_log.addHandler(log_handler)
+    
+    text = "".join(traceback.format_exception(type, value, tback))   
+    app_log.error(text)
+
+    # call the default handler
+    sys.__excepthook__(type, value, tback)
+    
+    Error_Window(path)
+    QApplication.quit()     # some errors can be recovered from, maybe I shouldn't autoclose the program
+
+sys.excepthook = excepthook
             
 if __name__ == '__main__':
     if platform.system() == 'Windows':  # this is required for pyinstaller on windows
         multiprocessing.freeze_support()
-    
+
     app = QApplication(sys.argv)
     main = Main()
     sys.exit(app.exec_())
+   

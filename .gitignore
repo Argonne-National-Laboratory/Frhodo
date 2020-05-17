@@ -124,3 +124,5 @@ venv.bak/
 Documentation/
 Development/
 *.7z
+*.ini
+*.log
