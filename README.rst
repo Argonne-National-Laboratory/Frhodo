@@ -30,7 +30,9 @@ Features include:
 Installation and Documentation
 ============
 
-Installation instructions and documentation can be found in the provided `Manual <https://github.com/Argonne-National-Laboratory/Frhodo/blob/master/Doc/Manual.pdf>`_. 
+The newest release can be found `here <https://github.com/Argonne-National-Laboratory/Frhodo/releases>`_. Windows x64 systems can use the installer in the link.
+
+Further installation instructions and documentation can be found in the provided `Manual <https://github.com/Argonne-National-Laboratory/Frhodo/blob/master/Doc/Manual.pdf>`_. 
 
 Frhodo uses an Anaconda
 environment and has been tested on Windows, macOS, and Linux.
