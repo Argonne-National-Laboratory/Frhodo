@@ -22,7 +22,7 @@ if hasattr(QtCore.Qt, 'AA_UseHighDpiPixmaps'):
 class Save_Dialog(QDialog, QApplication):
     def __init__(self, parent):
         super().__init__()
-        uic.loadUi(parent.path['main']/'UI'/'save_dialog.ui', self)
+        uic.loadUi(str(parent.path['main']/'UI'/'save_dialog.ui'), self)
         self.parent = parent
         
         self.var = {'comment': '', 'output_time': np.array([]), 'integrator_time': False, 

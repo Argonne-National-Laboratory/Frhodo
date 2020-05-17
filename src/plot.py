@@ -9,7 +9,7 @@ from copy import deepcopy
 import re, colors
 
 import matplotlib as mpl
-mpl.use("module://mplcairo.qt") # This implements mplcairo, faster/more accurate. Issues with other OSes?
+# mpl.use("module://mplcairo.qt") # This implements mplcairo, faster/more accurate. Issues with other OSes?
 
 from matplotlib import scale as mplscale, figure as mplfigure
 from matplotlib.backend_bases import key_press_handler

@@ -17,7 +17,7 @@ Features include:
   * 0D closed, homogeneous, constant-volume reactor
   * 0D closed, homogeneous, constant-pressure reactor
   * Custom incident shock reactor for reactions behind incident shock waves
-* Importing Cantera-valid mechanisms (YAML input format is currently not supported)
+* Importing Cantera-valid mechanisms (CTML/XML input format is currently not supported)
 * Reading an experimental directory to quickly switch between experimental conditions and measured data
 * Displaying simulated observable over experimental data
 * Altering mechanisms within memory and update simulation automatically
@@ -38,6 +38,6 @@ environment and has been tested on Windows, macOS, and Linux.
 .. |Frhodo| image:: https://github.com/Argonne-National-Laboratory/Frhodo/blob/master/Doc/Logo.png
     :target: https://github.com/Argonne-National-Laboratory/Frhodo/
     :alt: Frhodo logo
-    :width: 100
+    :width: 325
     :align: middle
 

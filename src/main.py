@@ -5,11 +5,11 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level 
 # directory for license and copyright information.
 
-import os, sys
+import os, sys, platform, multiprocessing
 # os.environ['QT_API'] = 'pyside2'        # forces pyside2
 
 from qtpy.QtWidgets import QMainWindow, QApplication, QWidget, QProgressBar, QLabel, QShortcut
-from qtpy import uic, QtCore
+from qtpy import uic, QtCore, QtGui
 
 import numpy as np
 # from timeit import default_timer as timer
@@ -30,8 +30,9 @@ class Main(QMainWindow):
     def __init__(self):
         super().__init__()
         self.path_set = settings.path(self)
-        uic.loadUi(self.path['main']/'UI'/'main_window.ui', self)
+        uic.loadUi(str(self.path['main']/'UI'/'main_window.ui'), self)
         self.splitter.moveSplitter(0, 1)    # moves splitter 0 as close to 1 as possible
+        self.setWindowIcon(QtGui.QIcon(str(self.path['main']/'UI'/'graphics'/'main_icon.png')))
         
         # Start threadpools
         self.threadpool = QtCore.QThreadPool()
@@ -250,6 +251,9 @@ class Main(QMainWindow):
 
             
 if __name__ == '__main__':
+    if platform.system() == 'Windows':  # this is required for pyinstaller on windows
+        multiprocessing.freeze_support()
+    
     app = QApplication(sys.argv)
     main = Main()
     sys.exit(app.exec_())

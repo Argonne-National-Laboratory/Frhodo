@@ -80,8 +80,9 @@ class path:
                 thermo_files.append(name)
             if ext == '.tran':      # currently unused, but store transport files anyways
                 trans_files.append(name)
-            elif ext in ['.mech', '.cti', '.ck']:
-                if 'generated_mech.cti' == name: continue
+            elif ext in ['.yaml', '.yml', '.cti','.ck', '.mech']: #  '.ctml', '.xml', # TODO: enable ctml and xml format
+                if 'generated_mech.yaml' == name: continue
+                elif 'generated_mech.yml' == name: continue
                 unsorted_mech_files.append(name)
         
         # Sort Mechs
@@ -128,8 +129,7 @@ class path:
                 obj.setCurrentIndex(idx)
                 
         # Specify cantera files
-        parent.path['Cantera_Mech'] = parent.path['mech_main'] / 'generated_mech.cti'
-        parent.path['Cantera_Mech_ctml'] = parent.path['mech_main'] / 'generated_mech.ctml'
+        parent.path['Cantera_Mech'] = parent.path['mech_main'] / 'generated_mech.yaml'
      
     def shock_paths(self, prefix, ext, max_depth=2):
         parent = self.parent
@@ -258,7 +258,7 @@ class path:
                         if len(re.findall('Sim \d+ - ', entry.name)) > 0:    # if files starts with Sim ####
                             shutil.move(entry, sim_1_dir / entry.name)
         
-        for file in ['Mech.cti', 'Mech.ck', 'Plot.png', 'Legend.txt']:
+        for file in ['Mech.yaml', 'Mech.ck', 'Plot.png', 'Legend.txt']:
             parent.path[file] = parent.path['sim_dir'] / 'Sim {:d} - {:s}'.format(self.sim_num, file)
     
     def sim_output(self, var_name):  # takes variable name and creates path for it
@@ -364,21 +364,19 @@ class experiment:
         self.config = configparser.RawConfigParser()
         self.config.read(file_path)
         
-        # find all species numbers
-        species_num = []
-        keys = [item[0] for item in self.config.items('Mixture')]   # search all keys in section
-        for key in keys:
-            match_opt = re.findall('mol_(\d+)_name', key)   # if found, append species number
-            if match_opt is not None and len(match_opt) > 0:
-                species_num.append(match_opt[0])
-        
         # Get mixture composition
         mix = {}
-        for i in species_num:
-            formula = 'Mol_'+i+'_Formula'
-            if self.config.has_option('Mixture', formula):  # in case there are fewer
-                species = get_config('Mixture', formula)
-                mol_frac = float(get_config('Mixture', 'Mol_'+i+'_Mol frc'))
+        for key in [item[0] for item in self.config.items('Mixture')]:    # search all keys in section
+            match_opt = re.findall('mol_(\d+)_formula', key) 
+            if match_opt is not None and len(match_opt) > 0:    # if found, append species
+                species_num = match_opt[0]
+                
+                # check that mol_frac exists
+                if not self.config.has_option('Mixture', 'Mol_' + species_num + '_Mol frc'): 
+                    continue
+                
+                species = get_config('Mixture', 'Mol_' + species_num + '_Formula')
+                mol_frac = float(get_config('Mixture', 'Mol_' + species_num + '_Mol frc'))
                 if mol_frac != 0:  # continue if mole fraction is not zero
                     mix[species] = mol_frac
         

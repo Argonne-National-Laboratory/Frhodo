@@ -4,7 +4,7 @@
 
 import os, io, contextlib
 import cantera as ct
-from cantera import ctml_writer, ck2cti
+from cantera import interrupts, ck2yaml, cti2yaml#, ctml2yaml
 import numpy as np
 # import scipy.integrate
 # import scipy.optimize
@@ -133,18 +133,23 @@ class Chemical_Mechanism:
 
     def load_mechanism(self, path, silent=False):
         def loader(self, path):
+            # path is assumed to be the path dictionary
             surfaces = []
-            if isinstance(path, str):       # if str, then assume being given cti or ctml file
-                mech_path = path
-            elif isinstance(path, dict):
-                if path['mech'].suffix in ['.cti', '.ctml']:    # check if it's a cantera file
-                    mech_path = str(path['mech'])
-                else:                                         # if not a cantera file, assume chemkin
+            if path['mech'].suffix in ['.yaml', '.yml']:    # check if it's a yaml cantera file
+                mech_path = str(path['mech'])
+            else:                                 # if not convert into yaml cantera file
+                mech_path = str(path['Cantera_Mech'])
+                
+                if path['mech'].suffix == '.cti':
+                    cti2yaml.convert(path['mech'], path['Cantera_Mech'])
+                elif path['mech'].suffix in ['.ctml', '.xml']:
+                    raise Exception('not implemented')
+                    #ctml2yaml.convert(path['mech'], path['Cantera_Mech'])
+                else:                             # if not a cantera file, assume chemkin
                     surfaces = self.chemkin2cantera(path)
-                    mech_path = str(path['Cantera_Mech'])
-                       
+                          
+            print('Validating mechanism...', end='')    
             try:                                            # This test taken from ck2cti
-                print('Validating mechanism...', end='')
                 self.gas = ct.Solution(mech_path)
                 for surfname in surfaces:
                     phase = ct.Interface(outName, surfname, [self.gas])
@@ -154,7 +159,6 @@ class Chemical_Mechanism:
                 print(e)
    
         output = {'success': False, 'message': []}
-        
         # Intialize and report any problems to log, not to console window
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -190,19 +194,16 @@ class Chemical_Mechanism:
         
         return output
     
-    def chemkin2cantera(self, path, CTML=False):
+    def chemkin2cantera(self, path):
         if path['thermo'] is not None:
-            surfaces = ck2cti.convertMech(path['mech'], thermoFile=path['thermo'], transportFile=None, surfaceFile=None,
-                phaseName='gas', outName=path['Cantera_Mech'], quiet=False, permissive=True)
+            surfaces = ck2yaml.convert_mech(path['mech'], thermo_file=path['thermo'], transport_file=None, surface_file=None,
+                phase_name='gas', out_name=path['Cantera_Mech'], quiet=False, permissive=True)
         else:
-            surfaces = ck2cti.convertMech(path['mech'], thermoFile=None, transportFile=None, surfaceFile=None,
-                phaseName='gas', outName=path['Cantera_Mech'], quiet=False, permissive=True)
-        
-        if CTML: # If CTML is true then generate ctml file
-            ctml_writer.convert(filename=str(path['Cantera_Mech']), outName=str(path['Cantera_Mech_ctml']))
+            surfaces = ck2yaml.convert_mech(path['mech'], thermo_file=None, transport_file=None, surface_file=None,
+                phase_name='gas', out_name=path['Cantera_Mech'], quiet=False, permissive=True)
             
         return surfaces
-            
+      
     def gas(self): return self.gas       
     
     def set_rate_expression_coeffs(self):
