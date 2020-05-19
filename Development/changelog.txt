@@ -1,0 +1,53 @@
+# Changelog
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## [Unreleased]
+### Added
+- New file "option_panel_widgets" to hold primary functions of options panel
+- Widget initialization function in option_panel_widgets
+- Option to load full sets of data
+- Added set loading and solves for post shock conditions
+- Added include checkbox and linked it to a variable in experiment.data
+- Moving through shocks in set tree is now possible with selecting a full row and
+    using up/down arrow
+- Implemented copy function in set tree with CTRL+C and right click
+- Right click in set tree has an option to include shock number in copy
+- joblib: conda install -c anaconda joblib
+
+### Changed
+- Seperated tab selection in tables from mech_widget
+- Reorganized functions to make sense with the new "option_panel_widgets"
+- Moved most initialization to option_panel_widgets
+- Mechanism loading now catches INFO:Root: and other stderr outputs
+- Updated Raw Signal Plot estimate indices function's statistics to be based on prior
+    success rather than initial guess
+- Altered load sequence and moved the functions into "readexp"
+- Changed raw signal loading to search for a date in line 1 and if found delete
+    first 2 numeric values, which are t0 and dt
+- Fixed redundant calculations of SIM upon loading an exp
+- Altered loading method to accomodate new loading method
+- Moved shock setting functions to their own class, this should make expanding this
+    to sets easier
+
+### Removed
+- Moved legacy optimization initialization to mechoptimize, currently nonfunctioning
+- Moved progress bar to misc_widget
+
+
+## [1.7] - 2019-05-07
+### Added
+- Started using a changelog
+
+### Changed
+- Integration scheme altered to output data from failed simulations
+    - Modified scipy 1.2.1 solve_ivp for this purpose
+    - If scipy improves solve_ivp, this will need to be updated
+- Blinking log on failed simulation now stops blinking upon simulation success
+- Mechanism loading has been updated to catch additional errors, 
+    particularly when creating a cantera mech from a chemkin mech
+
+
+### Removed
+- 

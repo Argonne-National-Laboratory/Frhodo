@@ -3,60 +3,33 @@
 # directory for license and copyright information.
 
 import numpy as np
-import sys, pathlib, shutil, configparser, re, csv
+import os, sys, platform, pathlib, shutil, configparser, re, csv
 from copy import deepcopy
 from dateutil.parser import parse
 from scipy import integrate      # used to integrate weights numerically
-
-class user_settings:
-    def __init__(self, parent):
-        self.parent = parent    # Need to find a better solution than passing parent
-        self.config = configparser.RawConfigParser()
-    
-    def load(self, file_path):
-        parent = self.parent
-        self.config.read(file_path)
-        
-        parent.path['path_file'] = pathlib.Path(self.config['Directory File']['file'])
-        parent.path_file_box.setPlainText(str(parent.path['path_file']))
-        
-        parent.shock_choice_box.setValue(1)
-        # parent.time_offset_box.setValue(float(self.config['Experiment Settings']['time_offset']))
-        # parent.time_unc_box.setValue(float(self.config['Experiment Settings']['time_unc']))
-        # parent.start_ind_box.setValue(float(self.config['Experiment Settings']['start_ind']))
-        # parent.weight_k_box.setValue(float(self.config['Experiment Settings']['weight_k']))
-        # parent.weight_shift_box.setValue(float(self.config['Experiment Settings']['weight_shift']))
-        # parent.weight_min_box.setValue(float(self.config['Experiment Settings']['weight_min'])*100)
-    
-    def save(self, file_path, save_all):
-        parent = self.parent
-        if save_all:
-            self.config['Directory File'] = {'file': str(parent.path['path_file'])}
+from qtpy import QtCore
             
-            # self.config['Experiment Settings'] = {'start_ind':       parent.var['start ind'],
-                                                  # 'time_offset':     parent.var['time_offset'],
-                                                  # 'time_unc':        parent.var['time_unc'],
-                                                  # 'weight_k':        parent.var['weight_k'],
-                                                  # 'weight_shift':    parent.var['weight_shift'],
-                                                  # 'weight_min':      parent.var['weight_min']}
-                    
-        else:
-            self.config.set('Directory File', 'file', str(parent.path['path_file']))
-                                                    
-        with open(file_path, 'w') as configfile:
-            self.config.write(configfile)
-
-            
-class path:
-    def __init__(self, parent):
+class Path:
+    def __init__(self, parent, path):
         self.parent = parent
         self.loading_dir_file = False
         
-        parent.path = {'main': pathlib.Path(sys.argv[0]).parents[0].resolve()}
-        parent.path['default_settings.ini'] = parent.path['main']/'default_settings.ini'
+        parent.path = path
         parent.path['graphics'] = parent.path['main']/'UI'/'graphics'
         self.config = configparser.RawConfigParser()
-    
+        
+        # Specify yaml files
+        parent.path['default_config'] = parent.path['appdata']/'default_config.yaml'
+        parent.path['Cantera_Mech'] = parent.path['appdata']/'generated_mech.yaml'
+        for key in ['default_config', 'Cantera_Mech']:
+            if parent.path[key].exists(): # Check that file is readable and writable
+                if not os.access(parent.path[key], os.R_OK) or not os.access(parent.path[key], os.W_OK):
+                    os.chmod(parent.path[key], stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP) # try to change if not
+
+        # Create file watcher 
+        self.fs_watcher = QtCore.QFileSystemWatcher()
+        self.fs_watcher.directoryChanged.connect(self.mech)
+
     def mech(self):
         parent = self.parent
         
@@ -127,9 +100,6 @@ class path:
             obj.blockSignals(False)
             if idx >= 0:
                 obj.setCurrentIndex(idx)
-                
-        # Specify cantera files
-        parent.path['Cantera_Mech'] = parent.path['mech_main'] / 'generated_mech.yaml'
      
     def shock_paths(self, prefix, ext, max_depth=2):
         parent = self.parent
@@ -209,9 +179,10 @@ class path:
         
         # Update shock_choice_box and var['shock_choice']
         parent.var['shock_choice'] = Shock_Choice
-        parent.shock_choice_box.blockSignals(True)
-        parent.shock_choice_box.setValue(Shock_Choice)
-        parent.shock_choice_box.blockSignals(False)
+        for box in parent.shock_choice_box.twin:
+            box.blockSignals(True)
+            box.setValue(Shock_Choice)
+            box.blockSignals(False)
         
         return idx
     
@@ -326,8 +297,7 @@ class path:
                                           
         with open(file_path, 'w') as configfile:
             self.config.write(configfile)
-
-        
+  
     def save_aliases(self, file_path):
         self.config.set('Species Default Aliases', 'aliases', self._alias_str())
         
@@ -342,6 +312,12 @@ class path:
             
         return '; '.join(species_aliases_str)
 
+    def set_watch_dir(self):
+        if self.fs_watcher.directories():
+            self.fs_watcher.removePaths(self.fs_watcher.directories())
+
+        if self.parent.path['mech_main'].is_dir(): 
+            self.fs_watcher.addPath(str(self.parent.path['mech_main']))
 
 class experiment:
     def __init__(self, parent):
@@ -561,7 +537,7 @@ class series:
     
     def _create_shock(self, num, shock_path):
         parent = self.parent
-        shock = {'num': num, 'path': deepcopy(shock_path), 'include': True, 
+        shock = {'num': num, 'path': deepcopy(shock_path), 'include': False, 
                 'series_name': self.name[-1], 'run_SIM': True,      # TODO: make run_SIM a trigger to calculate or not
                     
                 # Shock Parameters
@@ -693,15 +669,18 @@ class series:
         parameters = [shock[key] for key in ['weight_max', 'weight_min', 'weight_shift', 'weight_k']]
         if np.isnan(np.hstack(parameters)).any():  # if weight parameters aren't set, default to gui
             self.parent.weight.update()
-            
-        shift     = np.array(shock['weight_shift'])*self.parent.var['reactor']['t_unit_conv']
-        k         = np.array(shock['weight_k'])*self.parent.var['reactor']['t_unit_conv']
+        
+        t_conv = self.parent.var['reactor']['t_unit_conv']
+        t0 = shock['exp_data'][ 0, 0]
+        tf = shock['exp_data'][-1, 0]
+
+        shift     = np.array(shock['weight_shift'])/100*(tf-t0) + t0
+        k         = np.array(shock['weight_k'])*t_conv
         w_min     = np.array(shock['weight_min'])/100
         w_max     = shock['weight_max'][0]/100
-        
+
         # weights are based a general logistic function scaled 0-1
-        t0 = shock['exp_data'][0,0]
-        x0 = t0 + shift
+        x0 = shift
         b = [[],[]]
         for i in range(0,2):
             b[i] = b_eval(time, k[i], x0[i])
@@ -721,7 +700,7 @@ class series:
             else:
                 # normalize by the integral and then by the t_unit_conv
                 # TODO: normalizing by the t_unit_conv could cause a problem if the scale changes?
-                weights_norm = weights.copy()/(integral/self.parent.var['reactor']['t_unit_conv'])
+                weights_norm = weights.copy()/(integral/t_conv)
                 shock['normalized_weights'] = weights_norm
         
         return weights
@@ -842,7 +821,7 @@ class series:
             if 'Arrhenius' in self.parent.mech_tree.rxn[rxnIdx]['rxnType']:
                 resetVal = mech.gas.forward_rate_constants[rxnIdx]
                 shock['rate_reset_val'].append(resetVal)
-                rate_bnds = self.parent.mech_tree.rxn[rxnIdx]['uncBox'][0].uncFcn(resetVal)
+                rate_bnds = mech.rate_bnds[rxnIdx]['limits'](resetVal)
                 shock['rate_bnds'].append(rate_bnds)
                 
                 # reset coeffs to prior values
@@ -866,7 +845,7 @@ class series:
 
     def change_shock(self):
         parent = self.parent
-        parent.user_settings.save(parent.path['default_settings.ini'], save_all = False)
+        # parent.user_settings.save(save_all = False)
         
         self.update_idx()
         # if current exp path doesn't match the current loaded path
@@ -917,17 +896,18 @@ class series:
         self.rate_bnds(shock)
         
         # Update set (if exp path matches)
-        parent.series_viewer.update()
+        parent.series_viewer.update(self.shock_idx) # update only the current shock
         
         # Update signal and raw_signal plots
         if parent.display_shock['exp_data'].size > 0:
-            parent.plot.signal.update(update_lim=True)     
-            parent.plot.signal.set_background()           # Reset background
+            parent.plot.signal.update(update_lim=True)
+            # Background reset causes disappearing data on new shock load
+            #parent.plot.signal.set_background()           # Reset background
         else:
             parent.plot.signal.clear_plot() 
 
         if parent.display_shock['raw_data'].size > 0:
             parent.plot.raw_sig.update(update_lim=True)
-            parent.plot.raw_sig.canvas.draw()
+            #parent.plot.raw_sig.canvas.draw()
         else:
             parent.plot.raw_sig.clear_plot()

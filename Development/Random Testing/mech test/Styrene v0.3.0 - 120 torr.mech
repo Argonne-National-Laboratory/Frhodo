@@ -1,0 +1,353 @@
+!
+! Based on Styrene (2015)
+!
+! 
+ELEMENTS
+C   H   O   Ar  Kr  Ne  
+END
+!
+!
+SPECIES
+! =================================================================================================================================
+! Mech Name          Chemical Name              InChIKey (internet searchable)    InChI
+! =================================================================================================================================
+C12H10             ! biphenyl                   ZUOUZKKEUPVFJK-UHFFFAOYSA-N       InChI=1S/C12H10/c1-3-7-11(8-4-1)12-9-5-2-6-10-12/h1-10H
+C12H8              ! biphenylene
+!C10H8              ! naphthalene
+!C10H7
+!C9H8               ! indene                     YBYIRNPNPLQARY-UHFFFAOYSA-N       InChI=1S/C9H8/c1-2-5-9-7-3-6-8(9)4-1/h1-6H,7H2
+C8H8               ! styrene                    PPBRXRYQALVLMV-UHFFFAOYSA-N       InChI=1S/C8H8/c1-2-8-6-4-3-5-7-8/h2-7H/1H2
+aC8H7              ! alpha-styryl               HVOAOEQOQJYIGP-UHFFFAOYSA-N       InChI=1S/C8H7/c1-2-8-6-4-3-5-7-8/h3-7H/1H2
+bC8H7              ! beta-styryl                XXZXPSKZWQWGKG-UHFFFAOYSA-N       InChI=1S/C8H7/c1-2-8-6-4-3-5-7-8/h1-7H 
+oC8H7              ! styrene-2-ylradical        YQFQMJCKLXLQOX-UHFFFAOYSA-N       InChI=1S/C8H7/c1-2-8-6-4-3-5-7-8/h2-6H/1H2
+C8H2               ! tetracetylene              CDGAYCHXIBGGNI-UHFFFAOYSA-N       InChI=1S/C8H2/c1-3-5-7-8-6-4-2/h1-2H
+C8H6               ! phenylacetylene            UEXCJVNBTNXOEH-UHFFFAOYSA-N       InChI=1S/C8H6/c1-2-8-6-4-3-5-7-8/h1/3-7H
+!C8H5
+15HD               ! 1,5-hexadiyne              YFIBSNDOVCWPBL-UHFFFAOYSA-N       InChI=1S/C6H6/c1-3-5-6-4-2/h1-2H,5-6H2
+34DMCB             ! 3,4-dimethylenecyclobutene WHCRVRGGFVUMOK-UHFFFAOYSA-N       InChI=1S/C6H6/c1-5-3-4-6(5)2/h3-4H,1-2H2
+Fulvene            ! fulvene                    UHOVQNZJYSORNB-UHFFFAOYSA-N       InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H
+Benzene            ! benzene                    UHOVQNZJYSORNB-UHFFFAOYSA-N       InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H
+13HD5Y             ! 1,3-hexadiene-5-yne        OGWJYLKDZYZYBA-UHFFFAOYSA-N       InChI=1S/C6H6/c1-3-5-6-4-2/h1,4-6H,2H2
+12HD5Y             ! 1,2-hexadiene-5-yne        BIFVSVOAVBNUKC-UHFFFAOYSA-N       InChI=1S/C6H6/c1-3-5-6-4-2/h1,6H,2,5H2
+2E13BD             ! 2-ethynyl-1,3-butadiene    MDCQHVMMIFCHAK-UHFFFAOYSA-N       InChI=1S/C6H6/c1-4-6(3)5-2/h1,5H,2-3H2
+!1245HT             ! 1,2,4,5-hexatetraene       ROAKNVNVSBKPLL-UHFFFAOYSA-N       InChI=1S/C6H6/c1-3-5-6-4-2/h5-6H,1-2H2
+C6H5               ! phenyl                     CIUQDSCDWFSTQR-UHFFFAOYSA-N       InChI=1S/C6H5/c1-2-4-6-5-3-1/h1-5H
+!LC6H5              ! hexa-2,4-diyne             TZTSOMWOQWNAND-UHFFFAOYSA-N       InChI=1S/C6H5/c1-3-5-6-4-2/h1H2,2H3
+cisC6H4            ! (Z)-hex-3-en-1/5-diyne     KIWAUQFHKHLABA-WAYWQWQTSA-N       InChI=1S/C6H4/c1-3-5-6-4-2/h1-2/5-6H/b6-5-
+oC6H4              ! o-benzyne                  KLYCPFXDDDMZNQ-UHFFFAOYSA-N       InChI=1S/C6H4/c1-2-4-6-5-3-1/h1-4H
+!c-C6H3             !                                                                                                                       Using oC6H3 from Burcat
+C6H3               ! HCCCHCCCH (linear)                                                                                                    Using CH2=C=C=C=C=CH* from Burcat    
+C6H2               ! triacetylene               MZHROOGPARRVHS-UHFFFAOYSA-N       InChI=1S/C6H2/c1-3-5-6-4-2/h1-2H
+C6H                ! 
+!C6                 ! 
+!c-C5H6             ! cyclopentadiene            ZSWFCLXCOIISFI-UHFFFAOYSA-N       InChI=1S/C5H6/c1-2-4-5-3-1/h1-4H,5H2
+!c-C5H5             ! cyclopentadienyl           HPYIUKIBUJFXII-UHFFFAOYSA-N       InChI=1S/C5H5/c1-2-4-5-3-1/h1-5H
+!nC4H5             ! buta-1/3-diene             AHZKOHHBQMSKLP-UHFFFAOYSA-N       InChI=1S/C4H5/c1-3-4-2/h1/3-4H/2H2
+C4H5               ! 1-Butayn-4yl   ??????
+C4H4               ! vinylacetylene             WFYPICNXBKQZGB-UHFFFAOYSA-N       InChI=1S/C4H4/c1-3-4-2/h1/4H/2H2
+C4H3               ! E/1-butene-3-yne-1-yl      GQMYNBIOBOYFNG-UHFFFAOYSA-N       InChI=1S/C4H3/c1-3-4-2/h1-3H                             Check
+C4H2               ! diacetylene                LLCSWKVOHICRDD-UHFFFAOYSA-N       InChI=1S/C4H2/c1-3-4-2/h1-2H
+C4H                !
+C4                 !                                                                                                                       Using C4 triplet from Burcat
+!C3H5               ! allyl                      RMRFFCXPLWYOOY-UHFFFAOYSA-N       InChI=1S/C3H5/c1-3-2/h3H,1-2H2
+a-C3H4             ! allene                     IYABWNGZIDDRAK-UHFFFAOYSA-N       InChI=1S/C3H4/c1-3-2/h1-2H2
+p-C3H4             ! propyne                    MWWATHDPGQKSAR-UHFFFAOYSA-N       InChI=1S/C3H4/c1-3-2/h1H,2H3
+C3H3               ! propargyl                  DITHIFQMPPCBCU-UHFFFAOYSA-N       InChI=1S/C3H3/c1-3-2/h1H,2H2
+C3H2               ! 1-propynyl                 LPUFMQSFYARLPQ-UHFFFAOYSA-N       InChI=1S/C3H2/c1-3-2/h1H2
+C2H4               ! ethylene                   VGGSQFUCUMXWEO-UHFFFAOYSA-N       InChI=1S/C2H4/c1-2/h1-2H2
+C2H3               ! vinyl                      ORGHESHFQPYLAO-UHFFFAOYSA-N       InChI=1S/C2H3/c1-2/h1H/2H2
+C2H2               ! acetylene                  HSFWRNGVRCDJHI-UHFFFAOYSA-N       InChI=1S/C2H2/c1-2/h1-2H
+H2CC               ! vinylidene                 SNVLJLYUUXKWOJ-UHFFFAOYSA-N       InChI=1S/C2H2/c1-2/h1H2
+C2H                ! ethynyl                    XEHVFKKSDRMODV-UHFFFAOYSA-N       InChI=1S/C2H/c1-2/h1H
+CH4                ! methane
+CH3                ! methyl                     WCYWZMWISLQXQU-UHFFFAOYSA-N       InChI=1S/CH3/h1H3
+CH2(s)             ! singlet carbene            HZVOZRGWRWCICA-UHFFFAOYSA-N       InChI=1S/CH2/h1H2
+CH                 
+H2                 ! hydrogen                   UFHFLCQGNIYNRP-UHFFFAOYSA-N       InChI=1S/H2/h1H
+H                  ! hydrogen-atom              YZCKVEUIGOORGS-UHFFFAOYSA-N       InChI=1S/H
+Ar                 ! argon                      XKRFYHLGVUSROY-UHFFFAOYSA-N       InChI=1S/Ar
+Kr                 ! krypton                    DNNSSWSSYDEUBZ-UHFFFAOYSA-N       InChI=1S/Kr
+Ne                 ! neon                       GKAOGPIIYCISHV-UHFFFAOYSA-N       InChI=1S/Ne
+END
+! =================================================================================================================================
+
+
+REACTIONS
+! ===============================================================================================================================================================================================
+! Reaction                                   A                 N                Ea            Author           Reference/DOI                       Comment
+! ===============================================================================================================================================================================================
+! ===============================================================================
+! Styrene Reactions
+! ===============================================================================
+
+! Unimolecular Initiation -------------------------------------------------------   
+C8H8 = Benzene + H2CC                  1.3735815E+011     0.0000000E+00    7.7960167E+04    ! PW               This study
+C8H8 = oC6H4 + C2H4                    3.9793051E+038    -7.4952954E+00    8.1919300E+04    ! PW               This study
+C8H8 = aC8H7 + H                       1.1172959E+016     0.0000000E+00    1.1940000E+05    ! PW               This study
+!C8H8 = bC8H7 + H                       5.0000000E+015     0.0000000E+00    1.0940000E+05    ! PW               This study
+!C8H8 = oC8H7 + H                       5.0000000E+015     0.0000000E+00    1.0940000E+05    ! PW               This study
+!C8H8 = C6H5 + C2H3                     3.1600000E+017     0.0000000E+00    1.2000000E+05    ! PW               This study
+             
+! Styrene + Radical Reactions ---------------------------------------------------
+C8H8 + H = aC8H7 + H2                  1.2670000E+007     1.9300000E+00    1.0460000E+04    ! Chaumeix         10.1016/j.combustflame.2016.08.026  Estimated from C3H6+H (JSF)
+C8H8 + H = bC8H7 + H2                  2.5350000E+007     1.9300000E+00    1.2951000E+04    ! Richter          10.1016/j.combustflame.2005.07.019  k*1/2 Richter note: analogous C2H4 from 10.1021/jp9606568
+C8H8 + H = oC8H7 + H2                  3.4653804E+014     0.0000000E+00    1.6110265E+04    ! PW               This study                          k(Benzene + H = C6H5 + H2)
+C8H8 + H = Benzene + C2H3              2.4000000E+013     0.0000000E+00    5.1230000E+03    ! Dagaut           10.1016/j.proci.2010.05.013         NEW: IPSO addition (86ROB/TSA*DAG*2 id toluen 06/10/2000)
+C4H4 + C4H5 = C8H8 + H                 3.1600000E+011     0.0000000E+00    3.7000000E+03    ! Dagaut           10.1016/j.proci.2010.05.013         NEW: k(buta-1/3-diene + propyne)
+C8H8 + CH3 = aC8H7 + CH4               7.8000000E+006     2.0000000E+00    5.2346000E+03    ! Chaumeix         10.1016/j.combustflame.2016.08.026  adjusted based on thermo data
+C8H8 + CH3 => bC8H7 + CH4              1.5610000E+005     2.0000000E+00    1.1393600E+04    ! Chaumeix         10.1016/j.combustflame.2016.08.026  CRECK for c2h4/2
+C8H8 + CH3 => oC8H7 + CH4              1.6000000E+012     0.0000000E+00    1.5000000E+04    ! Chaumeix         10.1016/j.combustflame.2016.08.026  as toluene
+C8H8 + H => C6H5 + C2H4                2.4450000E+037    -6.3100000E+00    3.1672780E+04    ! Chaumeix         10.1016/j.combustflame.2016.08.026  Tokmakov and Lin 2004 JPCA, *1.5
+C6H5 + C2H4 => C8H8 + H                5.4300000E+028    -4.2400000E+00    2.3866000E+04    ! Chaumeix         10.1016/j.combustflame.2016.08.026  Tokmakov and Lin 2004 JPCA, *1.5  
+
+! Styrl Isomerization Reactions -------------------------------------------------
+bC8H7 + H = aC8H7 + H                  1.0000000E+014     0.0000000E+00    0.0000000E+00    ! Miller           10.1016/0010-2180(92)90124-8        NEW: k(HCCHCCH+H=H2CCCCH+H)
+bC8H7 => aC8H7                         4.8977882E+012     4.5000000E-01    4.5740000E+04    ! Lin              10.1021/ja0301121                   1 atm?
+aC8H7 => bC8H7                         6.6069345E+013     1.4000000E-01    5.3120000E+04    ! Lin              10.1021/ja0301121
+bC8H7 => oC8H7                         2.0417379E+010     7.0000000E-01    2.7500000E+04    ! Lin              10.1021/ja0301121
+oC8H7 => bC8H7                         4.5708819E+009     8.1000000E-01    2.6270000E+04    ! Lin              10.1021/ja0301121
+
+! Styrl Unimolecular Decomposition
+bC8H7 = C8H6 + H                       3.8018940E+011     8.2000000E-01    3.8910000E+04    ! Lin              10.1021/ja0301121
+aC8H7 = C8H6 + H                       1.2302688E+013     5.5000000E-01    4.2580000E+04    ! Lin              10.1021/ja0301121
+C6H5 + C2H2 = aC8H7                    4.8977882E+026    -4.1440000E+00    6.5424000E+04    ! PW               This study                           10 atm, estimated from (C6H5+C2H2 = bC8H7)
+             PLOG /  2.6315789E-002    8.6000000E+044    -1.0500000E+01    1.3145315E+04 /                                                          20 Torr
+             PLOG /  5.2631579E-002    1.4000000E+043    -9.8700000E+00    1.2906310E+04 /                                                          40 Torr
+             PLOG /  1.0000000E+000    6.7000000E+034    -7.0400000E+00    1.0994264E+04 /                                                           1 atm
+             PLOG /  1.0000000E+001    2.3000000E+027    -4.5600000E+00    9.0822180E+03 /                                                          10 atm
+                                                                                                                                                    
+C6H5 + C2H2 = bC8H7                    4.8977882E+026    -4.1440000E+00    6.5424000E+04    ! Bozzelli         10.1021/jp002428q                    10 atm
+             PLOG /  2.6315789E-002    8.6000000E+044    -1.0500000E+01    1.3145315E+04 /                                                          20 Torr
+             PLOG /  5.2631579E-002    1.4000000E+043    -9.8700000E+00    1.2906310E+04 /                                                          40 Torr
+             PLOG /  1.0000000E+000    6.7000000E+034    -7.0400000E+00    1.0994264E+04 /                                                           1 atm
+             PLOG /  1.0000000E+001    2.3000000E+027    -4.5600000E+00    9.0822180E+03 /                                                          10 atm
+                                                                                                                                                    
+C6H5 + C2H2 = oC8H7                    5.2000000E+027    -4.3800000E+00    1.5774379E+04    ! Bozzelli         10.1021/jp002428q                    10 atm
+             PLOG /  2.6315789E-002    7.9000000E+051    -1.2410000E+01    1.7686424E+04 /                                                          20 Torr
+             PLOG /  5.2631579E-002    6.1000000E+050    -1.1970000E+01    1.8164436E+04 /                                                          40 Torr
+             PLOG /  1.0000000E+000    1.1000000E+041    -8.6100000E+00    1.8164436E+04 /                                                           1 atm
+             PLOG /  1.0000000E+001    5.2000000E+027    -4.3800000E+00    1.5774379E+04 /                                                          10 atm
+
+C6H5 + C2H = C8H6                      1.2000000E+027     -4.2200000E+00   7.2000000E+03    ! Chaumeix         10.1016/j.combustflame.2016.08.026  Source: Refer to c6h5+c2h3=c6h5c2h3  1997 Wang&Frenklach RRKm
+
+
+! ===============================================================================
+! Benzene Reactions
+! ===============================================================================
+
+! useful sources:
+! Ranzi 10.1016/j.combustflame.2013.02.013
+!       10.1016/S0082-0784(85)80569-5
+
+! Isomerization------------------------------------------------------------------
+!C3H3 + C3H3 = 15HD                     2.9448269E+013    -2.7800000E-01    3.0324737E   
+2E13BD = Fulvene                       4.8977882E+026    -4.1440000E+00    6.5424000E+04    ! Miller           10.1021/jp030375h
+             PLOG /  3.9473684E-002    5.7543994E+076    -1.8670000E+01    9.5531000E+04 /
+             PLOG /  1.0000000E+000    2.3442288E+056    -1.2550000E+01    8.6405000E+04 /
+             PLOG /  1.0000000E+001    4.8977882E+026    -4.1440000E+00    6.5424000E+04 /
+2E13BD = Benzene                       2.8183829E+051    -1.0680000E+01    1.0695000E+05    ! Miller           10.1021/jp030375h
+             PLOG /  3.9473684E-002    6.7608298E+098    -2.4580000E+01    1.2231000E+05 /
+             PLOG /  1.0000000E+000    1.6218101E+053    -1.1340000E+01    1.0021000E+05 /
+             PLOG /  1.0000000E+001    2.8183829E+051    -1.0680000E+01    1.0695000E+05 /
+Fulvene = Benzene                      2.9512092E+031    -4.9700000E+00    8.8465000E+04    ! Miller           10.1021/jp030375h
+             PLOG /  3.9473684E-002    5.6234133E+081    -1.9360000E+01    1.2150000E+05 /
+             PLOG /  1.0000000E+000    1.4454398E+045    -8.9000000E+00    9.6999000E+04 /
+             PLOG /  1.0000000E+001    2.9512092E+031    -4.9700000E+00    8.8465000E+04 /
+             
+15HD = 34DMCB                          6.5000000E+010     0.0000000E+00    3.3360000E+04    ! Tranter          10.1021/jp037310z
+34DMCB = 13HD5Y                        4.1000000E+012     0.0000000E+00    5.0530000E+04    ! Tranter          10.1021/jp052797s
+34DMCB = Fulvene                       1.4400000E+013     0.0000000E+00    5.1150000E+04    ! Tranter          10.1021/jp052797s
+13HD5Y = Benzene                       3.7800000E+012     0.0000000E+00    4.8810000E+04    ! Tranter          10.1021/jp052797s
+12HD5Y = 2E13BD                        2.7500000E+010     0.0000000E+00    3.4960000E+04    ! Tranter          10.1021/jp050640u            should go forward, compare thermo
+!2E13BD = Fulvene                       6.6100000E+012     0.0000000E+00    5.8360000E+04    ! Tranter          10.1021/jp052797s
+!Fulvene = 2E13BD                       9.1200000E+015     0.0000000E+00    8.2700000E+04    ! Tranter          10.1021/jp052797s
+!Fulvene = Benzene                      9.8900000E+014     0.0000000E+00    7.0470000E+04    ! Tranter          10.1021/jp052797s
+!Benzene = Fulvene                      5.5300000E+018     0.0000000E+00    1.0040000E+05    ! Tranter          10.1021/jp052797s
+
+! Dissociation-------------------------------------------------------------------
+2E13BD => C6H5 + H                     3.0902954E+043    -7.9280000E+00    1.1865000E+05    ! Miller           10.1021/jp030375h
+             PLOG /  3.9473684E-002    2.6915348E+084    -2.0140000E+01    1.2190000E+05 /
+             PLOG /  1.0000000E+000    4.1686938E+077    -1.7680000E+01    1.3352000E+05 /
+             PLOG /  1.0000000E+001    3.0902954E+043    -7.9280000E+00    1.1865000E+05 /            
+Fulvene = C6H5 + H                     8.5113804E+024    -2.5050000E+00    1.1333000E+05    ! Miller           10.1021/jp030375h
+             PLOG /  3.9473684E-002    2.5703958E+097    -2.3160000E+01    1.5347000E+05 /
+             PLOG /  1.0000000E+000    2.2387211E+068    -1.4650000E+01    1.4257000E+05 /
+             PLOG /  1.0000000E+001    8.5113804E+024    -2.5050000E+00    1.1333000E+05 /       
+Benzene = C6H5 + H                     5.4954087E+038    -6.1780000E+00    1.3200000E+05    ! Miller           10.1021/jp030375h
+             PLOG /  3.9473684E-002    1.3489629E+108    -2.5810000E+01    1.8175000E+05 /
+             PLOG /  1.0000000E+000    6.3095734E+060    -1.2400000E+01    1.4807000E+05 /
+             PLOG /  1.0000000E+001    5.4954087E+038    -6.1780000E+00    1.3200000E+05 /
+!C6H5 + H (+M) = Benzene (+M)           1.0000000E+014     0.0000000E+00    0.00000000E+00    ! Wang            USC Mech II
+!                              LOW /    6.6000000E+075    -1.6300000E+01    7.00000000E+03 /                                                        USC Mech II note: (HW, RRKM)         
+!             TROE /  1.0000000E+000    1.0000000E-001     5.8490000E+02    6.11300000E+03 /
+!   H2/ 2.000/  CH4/ 2.000/
+
+! H + Fulvene -> methylcyclopentadienyl, alpha-hydrofulvenyl, beta-hydrofulvenyl, h+benzene                    10.1016/j.proci.2012.06.165
+
+Benzene + H = C6H5 + H2                3.4653804E+014     0.0000000E+00    1.6110265E+04    ! Olzmann          10.1524/zpch.2009.6036
+Benzene + C6H5 = C12H10 + H            2.0000000E+012     0.0000000E+00    1.1000000E+04    ! Laskin           10.1016/S0082-0784(96)80274-8       Estimated 
+
+
+! ===============================================================================
+! Phenyl Reactions
+! ===============================================================================
+
+C6H5 + C6H5 = C12H10                   3.2210688E+022    -2.8100000E+00    4.7891623E+03    ! Tranter          10.1021/jp1031064
+C6H5 + C6H5 = oC6H4 + Benzene          1.7060824E-003     4.5700000E+00   -5.7430203E+03    ! Tranter          10.1021/jp1031064                   
+C6H5 + C6H5 = cisC6H4 + Benzene        4.2854852E-004     4.5700000E+00   -5.7430203E+03    ! Tranter          10.1021/jp1031064                   
+C6H5 (+M) = oC6H4 + H (+M)             4.3000000E+012     6.2000000E-01    7.7300000E+04    ! Frenklach        10.1016/S0082-0784(00)80552-4
+                              LOW /    1.0000000E+084    -1.8870000E+01    9.0100000E+04 /
+             TROE /  9.0200000E-001    6.9600000E+002     3.5800000E+02    3.8560000E+03 /
+C6H5 + H = oC6H4 + H2                  1.1800000E-006     6.1800000E+00    4.5400000E+03    ! Howard           10.1016/S0082-0784(00)80679-7 
+C4H = C4 + H                           1.3500000E+014     0.0000000E+00    1.1660000E+05    ! Just             10.1016/0010-2180(80)90056-5        A unc 0.85
+!C6H5 + C2H2 = C8H6 + H                 4.6000000E+012     0.0000000E+00    7.9000000E+03    ! Laskin           10.1016/S0082-0784(96)80274-8       Estimated 
+C6H5 + C2H2 = C8H6 + H                 2.0000000E+009     0.0000000E+00    8.0000000E+03    ! Ranzi            10.1016/j.combustflame.2013.02.013       
+
+
+! ===============================================================================
+! Ortho-Benzyne Reactions
+! ===============================================================================
+
+oC6H4 + oC6H4 = C12H8                  4.9545019E+009     8.2700000E-01   -1.3711709E+03    ! Tranter          10.1021/jp1031064
+oC6H4 + C2H2 = C8H6                    2.0000000E+013     0.0000000E+00    2.0000000E+04    ! Frenklach        10.1016/S0082-0784(00)80552-4       Estimated
+oC6H4 + M = C6H3 + H + M               4.4668359E+019    -1.0000000E+00    6.0000000E+04    ! Tranter          10.1016/j.proci.2014.05.049         Assumes c-C6H3 -> C6H3 is fast
+oC6H4 = C4H2 + C2H2                    1.6982437E+017    -5.0000000E-03    9.4400000E+04    ! Tranter          10.1016/j.proci.2014.05.049
+             PLOG /  3.9473684E-002    3.9627803E+057    -1.3015000E+01    9.6629000E+04 /                                               
+             PLOG /  7.8947368E-002    1.4157938E+060    -1.3595000E+01    1.0042300E+05 /                                                  
+             PLOG /  1.5789474E-001    1.1694994E+063    -1.4270000E+01    1.0474100E+05 /                           
+C6H3 = C6H2 + H                        2.2910000E+010     0.0000000E+00    3.6100000E+04    ! Frank            10.1016/j.proci.2006.07.084         From private communication with H. Wang  
+
+
+! ===============================================================================
+! Allene/Propyne Reactions
+! ===============================================================================
+
+! if important Kiefer 10.1021/jp963314a
+
+a-C3H4 = p-C3H4                        4.7863009E+048    -1.0000000E+01    8.8685000E+004    ! Miller           10.1021/jp0221082                   10 atm
+             PLOG /  3.9473684E-002    6.0255959E+053    -1.2180000E+01    8.4276000E+04 /  !                                                       30 Torr
+!             PLOG /  7.8947368E-002    1.2050000E+054    -1.2180000E+01    8.4276000E+04 /  !                                                      60 Torr (estimated k(30 Torr)*2)
+!             PLOG /  1.5789474E-001    2.4100000E+054    -1.2180000E+01    8.4276000E+04 /  !                                                     120 Torr (estimated k(30 Torr)*4)
+             PLOG /  1.0000000E+000    7.7624712E+039    -7.8000000E+00    7.8446000E+04 /  !                                                        1 atm
+             PLOG /  1.0000000E+001    4.7863009E+048    -1.0000000E+01    8.8685000E+04 /  !                                                       10 atm
+a-C3H4 = C3H3 + H                      5.0120000E+040    -7.9700000E+00    1.0039950E+05    ! Kiefer           10.1021/jp963314a                  
+p-C3H4 = C3H3 + H                      5.0120000E+040    -7.7100000E+00    1.0169910E+05    ! Kiefer           10.1021/jp963314a       
+p-C3H4 + H = C2H2 + CH3                1.3180000E+005     2.5000000E+00    9.9960000E+02    ! Kawano           10.1002/kin.550210805                 
+a-C3H4 + H = C3H3 + H2                 5.0120000E+006     2.0000000E+00    5.9994000E+03    ! Kiefer           10.1021/jp963314a                  estimate
+p-C3H4 + H = C3H3 + H2                 1.9950000E+014     0.0000000E+00    1.4999400E+04    ! Kiefer           10.1021/jp963314a                  estimate
+p-C3H4 + C2H3 = C3H3 + C2H4            1.0000000E+012     0.0000000E+00    7.7000000E+03    ! Dagaut           10.1080/00102209008951627
+
+!C3H3 + H = C3H2 + H2                   2.1400000E+005     2.5200000E+00    7.4530000E+03    ! Curran           10.1016/j.combustflame.2018.08.006
+
+! ===============================================================================
+! Ethylene Reactions
+! ===============================================================================
+
+! Unimolecular
+C2H3 + H (+M) = C2H4 (+M)              6.0800000E+012     2.7000000E-01    2.8000000E+02    ! GRI 3.0                           
+                              LOW /    1.4000000E+030    -3.8600000E+00    3.3200000E+03 /
+             TROE /  7.8200000E-001    2.0750000E+002     2.6630000E+03    6.0950000E+03 /
+   H2/ 2.000/  AR/ 0.700/  CH4/ 2.000/
+C2H4 (+M) = H2 + H2CC (+M)             8.0000000E+012     4.4000000E-01    8.6770000E+04    ! GRI 3.0
+                              LOW /    1.5800000E+051    -9.3000000E+00    9.7800000E+04 /
+             TROE /  7.3450000E-001    1.8000000E+002     1.0350000E+03    5.4170000E+03 /
+   H2/ 2.000/  AR/ 0.700/  CH4/ 2.000/
+     
+! RH + R Abstraction
+C2H4 + H = C2H3 + H2                   5.0706426E+007     1.9300000E+00    1.2952597E+04    ! Slagle           10.1021/jp9606568
+C2H4 + CH3 = C2H3 + CH4                9.7558682E+002     2.9470000E+00    1.5148000E+04    ! Miller           10.1021/jp312712p
+   DUPLICATE                                                                                       
+C2H4 + CH3 = C2H3 + CH4                8.1298902E-005     4.4170000E+00    8.8358000E+03    ! Miller           10.1021/jp312712p
+   DUPLICATE 
+
+! Radical Addition
+CH + CH4 = C2H4 + H                    1.3248710E+016    -9.4000000E-01    5.7628924E+01    ! Baulch           10.1063/1.1748524
+CH2(s) + CH3 = C2H4 + H                1.2000000E+013     0.0000000E+00   -5.7000000E+02    ! GRI 3.0
+ 
+! R + R Abstraction
+C2H3 + H = H2CC + H2                   6.0000000E+013     0.0000000E+00    0.0000000E+00    ! Wang             USC Mech II                         Source: Estimated
+C2H3 + CH3 = CH4 + C2H2                3.9200000E+011     0.0000000E+00    0.0000000E+00    ! Tsang            10.1063/1.555759
+C2H3 + C2H3 = C2H2 + C2H4              2.1077493E+013     0.0000000E+00    0.0000000E+00    ! Laufer           10.1021/cr030039x
+
+! Vinylidene --------------------------------------------------------------------
+C2H2 (+M) = H2CC (+M)                  8.0000000E+014    -5.2000000E-01    5.0750000E+04    ! Wang             10.1016/S0009-2614(99)00242-0       Source: RRKM with 97.7 kcal/mol for H2CC
+                              LOW /    2.4500000E+015    -6.4000000E-01    4.9700000E+04 /
+   H2/ 2.000/  CH4/ 2.000/  C2H2/ 2.500/  C2H4/ 2.500/
+H2CC + H = C2H2 + H                    1.0000000E+014     0.0000000E+00    0.0000000E+00    ! Wang             10.1016/S0009-2614(99)00242-0       Source: Estimated
+C2H2 + H2CC (+M) = C4H4 (+M)           3.5000000E+005     2.0550000E+00   -2.4000000E+03    ! Wang             10.1016/S0009-2614(99)00242-0       Source: RRKM*0.8
+                              LOW /    1.4000000E+060    -1.2599000E+01    7.4170000E+03 /
+             TROE /  9.8000000E-001    5.6000000E+001     5.8000000E+02    4.1640000E+03 /
+   C2H2/ 3.000/  C2H4/ 3.000/  H2/ 2.000/
+C4H3 + H = C2H2 + H2CC                 6.3000000E+025    -3.3400000E+00    1.0014000E+04    ! Wang             USC Mech II                           1 atm,  Source: RRKM WAN/FRE
+             PLOG /  2.6315789E-002    1.6000000E+019    -1.6000000E+00    2.2200000E+03 /                                                          20 Torr, Source: RRKM WAN/FRE
+             PLOG /  1.1842105E-001    1.3000000E+020    -1.8500000E+00    2.9600000E+03 /                                                          40 Torr, Source: RRKM WAN/FRE
+             PLOG /  1.0000000E+000    6.3000000E+025    -3.3400000E+00    1.0014000E+04 /                                                           1 atm,  Source: RRKM WAN/FRE
+
+
+! ===============================================================================
+! Acetylene Reactions
+! ===============================================================================
+
+! for nC4H5 and iC4H5 benzene 10.1021/jp0675126
+                                      
+C2H2 + C2H2 = C4H4                     1.5000000E+009     0.0000000E+00    3.7400000E+04    ! Ranzi            10.1021/ef402048q
+!C4H4 = C2H2 + C2H2                     1.3000000E+015     0.0000000E+00    8.2500000E+04
+C2H2 + C2H2 = C4H2 + H2                1.0000000E+013     0.0000000E+00    6.8200000E+04    ! Colket           10.1016/S0082-0784(88)80317-5
+C4H4 = C4H2 + H2                       3.5000000E+011     0.0000000E+00    6.6000000E+04    ! Colket           10.1016/S0082-0784(88)80317-5
+C2H2 + C2H2 = C4H3 + H                 2.0000000E+013     0.0000000E+00    8.1500000E+04    ! Gardiner         10.1016/S0082-0784(79)80057-0
+C4H4 = C4H3 + H                        3.6820000E+019    -1.0000000E+00    1.1628200E+05    ! Colket           10.1016/S0082-0784(88)80317-5
+C2H3 + C2H = C2H2 + C2H2               3.3000000E+009     0.0000000E+00   -1.9800000E+03    ! Tsang            10.1063/1.555759
+C2H + H2 = H + C2H2                    4.9000000E+005     2.5000000E+00    5.6000000E+02    ! Frenklach        10.1016/S0010-2180(97)00068-0
+!C2H2 + H = C2H + H2                    5.7000000E+005     1.9000000E+00    3.0259000E+04    ! Kiefer           10.1080/00102209208951815    
+C2H + H (+M) = C2H2 (+M)               1.7000000E+017    -1.0000000E+00    0.0000000E+00    ! GRI 3.0
+                              LOW /    3.7500000E+033    -4.8000000E+00    1.9000000E+03 /
+             TROE /  6.4640000E-001    1.3200000E+002     1.3150000E+03    5.5660000E+03 /
+C2H + C2H2 = C4H3                      1.5000000E+010     0.0000000E+00    0.0000000E+00    ! Ranzi            10.1021/ef402048q
+!C2H2 + C4H4 = Benzene                 6.0000000E+009     0.0000000E+00    3.7400000E+04    ! Colket           10.1016/S0082-0784(88)80317-5
+C2H2 + C2H3 = C4H4 + H                 8.0000000E+008     0.0000000E+00    5.0000000E+03    ! Frenklach        10.1016/S0010-2180(97)00068-0
+C2H2 + C4H5 = Benzene + H              5.0000000E+008     0.0000000E+00    5.0000000E+03    ! Frenklach        10.1016/S0010-2180(97)00068-0
+!C2H2 + C8H5 = C10H7                   1.0000000E+009     0.0000000E+00    5.0000000E+03    ! Ranzi            10.1016/j.combustflame.2013.02.013
+C2H3 + H = C2H2 + H2                   3.1622777E+013     0.0000000E+00    1.4000000E+03    ! Kiefer           10.1080/00102209208951815
+C2H3 = C2H2 + H                        1.0000000E+040    -7.2000000E+00    5.0600000E+04    ! Kiefer           10.1080/00102209208951815           TODO: Check
+C2H2 +H (+M) = C2H3 (+M)               1.7100000E+010     1.2660000E+00    2.7090000E+03    ! Miller           10.1039/B313645K
+                              LOW /    6.3460000E+031    -4.6640000E+00    3.7800000E+03 /
+             TROE /  7.8800000E-001   -1.0200000E+004     1.0000000E-30    0.0000000E+00 /
+   H2/ 2.000/  AR/ 0.700/  CH4/ 2.000/
+
+   
+! ===============================================================================
+! Vinylacetylene and Diacetylene Reactions
+! ===============================================================================
+
+C4H4 = C2H + C2H3                      1.0000000E+016     0.0000000E+00    1.0500000E+05    ! Colket           10.1016/0010-2180(89)90048-5
+C4H4 + C4H4 = C4H3 + C4H5              5.0000000E+013     0.0000000E+00    8.1500000E+04    ! Ranzi            10.1021/ef402048q
+C4H4 + C4H4 = C8H8                     1.2000000E+010     0.0000000E+00    3.7400000E+04    ! Ranzi            10.1021/ef402048q                   due to thermo, only goes forward
+C4H4 + C4H4 = C8H6 + H2                1.0000000E+011     0.0000000E+00    4.4000000E+04    ! Ranzi            10.1021/ef402048q
+C4H4 + C4H4 = Benzene + C2H2           2.5000000E+011     0.0000000E+00    4.4000000E+04    ! Ranzi            10.1021/ef402048q
+C4H5 = H + C4H4                        5.0000000E+012     0.0000000E+00    4.4000000E+04    ! Unknown Source
+H + C4H4 = C2H4 + C2H                  2.0000000E+010     0.0000000E+00    2.0000000E+03    ! Ranzi            10.1021/ef402048q
+H + C4H3 = C4H2 + H2                   1.0000000E+011     0.0000000E+00    0.0000000E+00    ! Ranzi            10.1021/ef402048q
+H + C4H2 = C4H3                        2.5000000E+011     0.0000000E+00    3.0160000E+03    ! Klippenstein     10.1021/jp058017x
+C6H2 + C2H = C8H2 + H                  5.0000000E+009     0.0000000E+00    0.0000000E+00    ! Ranzi            10.1021/ef402048q
+!C4H2 + C2H = C6H2 + H                  7.5000000E+009     0.0000000E+00    0.0000000E+00    ! JetSurF 2.0
+C4H + H2 = H + C4H2                    4.9000000E+005     2.5000000E+00    5.6000000E+02    ! Frenklach        10.1016/S0082-0784(00)80552-4       Estimated from C2H + H2 => H + C2H2  
+C6H2 + M = C6H + H + M                 5.0000000E+016     0.0000000E+00    8.0066922E+04    ! Frenklach        10.1080/00102208708960325
+C2H2 + C2H = C4H2 + H                  9.6000000E+013     0.0000000E+00    0.0000000E+00    ! Frenklach        10.1016/S0010-2180(97)00068-0
+C6H3 + C2H = C4H2 + C4H2               5.5000000E+009     0.0000000E+00    0.0000000E+00    ! Ranzi            10.1021/ef402048q
+C4H2 + C4H2 = C6H2 + C2H2              2.0000000E+013     0.0000000E+00    5.4000000E+04    ! Ranzi            10.1021/ef402048q
+C4H2 + C4H2 = C8H2 + H2                2.5000000E+011     0.0000000E+00    4.4000000E+04    ! Ranzi            10.1021/ef402048q
+C4H2 + C6H2 = C8H2 + C2H2              6.0000000E+012     0.0000000E+00    4.4000000E+04    ! Ranzi            10.1021/ef402048q
+C4H2 + C2H2 = C6H2 + H2                1.0000000E+013     0.0000000E+00    6.8125000E+04    ! Ranzi            10.1021/ef402048q
+C4H2 + C2H = C6H2 + H                  9.6000000E+013     0.0000000E+00    0.0000000E+00    ! Frenklach        10.1016/S0010-2180(97)00068-0       Estimated from C2H2+C2H=C4H2+H
+C4H + C2H2 = C6H2 + H                  9.6000000E+013     0.0000000E+00    0.0000000E+00    ! Frenklach        10.1016/S0010-2180(97)00068-0       Estimated from C2H2+C2H=C4H2+H
+C4H2 = C4H + H                         2.2000000E+014     0.0000000E+00    1.1660000E+05    ! Just             10.1016/0010-2180(80)90056-5        
+C4H + H (+M) = C4H2 (+M)               1.7000000E+017    -1.0000000E+00    0.0000000E+00    ! Frenklach        10.1016/S0010-2180(97)00068-0       Estimated from GRI3.0 C2H+H(+M) = C2H2(+M)
+                              LOW /    3.7500000E+033    -4.8000000E+00    1.9000000E+03 /
+             TROE /  6.4640000E-001    1.3200000E+002     1.3150000E+03    5.5660000E+03 /
+!C4H2 + M = C4H + H + M                 3.6000000E+016     0.0000000E+00    1.0650000E+05    ! PW                                                   Estimated from Just C2H2+M = C2H+H+M
+C2H2 + C6H2 = C8H2 + H2                5.0000000E+010     0.0000000E+00    4.4000000E+04    ! Kiefer           10.1080/00102209208951815
+                                                               
+H + H + M = H2 + M                     1.0000000E+018    -1.0000000E+00    0.0000000E+00    ! GRI 3.0                                              
+   Ar/ 0.63/  H2/ 0.000/  CH4/ 2.000/
+
+END

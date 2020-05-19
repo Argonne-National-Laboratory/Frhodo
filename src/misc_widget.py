@@ -271,11 +271,11 @@ class CheckableSearchComboBox(ItemSearchComboBox):
         self.view().header().setMinimumSectionSize(0)   # set minimum to 0
         self.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         
-        self.setModelColumn(1)  # sets column for text to the second column
+        #self.setModelColumn(1)  # sets column for text to the second column
         self.view().setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
         
         self.cb = parent.clipboard
-        
+
         # Set popup
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(lambda event: self._popup_menu(event))
@@ -285,17 +285,25 @@ class CheckableSearchComboBox(ItemSearchComboBox):
         for shortcut, fcn in shortcut_fcn_pair:
             QShortcut(QtGui.QKeySequence(shortcut), self, activated=fcn, context=QtCore.Qt.WidgetShortcut)
 
-    def addItem(self, item, model=None):
-        self.itemList.append(item)      # not calling super, need to add manually
+        # Connect Signals
+        self.view().pressed.connect(self.handleItemPressed)
     
-        checkbox = QtGui.QStandardItem('')
-        checkbox.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
-        checkbox.setCheckState(QtCore.Qt.Unchecked)
+    def handleItemPressed(self, index):
+        self.setCurrentIndex(index.row())
+        self.hidePopup()
 
-        self.model().appendRow([checkbox, QtGui.QStandardItem(item)])
-        
-        self.view().resizeColumnToContents(0)
-        self.view().resizeColumnToContents(1)
+    def addItem(self, item, model=None):
+        super().addItem(item)
+    
+        checkbox_item = self.model().item(self.count()-1, 0)
+        checkbox_item.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
+        checkbox_item.setCheckState(QtCore.Qt.Unchecked)
+
+        #self.view().resizeColumnToContents(0)
+
+    def addItems(self, items):
+        for item in items:
+            self.addItem(item)
 
     def itemChecked(self, index):
         item = self.model().item(index, 0)
@@ -340,4 +348,17 @@ class CheckableSearchComboBox(ItemSearchComboBox):
     
     def _paste(self):
         self.lineEdit().setText(self.cb.text())
+
+class MessageWindow(QWidget):
+    def __init__(self, parent, text):
+        super().__init__(parent=parent)
+        n = 7 # Margin size
+        layout = QVBoxLayout()
+        layout.setContentsMargins(n+1, n, n+1, n)
+        self.label = QLabel(text)
+        layout.addWidget(self.label)
+        self.setLayout(layout)
         
+
+        self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.CustomizeWindowHint | QtCore.Qt.FramelessWindowHint)
+        self.show()

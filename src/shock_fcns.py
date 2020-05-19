@@ -42,7 +42,7 @@ Ru = ct.gas_constant
 
 # Main ODE solver
 class ReactorOde(object):
-    def __init__(self, gas, t_lab_end, rhoI, L, As, A1, area_change):
+    def __init__(self, gas, t_lab_end, rhoI, L=0.1, As=0.2, A1=0.2, area_change=False):
         # Parameters of the ODE system and auxiliary data are stored in the
         # ReactorOde object.
         self.gas = gas
@@ -76,12 +76,17 @@ class ReactorOde(object):
         hk = self.gas.partial_molar_enthalpies
         wdot = self.gas.net_production_rates
 
+        if self.delta_dA:
+            xi = max(z / self.L, 1e-10)
+            dA_dt = self.delta_dA * v * self.As*self.n/self.L * xi**(self.n-1.0)/(1.0-xi**self.n)**2.0
+        else:
+            dA_dt = 0.0
+        
         beta = v**2 * (1.0/(cp*T) - Wmix / (Ru * T))
-        xi = max(z / self.L, 1e-10)
 
         ydot = np.zeros(self.N)
         ydot[0] = v # dz/dt
-        ydot[1] = self.delta_dA * v * self.As*self.n/self.L * xi**(self.n-1.0)/(1.0-xi**self.n)**2.0 # dA/dt
+        ydot[1] = dA_dt # dA/dt
         ydot[2] = 1/(1+beta) * (sum((hk/(cp*T) - Wmix) * wdot) - rho*beta/A * ydot[1]) # drho/dt
         ydot[3] = -v * (ydot[2]/rho + ydot[1]/A) # dv/dt
         ydot[4] = -(np.dot(wdot, hk)/rho + v*ydot[3]) / cp # dT/dt
@@ -98,7 +103,7 @@ class ReactorOde(object):
 
     # compute the density gradient from the solution
     def drhodz(self, t, y):
-        z, A, rho, v, T, tlab = y[:6]
+        z, A, rho, vel, T, tlab = y[:6]
         self.gas.set_unnormalized_mass_fractions(y[6:])
         self.gas.TD = T, rho
         cp = self.gas.cp_mass
@@ -106,48 +111,119 @@ class ReactorOde(object):
         hk = self.gas.partial_molar_enthalpies
         wdot = self.gas.net_production_rates
 
-        beta = v**2 * (1.0/(cp*T) - Wmix / (Ru * T))
-        xi = max(z / self.L, 1e-10)
+        if self.delta_dA:
+            xi = max(z / self.L, 1e-10)
+            dAdt = self.delta_dA * vel * self.As*self.n/self.L * xi**(self.n-1.0)/(1.0-xi**self.n)**2.0 # dA/dt
+        else:
+            dAdt = 0.0
+        
+        beta = vel**2 * (1.0/(cp*T) - Wmix / (Ru * T))
 
-        dAdt = self.delta_dA * v * self.As*self.n/self.L * xi**(self.n-1.0)/(1.0-xi**self.n)**2.0 # dA/dt
-
-        return 1/v/(1+beta) * (sum((hk/(cp*T) - Wmix) * wdot) - rho*beta/A * dAdt)
+        return 1/vel/(1+beta) * (sum((hk/(cp*T) - Wmix) * wdot) - rho*beta/A * dAdt)
 
     # compute the contribution of each reaction to the density gradient
     def drhodz_per_rxn(self, t, y, rxnNum=None):
-        z, A, rho, v, T, tlab = y[:6]
+        z, A, rho, vel, T, tlab = y[:6]
         self.gas.set_unnormalized_mass_fractions(y[6:])
         self.gas.TD = T, rho
         cp = self.gas.cp_mass
         Wmix = self.gas.mean_molecular_weight
-        hk = self.gas.partial_molar_enthalpies
-        wdot = self.gas.net_production_rates
 
-        beta = v**2 * (1.0/(cp*T) - Wmix / (Ru * T))
-        xi = max(z / self.L, 1e-10)
+        if not hasattr(self, delta_N):
+            nu_fwd = self.gas.product_stoich_coeffs()
+            nu_rev = self.gas.reactant_stoich_coeffs()
+            self.delta_N = np.sum(nu_fwd, axis=0) - np.sum(nu_rev, axis=0)
 
-        dAdt = self.delta_dA * v * self.As*self.n/self.L * xi**(self.n-1.0)/(1.0-xi**self.n)**2.0 # dA/dt
+        if self.delta_dA:
+            xi = max(z / self.L, 1e-10)
+            dAdt = self.delta_dA * vel * self.As*self.n/self.L * xi**(self.n - 1.0)/(1.0 - xi**self.n)**2.0 # dA/dt
+        else:
+            dAdt = 0.0
 
-        per_rxn = np.zeros(self.gas.n_reactions)
-        rj = self.gas.net_rates_of_progress
-        hj = self.gas.delta_enthalpy
-        nu_fwd = self.gas.product_stoich_coeffs()
-        nu_rev = self.gas.reactant_stoich_coeffs()
-        
         if rxnNum is None:
             rxns = range(self.gas.n_reactions)
         elif isinstance(rxnNum, list):
             rxns = rxnNum
         else:
             rxns = [rxnNum]
-            
-        for j in rxns:
-            delta_Nj = sum(nu_fwd[:,j]) - sum(nu_rev[:,j])
-            per_rxn[j] = 1/v/(1+beta) * ( rj[j] * ( hj[j] / (cp*T)  - Wmix * delta_Nj)  - rho*beta/A * dAdt) 
 
-        return per_rxn
+        # per reaction properties
+        rj = self.gas.net_rates_of_progress[rxns]
+        hj = self.gas.delta_enthalpy[rxns]
+        delta_N = self.delta_N[rxns]
 
-        
+        beta = vel**2 * (1.0/(cp*T) - Wmix/(Ru*T))
+
+        return 1/vel/(1+beta)*(rj*(hj/(cp*T) - Wmix*delta_N) - rho*beta/A*dAdt)
+
+
+def drhodz(states, L=0.1, As=0.2, A1=0.2, area_change=False):
+    n = 0.5
+
+    z = states.z
+    A = states.A
+    rho = states.density
+    vel = states.vel
+    T = states.T
+    cp = states.cp_mass
+    Wmix = states.mean_molecular_weight
+    hk = states.partial_molar_enthalpies
+    wdot = states.net_production_rates
+
+    beta = vel**2 * (1.0/(cp*T) - Wmix / (Ru * T))
+    outer = 1/vel/(1+beta)
+
+    species_term = np.sum((hk/(cp*T)[:,None] - Wmix[:,None]) * wdot, axis=1)
+
+    if area_change:
+        xi = max(z / L, 1e-10)
+        dAdt = vel * As*n/L * xi**(n-1.0)/(1.0-xi**n)**2.0 # dA/dt
+        area_change_term = rho*beta/A*dAdt
+    else:
+        area_change_term = 0.0
+    
+    return outer*(species_term - area_change_term)
+
+# compute the contribution of each reaction to the density gradient
+def drhodz_per_rxn(states, L=0.1, As=0.2, A1=0.2, area_change=False, rxnNum=None):
+    n = 0.5
+
+    z = states.z
+    A = states.A
+    rho = states.density
+    vel = states.vel
+    T = states.T
+    cp = states.cp_mass
+    Wmix = states.mean_molecular_weight
+    nu_fwd = states.product_stoich_coeffs()
+    nu_rev = states.reactant_stoich_coeffs()
+    delta_N = np.sum(nu_fwd, axis=0) - np.sum(nu_rev, axis=0)
+
+    if rxnNum is None:
+        rxns = range(states.n_reactions)
+    elif isinstance(rxnNum, list):
+        rxns = rxnNum
+    else:
+        rxns = [rxnNum]
+
+    # per reaction properties
+    rj = states.net_rates_of_progress[:,rxns]
+    hj = states.delta_enthalpy[:,rxns]
+
+    beta = vel**2 * (1.0/(cp*T) - Wmix/(Ru*T))
+    outer = 1/vel/(1+beta)
+
+    if area_change:
+        xi = max(z/L, 1e-10)
+        dAdt = vel * As*n/L * xi**(n - 1.0)/(1.0 - xi**n)**2.0 # dA/dt
+        area_change_term = rho*beta/A*dAdt
+    else:
+        area_change_term = 0.0
+
+    species_term = rj*(hj/(cp*T)[:,None] - Wmix[:, None]*delta_N)
+
+    return outer[:,None]*(species_term - area_change_term)
+       
 """
 Written by Travis Sikes
 """
@@ -407,5 +483,5 @@ class Properties():
                   'T2': zone[2]['T'], 'P2': zone[2]['P'], 'u2': zone[2]['u'],
                   'P4': self._P4_eqn(),
                   'T5': zone[5]['T'], 'P5': zone[5]['P']}
-         
+        
         return output

@@ -9,6 +9,8 @@ Frhodo is an open-source, GUI-based Python application to simulate
 experimental data and optimize chemical kinetics mechanisms using `Cantera <https://cantera.org>`_ 
 as its chemistry solver. 
 
+|Screenshot|
+
 Features include:
 
 * Easing user workload through an intuitive and extensive GUI
@@ -37,9 +39,14 @@ Further installation instructions and documentation can be found in the provided
 Frhodo uses an Anaconda
 environment and has been tested on Windows, macOS, and Linux.
 
-.. |Frhodo| image:: https://github.com/Argonne-National-Laboratory/Frhodo/blob/master/Doc/Logo.png
+.. |Frhodo| image:: https://github.com/Argonne-National-Laboratory/Frhodo/blob/assets/Logo.png
     :target: https://github.com/Argonne-National-Laboratory/Frhodo/
     :alt: Frhodo logo
     :width: 325
     :align: middle
 
+.. |Screenshot| image:: https://github.com/Argonne-National-Laboratory/Frhodo/blob/assets/Frhodo_screenshot_preview.png
+    :target: https://github.com/Argonne-National-Laboratory/Frhodo/blob/assets/Frhodo_screenshot.png
+    :alt: Frhodo Screenshot
+    :width: 800
+    :align: middle

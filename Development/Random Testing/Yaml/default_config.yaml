@@ -1,0 +1,51 @@
+Directory Settings:
+  directory file: ''
+  load full series: false
+
+Experiment Settings:
+  temperature units: {zone 1: K, zone 2: K, zone 5: K}
+  pressure units: {zone 1: Torr, zone 2: Torr, zone 5: atm}
+  velocity units: m/s
+
+Reactor Settings:
+  reactor: Incident Shock Reactor
+  solve energy: true
+  frozen composition: false
+  simulation end time:
+    value: 12.0
+    units: us
+  ODE solver: BDF
+  simulation interpolation factor: 1
+  ODE tolerance:
+    relative: 1.0e-06
+    absolute: 1.0e-08
+
+Optimization Settings:
+  time uncertainty: 0.0
+  loss function alpha: -2.0
+  loss function c: 1.0
+  multiprocessing: true
+  enabled:
+    global: true
+    local: true
+  algorithm:
+    global: DIRECT
+    local: Subplex
+  initial step:
+    global: 0.01
+    local: 0.01
+  relative tolerance x:
+    global: 1.0e-04
+    local: 1.0e-04
+  relative tolerance fcn:
+    global: 5.0e-04
+    local: 1.0e-03
+  weight function:
+    max: 100
+    min: [0, 0]
+    time location: [0.5, 3.7]
+    inverse growth rate: [0, 0.3]
+
+Plot Settings:
+  x-scale: linear
+  y-scale: abslog

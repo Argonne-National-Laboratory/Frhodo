@@ -87,9 +87,9 @@ class Save_Dialog(QDialog, QApplication):
         return super().eventFilter(obj, event)
     
     def execute(self, event=None):
-        def setSelected(listWidget, items):
+        def setSelected(listWidget, items, match_type=QtCore.Qt.MatchExactly):
             for item in items:
-                matching_items = listWidget.findItems(item, QtCore.Qt.MatchContains)
+                matching_items = listWidget.findItems(item, match_type)
                 
                 for item in matching_items:
                     item.setSelected(True)
@@ -129,7 +129,7 @@ class Save_Dialog(QDialog, QApplication):
         if not self.var['reactions']:
             setSelected(self.reactions_list_widget, reactions)
         else:
-            setSelected(self.reactions_list_widget, self.var['reactions'].values())
+            setSelected(self.reactions_list_widget, self.var['reactions'].values(), match_type=QtCore.Qt.MatchContains)
         
         self.comment_box.setFocus()
         # if self.last_focus is not None:
