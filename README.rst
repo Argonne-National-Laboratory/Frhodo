@@ -45,7 +45,8 @@ environment and has been tested on Windows, macOS, and Linux.
     :width: 325
     :align: middle
 
-.. |Screenshot| image:: https://github.com/Argonne-National-Laboratory/Frhodo/blob/assets/Frhodo_screenshot.png
+.. |Screenshot| image:: https://github.com/Argonne-National-Laboratory/Frhodo/blob/assets/Frhodo_screenshot_preview.png
+    :target: https://github.com/Argonne-National-Laboratory/Frhodo/blob/assets/Frhodo_screenshot.png
     :alt: Frhodo Screenshot
     :width: 800
     :align: middle
