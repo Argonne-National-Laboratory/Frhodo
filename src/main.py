@@ -5,18 +5,21 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level 
 # directory for license and copyright information.
 
-import os, sys, platform, multiprocessing, pathlib, logging, traceback
-from logging.handlers import RotatingFileHandler
+version = '1.2.5'
+
+import os, sys, platform, multiprocessing, pathlib
 # os.environ['QT_API'] = 'pyside2'        # forces pyside2
 
-from qtpy.QtWidgets import QMainWindow, QApplication, QWidget, QDialog
+from qtpy.QtWidgets import QMainWindow, QApplication, QMessageBox
 from qtpy import uic, QtCore, QtGui
 
 import numpy as np
 # from timeit import default_timer as timer
 
-import plot, misc_widget, options_panel_widgets, convert_units, sim_explorer_widget
-import mech_fcns, settings, save_widget
+from plot.plot_main import All_Plots as plot
+from misc_widget import MessageWindow
+import appdirs, options_panel_widgets, convert_units, sim_explorer_widget
+import mech_fcns, settings, config_io, save_widget, error_window, help_menu
     
 if os.environ['QT_API'] == 'pyside2': # Silence warning: "Qt WebEngine seems to be initialized from a plugin."
     QApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
@@ -27,11 +30,21 @@ if hasattr(QtCore.Qt, 'AA_EnableHighDpiScaling'):
 if hasattr(QtCore.Qt, 'AA_UseHighDpiPixmaps'):
     QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
 
+# set main folder
+path = {'main': pathlib.Path(sys.argv[0]).parents[0].resolve()}
+
+# set appdata folder using AppDirs library (but just using the source code file)
+dirs = appdirs.AppDirs(appname='Frhodo', roaming=True, appauthor=False)
+path['appdata'] = pathlib.Path(dirs.user_config_dir)
+path['appdata'].mkdir(parents=True, exist_ok=True) # Make path if it doesn't exist
+shut_down = {'bool': False}
+
 class Main(QMainWindow):
-    def __init__(self):
+    def __init__(self, path, app):
         super().__init__()
-        self.path_set = settings.path(self)
-        uic.loadUi(str(self.path['main']/'UI'/'main_window.ui'), self)
+        self.app = app
+        self.path_set = settings.Path(self, path)
+        uic.loadUi(str(self.path['main']/'UI'/'main_window.ui'), self)  # ~0.4 sec
         self.splitter.moveSplitter(0, 1)    # moves splitter 0 as close to 1 as possible
         self.setWindowIcon(QtGui.QIcon(str(self.path['main']/'UI'/'graphics'/'main_icon.png')))
         
@@ -49,30 +62,41 @@ class Main(QMainWindow):
         self.var = {'reactor': {'t_unit_conv': 1}}
         self.SIM = mech_fcns.Simulation_Result()
         self.mech_loaded = False
+        self.run_block = True
         self.convert_units = convert_units.Convert_Units(self)
         self.series = settings.series(self)
         
         self.sim_explorer = sim_explorer_widget.SIM_Explorer_Widgets(self)
-        self.plot = plot.All_Plots(self)
+        self.plot = plot(self)
         options_panel_widgets.Initialize(self)
         self.mech = mech_fcns.Chemical_Mechanism()
-        
+
         # Setup save sim
         self.save_sim = save_widget.Save_Dialog(self)
         self.save_sim_button.clicked.connect(self.save_sim.execute)
         self.action_Save.triggered.connect(self.save_sim.execute)
+
+        if shut_down['bool']:
+            sys.exit()
+        else:
+            self.show()
+            self.app.processEvents() # allow everything to draw properly
         
         # Initialize Settings
-        self.initialize_settings()
-        
-        self.show()
+        self.initialize_settings()  # ~ 4 sec
+
+        # Setup help menu
+        self.version = version
+        help_menu.HelpMenu(self)
     
-    def initialize_settings(self):
+    def initialize_settings(self):  # TODO: Solving for loaded shock twice
+        msgBox = MessageWindow(self, 'Loading...')
+        self.app.processEvents()
+
         self.var['old_shock_choice'] = self.var['shock_choice'] = 1
                 
-        self.user_settings = settings.user_settings(self)
-        if self.path['default_settings.ini'].exists():
-            self.user_settings.load(self.path['default_settings.ini'])
+        self.user_settings = config_io.GUI_settings(self)
+        self.user_settings.load()
         
         self.load_full_series = self.load_full_series_box.isChecked()   # TODO: Move to somewhere else?
         
@@ -80,9 +104,12 @@ class Main(QMainWindow):
         if ('path_file' in self.path and os.access(self.path['path_file'], os.R_OK) and 
             self.path['path_file'].is_file()):
             
-            self.path_set.load_dir_file(self.path['path_file'])
-            
+            self.path_set.load_dir_file(self.path['path_file']) # ~3.9 sec
+        
         self.update_user_settings()
+        self.run_block = False      # Block multiple simulations from running during initialization
+        self.run_single()           # Attempt simulation after initialization completed
+        msgBox.close()
     
     def load_mech(self, event = None):
         def mechhasthermo(mech_path):
@@ -184,7 +211,9 @@ class Main(QMainWindow):
                 self.tree._copy_expanded_tab_rates()        # copy rates and time offset
         
         self.var['time_unc'] = self.time_unc_box.value()*t_unit_conv
-                
+        
+        # self.user_settings.save()   # saves settings everytime a variable is changed
+
         if event is not None:
             sender = self.sender().objectName()
             if 'time_offset' in sender and hasattr(self, 'SIM'): # Don't rerun SIM if it exists
@@ -207,6 +236,7 @@ class Main(QMainWindow):
         # print(event.modifiers(),event.text())
     
     def run_single(self, event=None, t_save=None, rxn_changed=False):
+        if self.run_block: return
         if not self.mech_loaded: return                 # if mech isn't loaded successfully, exit
         if not hasattr(self.mech_tree, 'rxn'): return   # if mech tree not set up, exit
         
@@ -242,7 +272,7 @@ class Main(QMainWindow):
             self.plot.signal.update_sim(self.SIM.independent_var, self.SIM.observable, rxn_changed)
             if tabText == 'Sim Explorer':
                 self.sim_explorer.populate_main_parameters()
-                self.sim_explorer.update_plot(self.SIM) # somtimes duplicate updates
+                self.sim_explorer.update_plot(self.SIM) # sometimes duplicate updates
         else:
             nan = np.array([np.nan, np.nan])
             self.plot.signal.update_sim(nan, nan)   # make sim plot blank
@@ -253,63 +283,14 @@ class Main(QMainWindow):
     # def raise_error(self):
         # assert False
 
-class Error_Window(QDialog):
-    def __init__(self, path):
-        super().__init__()
-        self.path = path
-        uic.loadUi(str(self.path['main']/'UI'/'error_window.ui'), self)
-        self.setWindowIcon(QtGui.QIcon(str(self.path['main']/'UI'/'graphics'/'main_icon.png')))
-        self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.CustomizeWindowHint | QtCore.Qt.WindowTitleHint |
-                            QtCore.Qt.WindowCloseButtonHint | QtCore.Qt.WindowStaysOnTopHint)
-
-        self.close_button.clicked.connect(self.closeEvent) 
-        self.installEventFilter(self)
-        
-        self.exec_()
-        
-    def eventFilter(self, obj, event):
-        # intercept enter, space and escape
-        if event.type() == QtCore.QEvent.KeyPress:
-            if event.key() in [QtCore.Qt.Key_Escape, QtCore.Qt.Key_Return, QtCore.Qt.Key_Space]:
-                self.close_button.click()
-                return True
-                    
-        return super().eventFilter(obj, event)
-    
-    def closeEvent(self, event):
-        QApplication.quit() # some errors can be recovered from, maybe I shouldn't autoclose the program
-
-def excepthook(type, value, tback):
-    # log the exception
-    path = {'main': pathlib.Path(sys.argv[0]).parents[0].resolve()}
-    path['log'] = path['main']/'error.log'
-    
-    log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    
-    log_handler = RotatingFileHandler(path['log'], mode='a', maxBytes=1*1024*1024, # maximum of 1 MB
-                                     backupCount=1, encoding=None, delay=0)        # maximum of 2 error files
-    log_handler.setFormatter(log_formatter)
-    log_handler.setLevel(logging.DEBUG)
-
-    app_log = logging.getLogger('root')
-    app_log.setLevel(logging.DEBUG)
-    app_log.addHandler(log_handler)
-    
-    text = "".join(traceback.format_exception(type, value, tback))   
-    app_log.error(text)
-
-    # call the default handler
-    sys.__excepthook__(type, value, tback)
-    
-    Error_Window(path)    
-
-sys.excepthook = excepthook
             
 if __name__ == '__main__':
     if platform.system() == 'Windows':  # this is required for pyinstaller on windows
         multiprocessing.freeze_support()
 
+    sys.excepthook = error_window.excepthookDecorator(path, shut_down)
+    
     app = QApplication(sys.argv)
-    main = Main()
+    main = Main(path, app)
     sys.exit(app.exec_())
    

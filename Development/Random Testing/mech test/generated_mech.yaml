@@ -1,0 +1,1126 @@
+description: |-
+  Based on Styrene (2015)
+
+generator: ck2yaml
+input-files: [Styrene v0.3.0 - 120 torr.mech, Styrene mech.therm]
+cantera-version: 2.5.0a4
+date: Sun, 31 May 2020 00:54:53 -0500
+
+units: {length: cm, time: s, quantity: mol, activation-energy: cal/mol}
+
+phases:
+- name: gas
+  thermo: ideal-gas
+  elements: [C, H, O, Ar, Kr, Ne]
+  species: [C12H10, C12H8, C8H8, aC8H7, bC8H7, oC8H7, C8H2, C8H6, 15HD,
+    34DMCB, Fulvene, Benzene, 13HD5Y, 12HD5Y, 2E13BD, C6H5, cisC6H4, oC6H4,
+    C6H3, C6H2, C6H, C4H5, C4H4, C4H3, C4H2, C4H, C4, a-C3H4, p-C3H4, C3H3,
+    C3H2, C2H4, C2H3, C2H2, H2CC, C2H, CH4, CH3, CH2(s), CH, H2, H, Ar,
+    Kr, Ne]
+  kinetics: gas
+  state: {T: 300.0, P: 1 atm}
+
+species:
+- name: C12H10
+  composition: {C: 12, H: 10}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [0.194600056, 0.0535259888, 8.55000841e-05, -1.63903525e-07, 7.29975666e-11,
+      1.90021492e+04, 27.2148992]
+    - [22.896362, 0.0368453189, -1.35016357e-05, 2.20802787e-09, -1.33358137e-13,
+      1.07395923e+04, -100.509573]
+    note: biphenyl   g 8/00
+  note: biphenyl                   ZUOUZKKEUPVFJK-UHFFFAOYSA-N       InChI=1S/C12H10/c1-3-7-11(8-4-1)12-9-5-2-6-10-12/h1-10H
+- name: C12H8
+  composition: {C: 12, H: 8}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [-0.926510662, 0.0529144662, 7.56324038e-05, -1.51364316e-07, 6.81452776e-11,
+      4.77004412e+04, 30.6183525]
+    - [21.4943346, 0.0331238854, -1.20651081e-05, 1.96677465e-09, -1.18566034e-13,
+      3.97273863e+04, -94.6644256]
+    note: biphenylen  T 8/14
+  note: biphenylene
+- name: C8H8
+  composition: {C: 8, H: 8}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [1.12656107, 0.031704488, 7.38511452e-05, -1.29131757e-07, 5.65307288e-11,
+      1.57676346e+04, 22.5936971]
+    - [15.582012, 0.0266093018, -9.5614487e-06, 1.54378205e-09, -9.24814823e-14,
+      1.03197319e+04, -59.8622481]
+    note: styrene      T12/10
+  note: styrene                    PPBRXRYQALVLMV-UHFFFAOYSA-N       InChI=1S/C8H8/c1-2-8-6-4-3-5-7-8/h2-7H/1H2
+- name: aC8H7
+  composition: {C: 8, H: 7}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [0.595576002, 0.0431715811, 3.39695049e-05, -8.55153149e-08, 4.02634981e-11,
+      4.19756314e+04, 25.701156]
+    - [16.1678053, 0.0234869894, -8.45465097e-06, 1.36664033e-09, -8.19389188e-14,
+      3.67356818e+04, -59.8456163]
+    note: a-styryl    T12/07
+  note: alpha-styryl               HVOAOEQOQJYIGP-UHFFFAOYSA-N       InChI=1S/C8H7/c1-2-8-6-4-3-5-7-8/h3-7H/1H2
+- name: bC8H7
+  composition: {C: 8, H: 7}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [0.27867885, 0.0412517677, 4.27417783e-05, -9.66212597e-08, 4.47818574e-11,
+      4.52024803e+04, 27.0544015]
+    - [16.0668682, 0.0235522834, -8.47352807e-06, 1.36928204e-09, -8.20829942e-14,
+      3.98109546e+04, -60.1469382]
+    note: b-styryl    T12/07
+  note: beta-styryl                XXZXPSKZWQWGKG-UHFFFAOYSA-N       InChI=1S/C8H7/c1-2-8-6-4-3-5-7-8/h1-7H
+- name: oC8H7
+  composition: {C: 8, H: 7}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [1.17830774, 0.0340765502, 5.8506553e-05, -1.10953244e-07, 4.95222636e-11,
+      4.61414992e+04, 23.6053284]
+    - [15.7334515, 0.0238965492, -8.60829763e-06, 1.39223384e-09, -8.35065775e-14,
+      4.08827573e+04, -58.2476667]
+    note: C6H4CH=CH2  T12/07
+  note: styrene-2-ylradical        YQFQMJCKLXLQOX-UHFFFAOYSA-N       InChI=1S/C8H7/c1-2-8-6-4-3-5-7-8/h2-6H/1H2
+- name: C8H2
+  composition: {C: 8, H: 2}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [-0.326701608, 0.0943328676, -1.72876384e-04, 1.56816538e-07, -5.40488426e-11,
+      1.05392079e+05, 22.032212]
+    - [16.3586996, 0.0108592595, -3.91654796e-06, 6.34107033e-10, -3.80413156e-14,
+      1.02366984e+05, -55.6746562]
+    note: linear       T11/07
+  note: tetracetylene              CDGAYCHXIBGGNI-UHFFFAOYSA-N       InChI=1S/C8H2/c1-3-5-7-8-6-4-2/h1-2H
+- name: C8H6
+  composition: {C: 8, H: 6}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [-2.74707918, 0.0778284438, -6.69709932e-05, 2.37972496e-08, -8.43279765e-13,
+      3.61131008e+04, 35.4221257]
+    - [16.3582907, 0.0211974105, -7.65817215e-06, 1.24134505e-09, -7.4532796e-14,
+      3.1037534e+04, -62.2520227]
+    note: Phenylacetyl T12/06
+  note: phenylacetylene            UEXCJVNBTNXOEH-UHFFFAOYSA-N       InChI=1S/C8H6/c1-2-8-6-4-3-5-7-8/h1/3-7H
+- name: 15HD
+  composition: {C: 6, H: 6}
+  thermo:
+    model: NASA7
+    temperature-ranges: [300.0, 898.15, 3000.0]
+    data:
+    - [1.17107187, 0.0501491805, -3.65578933e-05, 1.09324934e-08, 5.4874262e-15,
+      4.83567094e+04, 20.353528]
+    - [7.03617232, 0.0308304983, -1.56559924e-05, 3.8529936e-09, -3.72307052e-13,
+      4.70288546e+04, -8.83937043]
+    note: |-
+      1,5-hexadiyne
+       ATcT 2/21/2020
+  note: 1,5-hexadiyne              YFIBSNDOVCWPBL-UHFFFAOYSA-N       InChI=1S/C6H6/c1-3-5-6-4-2/h1-2H,5-6H2
+- name: 34DMCB
+  composition: {C: 6, H: 6}
+  thermo:
+    model: NASA7
+    temperature-ranges: [300.0, 904.14, 3000.0]
+    data:
+    - [-2.16685517, 0.056010062, -3.33294848e-05, -1.18423724e-11, 5.25358303e-12,
+      3.94422124e+04, 32.5376675]
+    - [5.98209397, 0.0331734439, -1.73680684e-05, 4.38640389e-09, -4.33142339e-13,
+      3.74285327e+04, -8.94212746]
+    note: |-
+      3,4-dimethylenec
+       ATcT 2/21/2020
+  note: 3,4-dimethylenecyclobutene WHCRVRGGFVUMOK-UHFFFAOYSA-N       InChI=1S/C6H6/c1-5-3-4-6(5)2/h3-4H,1-2H2
+- name: Fulvene
+  composition: {C: 6, H: 6}
+  thermo:
+    model: NASA7
+    temperature-ranges: [300.0, 884.56, 3000.0]
+    data:
+    - [-3.98662925, 0.0602892716, -3.67043816e-05, -3.2533672e-11, 6.05151614e-12,
+      2.64595517e+04, 41.6277071]
+    - [4.57626928, 0.0357844055, -1.92593524e-05, 4.9909995e-09, -5.04211214e-13,
+      2.43885046e+04, -1.77678175]
+    note: |-
+      hihosilver
+       ATcT 2/21/2020 skips before
+  note: fulvene                    UHOVQNZJYSORNB-UHFFFAOYSA-N       InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H
+- name: Benzene
+  composition: {C: 6, H: 6}
+  thermo:
+    model: NASA7
+    temperature-ranges: [300.0, 894.1, 3000.0]
+    data:
+    - [-3.07380826, 0.0460607126, 1.90700171e-08, -3.59248411e-08, 1.83094104e-11,
+      8927.81957, 36.4318638]
+    - [3.71970092, 0.0367098514, -1.95969797e-05, 5.02685209e-09, -5.02544326e-13,
+      6872.01291, -0.285622592]
+    note: ATcT 2/21/2020
+  note: benzene                    UHOVQNZJYSORNB-UHFFFAOYSA-N       InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H
+- name: 13HD5Y
+  composition: {C: 6, H: 6}
+  thermo:
+    model: NASA7
+    temperature-ranges: [300.0, 917.79, 3000.0]
+    data:
+    - [-1.96454869e-04, 0.0507304337, -2.97219662e-05, -3.85149944e-12,
+      4.64902488e-12, 3.96487542e+04, 26.1371579]
+    - [8.28838349, 0.0273908462, -1.24784121e-05, 2.65868865e-09, -2.14774317e-13,
+      3.75890624e+04, -16.0722597]
+    note: |-
+      1,3-hexadiene-5-
+       ATcT 2/21/2020
+  note: 1,3-hexadiene-5-yne        OGWJYLKDZYZYBA-UHFFFAOYSA-N       InChI=1S/C6H6/c1-3-5-6-4-2/h1,4-6H,2H2
+- name: 12HD5Y
+  composition: {C: 6, H: 6}
+  thermo:
+    model: NASA7
+    temperature-ranges: [300.0, 959.81, 3000.0]
+    data:
+    - [-0.400669431, 0.0582773435, -5.28777031e-05, 2.59740053e-08, -5.19674796e-12,
+      4.84342359e+04, 28.5441299]
+    - [6.75018002, 0.0316900448, -1.6343208e-05, 4.0778114e-09, -3.98800682e-13,
+      4.69133276e+04, -6.43289287]
+    note: |-
+      1,2-hexadiene-5-
+       ATcT 2/21/2020
+  note: 1,2-hexadiene-5-yne        BIFVSVOAVBNUKC-UHFFFAOYSA-N       InChI=1S/C6H6/c1-3-5-6-4-2/h1,6H,2,5H2
+- name: 2E13BD
+  composition: {C: 6, H: 6}
+  thermo:
+    model: NASA7
+    temperature-ranges: [300.0, 908.4, 3000.0]
+    data:
+    - [-2.67231564, 0.0692366412, -6.04538826e-05, 2.01917811e-08, 3.40771673e-15,
+      4.03221548e+04, 36.2773943]
+    - [11.1158149, 0.0238421868, -1.07996778e-05, 2.32643921e-09, -1.93486446e-13,
+      3.71852358e+04, -32.3962818]
+    note: |-
+      2-ethynyl-1,3-bu
+       ATcT 2/21/2020
+  note: 2-ethynyl-1,3-butadiene    MDCQHVMMIFCHAK-UHFFFAOYSA-N       InChI=1S/C6H6/c1-4-6(3)5-2/h1,5H,2-3H2
+- name: C6H5
+  composition: {C: 6, H: 5}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [0.491024498, 0.0172669813, 7.02556406e-05, -1.13389805e-07, 4.89202543e-11,
+      3.9234051e+04, 24.2505364]
+    - [10.9540673, 0.0182072569, -6.63331157e-06, 1.0812569e-09, -6.51736617e-14,
+      3.51098413e+04, -36.4320659]
+    note: phenyl radi  T07/10
+  note: phenyl                     CIUQDSCDWFSTQR-UHFFFAOYSA-N       InChI=1S/C6H5/c1-2-4-6-5-3-1/h1-5H
+- name: cisC6H4
+  composition: {C: 6, H: 4}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [-0.436293187, 0.0612732353, -7.68492543e-05, 5.18458875e-08, -1.40527024e-11,
+      6.10383325e+04, 25.3964956]
+    - [12.2388926, 0.0136279082, -4.80715345e-06, 7.6674664e-10, -4.5521064e-14,
+      5.81401255e+04, -37.0117245]
+    note: cis-1,5   A02/05
+  note: (Z)-hex-3-en-1/5-diyne     KIWAUQFHKHLABA-WAYWQWQTSA-N       InChI=1S/C6H4/c1-3-5-6-4-2/h1-2/5-6H/b6-5-
+- name: oC6H4
+  composition: {C: 6, H: 4}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [0.721604591, 0.0247976151, 3.16372209e-05, -6.53230986e-08, 2.96082142e-11,
+      5.3979798e+04, 21.6733825]
+    - [10.5707063, 0.0156860613, -5.68267148e-06, 9.22956737e-10, -5.54966417e-14,
+      5.04976657e+04, -33.2563927]
+    note: o-benzyne   A02/05
+  note: o-benzyne                  KLYCPFXDDDMZNQ-UHFFFAOYSA-N       InChI=1S/C6H4/c1-2-4-6-5-3-1/h1-4H
+- name: C6H3
+  composition: {C: 6, H: 3}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [1.50089155, 0.0545901804, -7.88221454e-05, 6.27969099e-08, -2.00768594e-11,
+      8.4913351e+04, 17.6237455]
+    - [12.0132339, 0.0114461128, -4.0888404e-06, 6.57753914e-10, -3.92832116e-14,
+      8.25892145e+04, -33.51187]
+    note: CH2=C=C=C=C=CT10/11
+  note: HCCCHCCCH (linear)                                                                                                    Using
+    CH2=C=C=C=C=CH* from Burcat
+- name: C6H2
+  composition: {C: 6, H: 2}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [-0.59440801, 0.0746613698, -1.35848115e-04, 1.22198283e-07, -4.17697584e-11,
+      8.21259933e+04, 22.1178523]
+    - [12.5237986, 8.78597449e-03, -3.13663802e-06, 5.04347263e-10, -3.01110703e-14,
+      7.97838798e+04, -38.8501187]
+    note: triacetylen  T 8/10
+  note: triacetylene               MZHROOGPARRVHS-UHFFFAOYSA-N       InChI=1S/C6H2/c1-3-5-6-4-2/h1-2H
+- name: C6H
+  composition: {C: 6, H: 1}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [0.905835416, 0.0607760651, -1.12133809e-04, 1.02799034e-07, -3.57814333e-11,
+      1.18104727e+05, 17.598099]
+    - [11.6156848, 7.15667038e-03, -2.60557304e-06, 4.24485063e-10, -2.55749647e-14,
+      1.16137629e+05, -32.3417577]
+    note: T11/07
+- name: C4H5
+  composition: {C: 4, H: 5}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [1.19684515, 0.0406756963, -4.17819232e-05, 2.3323492e-08, -5.05113871e-12,
+      4.34048978e+04, 19.5123319]
+    - [9.14742675, 0.0131171343, -4.58508051e-06, 7.26399139e-10, -4.29081515e-14,
+      4.14822768e+04, -20.1678929]
+    note: 1-Butayn-4yl T10/13
+  note: 1-Butayn-4yl   ??????
+- name: C4H4
+  composition: {C: 4, H: 4}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [1.66450475, 0.0128883888, 3.00130083e-05, -5.09682379e-08, 2.22098957e-11,
+      5.06798795e+04, 15.9431761]
+    - [6.15799403, 0.0138046928, -4.89065781e-06, 7.82030467e-10, -4.64999095e-14,
+      4.88765056e+04, -10.2472098]
+    note: CYbutadiene  T10/06
+  note: vinylacetylene             WFYPICNXBKQZGB-UHFFFAOYSA-N       InChI=1S/C4H4/c1-3-4-2/h1/4H/2H2
+- name: C4H3
+  composition: {C: 4, H: 3}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [0.554263934, 0.0386185425, -4.7081828e-05, 3.06240321e-08, -7.90588421e-12,
+      6.3797491e+04, 21.0542043]
+    - [8.44631306, 9.07291526e-03, -3.18681201e-06, 5.06725048e-10, -3.00149855e-14,
+      6.20007365e+04, -17.7938854]
+    note: |-
+      E-1yl RadicalT06/04
+       1 butene-3-yne, vinylacetylene
+      bC4H4 1-butene-3  T06/04C  4.H  4.   0.   0.G   200.000  6000.000 1000.        1
+       7.98456038E+00 1.20558816E-02-4.23587475E-06 6.73646140E-10-3.99059864E-14    2
+       3.11993029E+04-1.67958975E+01 1.37368786E+00 2.88801256E-02-1.46863874E-05    3
+      -3.91045446E-09 4.78133572E-12 3.30633344E+04 1.75941274E+01 3.46213066E+04    4
+       Was using C4H3 E-1yl Radical but need to check if including
+  note: E/1-butene-3-yne-1-yl      GQMYNBIOBOYFNG-UHFFFAOYSA-N       InChI=1S/C4H3/c1-3-4-2/h1-3H                             Check
+- name: C4H2
+  composition: {C: 4, H: 2}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [-0.502389168, 0.0525164044, -9.29945578e-05, 8.17206506e-08, -2.73537313e-11,
+      5.38574848e+04, 20.6780532]
+    - [8.65615648, 6.74465042e-03, -2.3686841e-06, 3.76553454e-10, -2.22995205e-14,
+      5.22459295e+04, -21.8462806]
+    note: |-
+      diacetylene  T 2/16
+      C4H3 i-2yl Rad    T06/04C  4.H  3.   0.   0.G   200.000  6000.000 1000.        1
+       8.51181244E+00 9.03337808E-03-3.17602594E-06 5.05276458E-10-2.99379699E-14    2
+       5.71046116E+04-1.51017769E+01 3.37964170E+00 2.70498840E-02-2.90761572E-05    3
+       1.83027765E-08-4.81164203E-12 5.83688723E+04 1.05464883E+01 6.03558069E+04    4
+  note: diacetylene                LLCSWKVOHICRDD-UHFFFAOYSA-N       InChI=1S/C4H2/c1-3-4-2/h1-2H
+- name: C4H
+  composition: {C: 4, H: 1}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [0.938092844, 0.0385919898, -6.8675471e-05, 6.13264695e-08, -2.0896564e-11,
+      9.23123334e+04, 16.5009843]
+    - [7.71800442, 5.12536823e-03, -1.8373772e-06, 2.96241205e-10, -1.77194924e-14,
+      9.10681562e+04, -15.1617127]
+    note: T11/07
+- name: C4
+  composition: {C: 4}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [3.68513415, 0.0184222993, -3.11974431e-05, 2.96449807e-08, -1.0729782e-11,
+      1.2575884e+05, 5.42249286]
+    - [5.82677899, 5.83329662e-03, -2.15836958e-06, 3.43725387e-10, -2.02423736e-14,
+      1.25415411e+05, -4.2122995]
+    note: triplet       T05/09
+  note: Using C4 triplet from Burcat
+- name: a-C3H4
+  composition: {C: 3, H: 4}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [2.6130445, 0.012122575, 1.853988e-05, -3.4525149e-08, 1.5335079e-11,
+      2.1541567e+04, 10.226139]
+    - [6.3168722, 0.011133728, -3.9629378e-06, 6.3564238e-10, -3.787554e-14,
+      2.0117495e+04, -10.995766]
+    note: allene     L 8/89
+  note: allene                     IYABWNGZIDDRAK-UHFFFAOYSA-N       InChI=1S/C3H4/c1-3-2/h1-2H2
+- name: p-C3H4
+  composition: {H: 4, C: 3}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [2.6803869, 0.015799651, 2.5070596e-06, -1.3657623e-08, 6.6154285e-12,
+      2.0802374e+04, 9.8769351]
+    - [6.02524, 0.011336542, -4.0223391e-06, 6.4376063e-10, -3.8299635e-14,
+      1.9620942e+04, -8.6043785]
+    note: propyne    T 2/90
+  note: propyne                    MWWATHDPGQKSAR-UHFFFAOYSA-N       InChI=1S/C3H4/c1-3-2/h1H,2H3
+- name: C3H3
+  composition: {C: 3, H: 3}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [1.35110873, 0.0327411291, -4.73827407e-05, 3.7631022e-08, -1.18541128e-11,
+      4.07679941e+04, 15.2058598]
+    - [7.14221719, 7.61902211e-03, -2.6746003e-06, 4.24914904e-10, -2.51475443e-14,
+      3.95709594e+04, -12.584869]
+    note: propargyl    T 7/11
+  note: propargyl                  DITHIFQMPPCBCU-UHFFFAOYSA-N       InChI=1S/C3H3/c1-3-2/h1H,2H2
+- name: C3H2
+  composition: {C: 3, H: 2}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [2.4341731, 0.0173013088, -1.18294142e-05, 1.02757825e-09, 1.62625574e-12,
+      6.54347265e+04, 11.5155251]
+    - [6.67324582, 5.577291e-03, -1.99180291e-06, 3.20289423e-10, -1.91216473e-14,
+      6.42843566e+04, -10.3146324]
+    note: 1-propynyl   T 6/16
+  note: 1-propynyl                 LPUFMQSFYARLPQ-UHFFFAOYSA-N       InChI=1S/C3H2/c1-3-2/h1H2
+- name: C2H4
+  composition: {C: 2, H: 4}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [3.65150713, -5.35067462e-03, 5.16486118e-05, -6.3686893e-08, 2.50743457e-11,
+      5114.50775, 5.38560851]
+    - [4.1444601, 0.0102648277, -3.61246996e-06, 5.74008727e-10, -3.39295896e-14,
+      4190.59383, -1.14778318]
+    note: |-
+      ethylene     ATcT3E
+       C2H4 <g> ATcT ver. 1.122, DHf298 = 52.45  0.13 kJ/mol - fit JAN17
+  note: ethylene                   VGGSQFUCUMXWEO-UHFFFAOYSA-N       InChI=1S/C2H4/c1-2/h1-2H2
+- name: C2H3
+  composition: {C: 2, H: 3}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [3.12502174, 2.35136801e-03, 2.36803425e-05, -3.35092391e-08, 1.39444106e-11,
+      3.45243318e+04, 8.81537658]
+    - [4.37211201, 7.4686901e-03, -2.6471557e-06, 4.22753257e-10, -2.44958401e-14,
+      3.38051964e+04, 0.428771726]
+    note: |-
+      vinyl radi   ATcT3E
+       C2H3 <g> ATcT ver. 1.122, DHf298 = 296.91  0.33 kJ/mol - fit JAN17
+  note: vinyl                      ORGHESHFQPYLAO-UHFFFAOYSA-N       InChI=1S/C2H3/c1-2/h1H/2H2
+- name: C2H2
+  composition: {C: 2, H: 2}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [0.626263508, 0.0247263532, -3.89555894e-05, 3.16484975e-08, -9.87351295e-12,
+      2.64555796e+04, 14.6968104]
+    - [4.6616576, 4.88861739e-03, -1.61257351e-06, 2.48284097e-10, -1.39736824e-14,
+      2.5769527e+04, -4.01062351]
+    note: |-
+      acetylene    ATcT3E
+       HCCH <g> ATcT ver. 1.122, DHf298 = 228.27  0.13 kJ/mol - fit JAN17
+  note: acetylene                  HSFWRNGVRCDJHI-UHFFFAOYSA-N       InChI=1S/C2H2/c1-2/h1-2H
+- name: H2CC
+  composition: {C: 2, H: 2}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [3.78897979, 5.91794674e-03, -1.08086175e-06, -1.85638085e-09, 1.06887466e-12,
+      4.81959632e+04, 3.7176633]
+    - [4.47847876, 4.84707787e-03, -1.76213069e-06, 2.92788093e-10, -1.76554272e-14,
+      4.79490021e+04, -0.0784806167]
+    note: |-
+      vinylidene   ATcT3E
+       CCH2 <g> ATcT ver. 1.122, DHf298 = 412.20  0.33 kJ/mol - fit JAN17
+  note: vinylidene                 SNVLJLYUUXKWOJ-UHFFFAOYSA-N       InChI=1S/C2H2/c1-2/h1H2
+- name: C2H
+  composition: {C: 2, H: 1}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [2.89867676, 0.0132988489, -2.80733327e-05, 2.89484755e-08, -1.07502351e-11,
+      6.7061605e+04, 6.18547632]
+    - [3.66270248, 3.82492252e-03, -1.366325e-06, 2.1345504e-10, -1.23216848e-14,
+      6.7168379e+04, 3.92205792]
+    note: ethynyl Rad   T 5/10
+  note: ethynyl                    XEHVFKKSDRMODV-UHFFFAOYSA-N       InChI=1S/C2H/c1-2/h1H
+- name: CH4
+  composition: {C: 1, H: 4}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [5.00701913, -0.0126484158, 4.66821073e-05, -4.59210565e-08, 1.57633618e-11,
+      -1.02223522e+04, -4.04227377]
+    - [1.68377091, 0.0100130251, -3.31267639e-06, 5.30233546e-10, -3.1337243e-14,
+      -1.00187792e+04, 9.71477402]
+    note: |-
+      ATcT3E
+       CH4 <g> ATcT ver. 1.122, DHf298 = -74.519  0.057 kJ/mol - fit JAN17
+  note: methane
+- name: CH3
+  composition: {C: 1, H: 3}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [3.61264389, 3.09209041e-03, 9.25474611e-07, -1.6577677e-09, 6.07243533e-13,
+      1.63849955e+04, 1.7999478]
+    - [2.92198336, 5.37478625e-03, -1.99748367e-06, 2.97584806e-10, -1.71860088e-14,
+      1.65446753e+04, 5.25396822]
+    note: |-
+      ATcT3E
+       CH3 <g> ATcT ver. 1.122, DHf298 = 146.374  0.080 kJ/mol - fit JAN17
+  note: methyl                     WCYWZMWISLQXQU-UHFFFAOYSA-N       InChI=1S/CH3/h1H3
+- name: CH2(s)
+  composition: {C: 1, H: 2}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [4.18489675, -2.16396813e-03, 7.68523621e-06, -5.98243427e-09, 1.67910304e-12,
+      5.03923371e+04, -0.717772105]
+    - [2.86931299, 3.39756979e-03, -1.00599964e-06, 1.50562822e-10, -8.61237607e-15,
+      5.06285244e+04, 5.53163503]
+    note: |-
+      ATcT3E
+       CH2 <g, singlet> ATcT ver. 1.122, DHf298 = 429.03  0.13 kJ/mol - fit JAN17
+  note: singlet carbene            HZVOZRGWRWCICA-UHFFFAOYSA-N       InChI=1S/CH2/h1H2
+- name: CH
+  composition: {C: 1, H: 1}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [3.49602032, 2.77423807e-04, -1.57433829e-06, 3.07038632e-09, -1.40468135e-12,
+      7.06500301e+04, 2.05802158]
+    - [2.74988924, 1.36248089e-03, -2.71161485e-07, 2.47828427e-11, -1.18067699e-15,
+      7.08999411e+04, 6.13979299]
+    note: |-
+      ATcT3E
+       CH <g> ATcT ver. 1.122, DHf298 = 596.12  0.11 kJ/mol - fit JAN17
+- name: H2
+  composition: {H: 2}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [2.37694204, 7.73916922e-03, -1.88735073e-05, 1.95517114e-08, -7.17095663e-12,
+      -921.173081, 0.547184736]
+    - [2.90207649, 8.68992581e-04, -1.6586443e-07, 1.90851899e-11, -9.31121789e-16,
+      -797.948726, -0.84559132]
+    note: |-
+      REF ELEMENT    ATcT3E
+       H2 <g> ATcT ver. 1.122, DHf298 = 0.000  0.000 kJ/mol - fit JAN17
+  note: hydrogen                   UFHFLCQGNIYNRP-UHFFFAOYSA-N       InChI=1S/H2/h1H
+- name: H
+  composition: {H: 1}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [2.49975925, 6.73824499e-07, 1.11807261e-09, -3.70192126e-12, 2.14233822e-15,
+      2.54737665e+04, -0.445574009]
+    - [2.49985211, 2.34582548e-07, -1.16171641e-10, 2.25708298e-14, -1.52992005e-18,
+      2.54738024e+04, -0.445864645]
+    note: |-
+      ATcT3E
+       H <g> ATcT ver. 1.122, DHf298 = 217.998  0.000 kJ/mol - fit JAN17
+  note: hydrogen-atom              YZCKVEUIGOORGS-UHFFFAOYSA-N       InChI=1S/H
+- name: Ar
+  composition: {Ar: 1}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [2.49988611, 2.1303796e-07, 8.97320772e-10, -2.31395752e-12, 1.30201393e-15,
+      -745.354481, 4.38024367]
+    - [2.49989176, 1.56134837e-07, -7.76108557e-11, 1.52928085e-14, -1.05304493e-18,
+      -745.328403, 4.38029835]
+    note: |-
+      REF ELEMENT    ATcT3E
+       Ar <g> ATcT ver. 1.122, DHf298 = 0.000  0.000 kJ/mol - fit JAN17
+  note: argon                      XKRFYHLGVUSROY-UHFFFAOYSA-N       InChI=1S/Ar
+- name: Kr
+  composition: {Kr: 1}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [2.5, 0.0, 0.0, 0.0, 0.0, -745.375, 5.49095651]
+    - [2.50001436, -2.78190281e-08, 1.74071629e-11, -4.31400304e-15, 3.66743374e-19,
+      -745.380247, 5.49087778]
+    note: REF ELEMENT    g 8/97
+  note: krypton                    DNNSSWSSYDEUBZ-UHFFFAOYSA-N       InChI=1S/Kr
+- name: Ne
+  composition: {Ne: 1}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 6000.0]
+    data:
+    - [2.5, 0.0, 0.0, 0.0, 0.0, -745.375, 3.35532272]
+    - [2.5, 0.0, 0.0, 0.0, 0.0, -745.375, 3.35532272]
+    note: REF ELEMENT    g 5/97
+  note: neon                       GKAOGPIIYCISHV-UHFFFAOYSA-N       InChI=1S/Ne
+
+reactions:
+- equation: C8H8 <=> Benzene + H2CC  # Reaction 1
+  rate-constant: {A: 1.3735815e+11, b: 0.0, Ea: 7.7960167e+04}
+  note: |-
+    ===============================================================================================================================================================================================
+    Reaction                                   A                 N                Ea            Author           Reference/DOI                       Comment
+    ===============================================================================================================================================================================================
+    ===============================================================================
+    Styrene Reactions
+    ===============================================================================
+    Unimolecular Initiation -------------------------------------------------------
+    PW               This study
+- equation: C8H8 <=> oC6H4 + C2H4  # Reaction 2
+  rate-constant: {A: 3.9793051e+38, b: -7.4952954, Ea: 8.19193e+04}
+  note: PW               This study
+- equation: C8H8 <=> aC8H7 + H  # Reaction 3
+  rate-constant: {A: 1.1172959e+16, b: 0.0, Ea: 1.194e+05}
+  note: PW               This study
+- equation: C8H8 + H <=> aC8H7 + H2  # Reaction 4
+  rate-constant: {A: 1.267e+07, b: 1.93, Ea: 1.046e+04}
+  note: |-
+    C8H8 = bC8H7 + H                       5.0000000E+015     0.0000000E+00    1.0940000E+05    ! PW               This study
+    C8H8 = oC8H7 + H                       5.0000000E+015     0.0000000E+00    1.0940000E+05    ! PW               This study
+    C8H8 = C6H5 + C2H3                     3.1600000E+017     0.0000000E+00    1.2000000E+05    ! PW               This study
+     Styrene + Radical Reactions ---------------------------------------------------
+     Chaumeix         10.1016/j.combustflame.2016.08.026  Estimated from C3H6+H (JSF)
+- equation: C8H8 + H <=> bC8H7 + H2  # Reaction 5
+  rate-constant: {A: 2.535e+07, b: 1.93, Ea: 1.2951e+04}
+  note: 'Richter          10.1016/j.combustflame.2005.07.019  k*1/2 Richter
+    note: analogous C2H4 from 10.1021/jp9606568'
+- equation: C8H8 + H <=> oC8H7 + H2  # Reaction 6
+  rate-constant: {A: 3.4653804e+14, b: 0.0, Ea: 1.6110265e+04}
+  note: PW               This study                          k(Benzene +
+    H = C6H5 + H2)
+- equation: C8H8 + H <=> Benzene + C2H3  # Reaction 7
+  rate-constant: {A: 2.4e+13, b: 0.0, Ea: 5123.0}
+  note: 'Dagaut           10.1016/j.proci.2010.05.013         NEW: IPSO
+    addition (86ROB/TSA*DAG*2 id toluen 06/10/2000)'
+- equation: C4H4 + C4H5 <=> C8H8 + H  # Reaction 8
+  rate-constant: {A: 3.16e+11, b: 0.0, Ea: 3700.0}
+  note: 'Dagaut           10.1016/j.proci.2010.05.013         NEW: k(buta-1/3-diene
+    + propyne)'
+- equation: C8H8 + CH3 <=> aC8H7 + CH4  # Reaction 9
+  rate-constant: {A: 7.8e+06, b: 2.0, Ea: 5234.6}
+  note: Chaumeix         10.1016/j.combustflame.2016.08.026  adjusted based
+    on thermo data
+- equation: C8H8 + CH3 => bC8H7 + CH4  # Reaction 10
+  rate-constant: {A: 1.561e+05, b: 2.0, Ea: 1.13936e+04}
+  note: Chaumeix         10.1016/j.combustflame.2016.08.026  CRECK for c2h4/2
+- equation: C8H8 + CH3 => oC8H7 + CH4  # Reaction 11
+  rate-constant: {A: 1.6e+12, b: 0.0, Ea: 1.5e+04}
+  note: Chaumeix         10.1016/j.combustflame.2016.08.026  as toluene
+- equation: C8H8 + H => C6H5 + C2H4  # Reaction 12
+  rate-constant: {A: 2.445e+37, b: -6.31, Ea: 3.167278e+04}
+  note: Chaumeix         10.1016/j.combustflame.2016.08.026  Tokmakov and
+    Lin 2004 JPCA, *1.5
+- equation: C6H5 + C2H4 => C8H8 + H  # Reaction 13
+  rate-constant: {A: 5.43e+28, b: -4.24, Ea: 2.3866e+04}
+  note: Chaumeix         10.1016/j.combustflame.2016.08.026  Tokmakov and
+    Lin 2004 JPCA, *1.5
+- equation: bC8H7 + H <=> aC8H7 + H  # Reaction 14
+  rate-constant: {A: 1.0e+14, b: 0.0, Ea: 0.0}
+  note: |-
+    Styrl Isomerization Reactions -------------------------------------------------
+    Miller           10.1016/0010-2180(92)90124-8        NEW: k(HCCHCCH+H=H2CCCCH+H)
+- equation: bC8H7 => aC8H7  # Reaction 15
+  rate-constant: {A: 4.8977882e+12, b: 0.45, Ea: 4.574e+04}
+  note: Lin              10.1021/ja0301121                   1 atm?
+- equation: aC8H7 => bC8H7  # Reaction 16
+  rate-constant: {A: 6.6069345e+13, b: 0.14, Ea: 5.312e+04}
+  note: Lin              10.1021/ja0301121
+- equation: bC8H7 => oC8H7  # Reaction 17
+  rate-constant: {A: 2.0417379e+10, b: 0.7, Ea: 2.75e+04}
+  note: Lin              10.1021/ja0301121
+- equation: oC8H7 => bC8H7  # Reaction 18
+  rate-constant: {A: 4.5708819e+09, b: 0.81, Ea: 2.627e+04}
+  note: Lin              10.1021/ja0301121
+- equation: bC8H7 <=> C8H6 + H  # Reaction 19
+  rate-constant: {A: 3.801894e+11, b: 0.82, Ea: 3.891e+04}
+  note: |-
+    Styrl Unimolecular Decomposition
+    Lin              10.1021/ja0301121
+- equation: aC8H7 <=> C8H6 + H  # Reaction 20
+  rate-constant: {A: 1.2302688e+13, b: 0.55, Ea: 4.258e+04}
+  note: Lin              10.1021/ja0301121
+- equation: C6H5 + C2H2 <=> aC8H7  # Reaction 21
+  type: pressure-dependent-Arrhenius
+  rate-constants:
+  - {P: 0.026315789 atm, A: 8.6e+44, b: -10.5, Ea: 1.3145315e+04}
+  - {P: 0.052631579 atm, A: 1.4e+43, b: -9.87, Ea: 1.290631e+04}
+  - {P: 1.0 atm, A: 6.7e+34, b: -7.04, Ea: 1.0994264e+04}
+  - {P: 10.0 atm, A: 2.3e+27, b: -4.56, Ea: 9082.218}
+  note: PW               This study                           10 atm, estimated
+    from (C6H5+C2H2 = bC8H7)
+- equation: C6H5 + C2H2 <=> bC8H7  # Reaction 22
+  type: pressure-dependent-Arrhenius
+  rate-constants:
+  - {P: 0.026315789 atm, A: 8.6e+44, b: -10.5, Ea: 1.3145315e+04}
+  - {P: 0.052631579 atm, A: 1.4e+43, b: -9.87, Ea: 1.290631e+04}
+  - {P: 1.0 atm, A: 6.7e+34, b: -7.04, Ea: 1.0994264e+04}
+  - {P: 10.0 atm, A: 2.3e+27, b: -4.56, Ea: 9082.218}
+  note: Bozzelli         10.1021/jp002428q                    10 atm
+- equation: C6H5 + C2H2 <=> oC8H7  # Reaction 23
+  type: pressure-dependent-Arrhenius
+  rate-constants:
+  - {P: 0.026315789 atm, A: 7.9e+51, b: -12.41, Ea: 1.7686424e+04}
+  - {P: 0.052631579 atm, A: 6.1e+50, b: -11.97, Ea: 1.8164436e+04}
+  - {P: 1.0 atm, A: 1.1e+41, b: -8.61, Ea: 1.8164436e+04}
+  - {P: 10.0 atm, A: 5.2e+27, b: -4.38, Ea: 1.5774379e+04}
+  note: Bozzelli         10.1021/jp002428q                    10 atm
+- equation: C6H5 + C2H <=> C8H6  # Reaction 24
+  rate-constant: {A: 1.2e+27, b: -4.22, Ea: 7200.0}
+  note: 'Chaumeix         10.1016/j.combustflame.2016.08.026  Source: Refer
+    to c6h5+c2h3=c6h5c2h3  1997 Wang&Frenklach RRKm'
+- equation: 2E13BD <=> Fulvene  # Reaction 25
+  type: pressure-dependent-Arrhenius
+  rate-constants:
+  - {P: 0.039473684 atm, A: 5.7543994e+76, b: -18.67, Ea: 9.5531e+04}
+  - {P: 1.0 atm, A: 2.3442288e+56, b: -12.55, Ea: 8.6405e+04}
+  - {P: 10.0 atm, A: 4.8977882e+26, b: -4.144, Ea: 6.5424e+04}
+  note: |2-
+     ===============================================================================
+     Benzene Reactions
+     ===============================================================================
+     useful sources:
+     Ranzi 10.1016/j.combustflame.2013.02.013
+           10.1016/S0082-0784(85)80569-5
+     Isomerization------------------------------------------------------------------
+    C3H3 + C3H3 = 15HD                     2.9448269E+013    -2.7800000E-01    3.0324737E
+     Miller           10.1021/jp030375h
+- equation: 2E13BD <=> Benzene  # Reaction 26
+  type: pressure-dependent-Arrhenius
+  rate-constants:
+  - {P: 0.039473684 atm, A: 6.7608298e+98, b: -24.58, Ea: 1.2231e+05}
+  - {P: 1.0 atm, A: 1.6218101e+53, b: -11.34, Ea: 1.0021e+05}
+  - {P: 10.0 atm, A: 2.8183829e+51, b: -10.68, Ea: 1.0695e+05}
+  note: Miller           10.1021/jp030375h
+- equation: Fulvene <=> Benzene  # Reaction 27
+  type: pressure-dependent-Arrhenius
+  rate-constants:
+  - {P: 0.039473684 atm, A: 5.6234133e+81, b: -19.36, Ea: 1.215e+05}
+  - {P: 1.0 atm, A: 1.4454398e+45, b: -8.9, Ea: 9.6999e+04}
+  - {P: 10.0 atm, A: 2.9512092e+31, b: -4.97, Ea: 8.8465e+04}
+  note: Miller           10.1021/jp030375h
+- equation: 15HD <=> 34DMCB  # Reaction 28
+  rate-constant: {A: 6.5e+10, b: 0.0, Ea: 3.336e+04}
+  note: Tranter          10.1021/jp037310z
+- equation: 34DMCB <=> 13HD5Y  # Reaction 29
+  rate-constant: {A: 4.1e+12, b: 0.0, Ea: 5.053e+04}
+  note: Tranter          10.1021/jp052797s
+- equation: 34DMCB <=> Fulvene  # Reaction 30
+  rate-constant: {A: 1.44e+13, b: 0.0, Ea: 5.115e+04}
+  note: Tranter          10.1021/jp052797s
+- equation: 13HD5Y <=> Benzene  # Reaction 31
+  rate-constant: {A: 3.78e+12, b: 0.0, Ea: 4.881e+04}
+  note: Tranter          10.1021/jp052797s
+- equation: 12HD5Y <=> 2E13BD  # Reaction 32
+  rate-constant: {A: 2.75e+10, b: 0.0, Ea: 3.496e+04}
+  note: Tranter          10.1021/jp050640u            should go forward,
+    compare thermo
+- equation: 2E13BD => C6H5 + H  # Reaction 33
+  type: pressure-dependent-Arrhenius
+  rate-constants:
+  - {P: 0.039473684 atm, A: 2.6915348e+84, b: -20.14, Ea: 1.219e+05}
+  - {P: 1.0 atm, A: 4.1686938e+77, b: -17.68, Ea: 1.3352e+05}
+  - {P: 10.0 atm, A: 3.0902954e+43, b: -7.928, Ea: 1.1865e+05}
+  note: |-
+    2E13BD = Fulvene                       6.6100000E+012     0.0000000E+00    5.8360000E+04    ! Tranter          10.1021/jp052797s
+    Fulvene = 2E13BD                       9.1200000E+015     0.0000000E+00    8.2700000E+04    ! Tranter          10.1021/jp052797s
+    Fulvene = Benzene                      9.8900000E+014     0.0000000E+00    7.0470000E+04    ! Tranter          10.1021/jp052797s
+    Benzene = Fulvene                      5.5300000E+018     0.0000000E+00    1.0040000E+05    ! Tranter          10.1021/jp052797s
+     Dissociation-------------------------------------------------------------------
+     Miller           10.1021/jp030375h
+- equation: Fulvene <=> C6H5 + H  # Reaction 34
+  type: pressure-dependent-Arrhenius
+  rate-constants:
+  - {P: 0.039473684 atm, A: 2.5703958e+97, b: -23.16, Ea: 1.5347e+05}
+  - {P: 1.0 atm, A: 2.2387211e+68, b: -14.65, Ea: 1.4257e+05}
+  - {P: 10.0 atm, A: 8.5113804e+24, b: -2.505, Ea: 1.1333e+05}
+  note: Miller           10.1021/jp030375h
+- equation: Benzene <=> C6H5 + H  # Reaction 35
+  type: pressure-dependent-Arrhenius
+  rate-constants:
+  - {P: 0.039473684 atm, A: 1.3489629e+108, b: -25.81, Ea: 1.8175e+05}
+  - {P: 1.0 atm, A: 6.3095734e+60, b: -12.4, Ea: 1.4807e+05}
+  - {P: 10.0 atm, A: 5.4954087e+38, b: -6.178, Ea: 1.32e+05}
+  note: Miller           10.1021/jp030375h
+- equation: Benzene + H <=> C6H5 + H2  # Reaction 36
+  rate-constant: {A: 3.4653804e+14, b: 0.0, Ea: 1.6110265e+04}
+  note: |-
+    C6H5 + H (+M) = Benzene (+M)           1.0000000E+014     0.0000000E+00    0.00000000E+00    ! Wang            USC Mech II
+                                  LOW /    6.6000000E+075    -1.6300000E+01    7.00000000E+03 /                                                        USC Mech II note: (HW, RRKM)
+                 TROE /  1.0000000E+000    1.0000000E-001     5.8490000E+02    6.11300000E+03 /
+       H2/ 2.000/  CH4/ 2.000/
+     H + Fulvene -> methylcyclopentadienyl, alpha-hydrofulvenyl, beta-hydrofulvenyl, h+benzene                    10.1016/j.proci.2012.06.165
+     Olzmann          10.1524/zpch.2009.6036
+- equation: Benzene + C6H5 <=> C12H10 + H  # Reaction 37
+  rate-constant: {A: 2.0e+12, b: 0.0, Ea: 1.1e+04}
+  note: Laskin           10.1016/S0082-0784(96)80274-8       Estimated
+- equation: C6H5 + C6H5 <=> C12H10  # Reaction 38
+  rate-constant: {A: 3.2210688e+22, b: -2.81, Ea: 4789.1623}
+  note: |-
+    ===============================================================================
+    Phenyl Reactions
+    ===============================================================================
+    Tranter          10.1021/jp1031064
+- equation: C6H5 + C6H5 <=> oC6H4 + Benzene  # Reaction 39
+  rate-constant: {A: 1.7060824e-03, b: 4.57, Ea: -5743.0203}
+  note: Tranter          10.1021/jp1031064
+- equation: C6H5 + C6H5 <=> cisC6H4 + Benzene  # Reaction 40
+  rate-constant: {A: 4.2854852e-04, b: 4.57, Ea: -5743.0203}
+  note: Tranter          10.1021/jp1031064
+- equation: C6H5 (+M) <=> oC6H4 + H (+M)  # Reaction 41
+  type: falloff
+  low-P-rate-constant: {A: 1.0e+84, b: -18.87, Ea: 9.01e+04}
+  high-P-rate-constant: {A: 4.3e+12, b: 0.62, Ea: 7.73e+04}
+  Troe: {A: 0.902, T3: 696.0, T1: 358.0, T2: 3856.0}
+  note: Frenklach        10.1016/S0082-0784(00)80552-4
+- equation: C6H5 + H <=> oC6H4 + H2  # Reaction 42
+  rate-constant: {A: 1.18e-06, b: 6.18, Ea: 4540.0}
+  note: Howard           10.1016/S0082-0784(00)80679-7
+- equation: C4H <=> C4 + H  # Reaction 43
+  rate-constant: {A: 1.35e+14, b: 0.0, Ea: 1.166e+05}
+  note: Just             10.1016/0010-2180(80)90056-5        A unc 0.85
+- equation: C6H5 + C2H2 <=> C8H6 + H  # Reaction 44
+  rate-constant: {A: 2.0e+09, b: 0.0, Ea: 8000.0}
+  note: |-
+    C6H5 + C2H2 = C8H6 + H                 4.6000000E+012     0.0000000E+00    7.9000000E+03    ! Laskin           10.1016/S0082-0784(96)80274-8       Estimated
+     Ranzi            10.1016/j.combustflame.2013.02.013
+- equation: oC6H4 + oC6H4 <=> C12H8  # Reaction 45
+  rate-constant: {A: 4.9545019e+09, b: 0.827, Ea: -1371.1709}
+  note: |-
+    ===============================================================================
+    Ortho-Benzyne Reactions
+    ===============================================================================
+    Tranter          10.1021/jp1031064
+- equation: oC6H4 + C2H2 <=> C8H6  # Reaction 46
+  rate-constant: {A: 2.0e+13, b: 0.0, Ea: 2.0e+04}
+  note: Frenklach        10.1016/S0082-0784(00)80552-4       Estimated
+- equation: oC6H4 + M <=> C6H3 + H + M  # Reaction 47
+  type: three-body
+  rate-constant: {A: 4.4668359e+19, b: -1.0, Ea: 6.0e+04}
+  note: Tranter          10.1016/j.proci.2014.05.049         Assumes c-C6H3
+    -> C6H3 is fast
+- equation: oC6H4 <=> C4H2 + C2H2  # Reaction 48
+  type: pressure-dependent-Arrhenius
+  rate-constants:
+  - {P: 0.039473684 atm, A: 3.9627803e+57, b: -13.015, Ea: 9.6629e+04}
+  - {P: 0.078947368 atm, A: 1.4157938e+60, b: -13.595, Ea: 1.00423e+05}
+  - {P: 0.15789474 atm, A: 1.1694994e+63, b: -14.27, Ea: 1.04741e+05}
+  note: Tranter          10.1016/j.proci.2014.05.049
+- equation: C6H3 <=> C6H2 + H  # Reaction 49
+  rate-constant: {A: 2.291e+10, b: 0.0, Ea: 3.61e+04}
+  note: Frank            10.1016/j.proci.2006.07.084         From private
+    communication with H. Wang
+- equation: a-C3H4 <=> p-C3H4  # Reaction 50
+  type: pressure-dependent-Arrhenius
+  rate-constants:
+  - {P: 0.039473684 atm, A: 6.0255959e+53, b: -12.18, Ea: 8.4276e+04}
+  - {P: 1.0 atm, A: 7.7624712e+39, b: -7.8, Ea: 7.8446e+04}
+  - {P: 10.0 atm, A: 4.7863009e+48, b: -10.0, Ea: 8.8685e+04}
+  note: |-
+    ===============================================================================
+    Allene/Propyne Reactions
+    ===============================================================================
+    if important Kiefer 10.1021/jp963314a
+    Miller           10.1021/jp0221082                   10 atm
+- equation: a-C3H4 <=> C3H3 + H  # Reaction 51
+  rate-constant: {A: 5.012e+40, b: -7.97, Ea: 1.003995e+05}
+  note: |2-
+                                                          30 Torr
+                PLOG /  7.8947368E-002    1.2050000E+054    -1.2180000E+01    8.4276000E+04 /  !                                                      60 Torr (estimated k(30 Torr)*2)
+                PLOG /  1.5789474E-001    2.4100000E+054    -1.2180000E+01    8.4276000E+04 /  !                                                     120 Torr (estimated k(30 Torr)*4)
+                                                           1 atm
+                                                          10 atm
+    Kiefer           10.1021/jp963314a
+- equation: p-C3H4 <=> C3H3 + H  # Reaction 52
+  rate-constant: {A: 5.012e+40, b: -7.71, Ea: 1.016991e+05}
+  note: Kiefer           10.1021/jp963314a
+- equation: p-C3H4 + H <=> C2H2 + CH3  # Reaction 53
+  rate-constant: {A: 1.318e+05, b: 2.5, Ea: 999.6}
+  note: Kawano           10.1002/kin.550210805
+- equation: a-C3H4 + H <=> C3H3 + H2  # Reaction 54
+  rate-constant: {A: 5.012e+06, b: 2.0, Ea: 5999.4}
+  note: Kiefer           10.1021/jp963314a                  estimate
+- equation: p-C3H4 + H <=> C3H3 + H2  # Reaction 55
+  rate-constant: {A: 1.995e+14, b: 0.0, Ea: 1.49994e+04}
+  note: Kiefer           10.1021/jp963314a                  estimate
+- equation: p-C3H4 + C2H3 <=> C3H3 + C2H4  # Reaction 56
+  rate-constant: {A: 1.0e+12, b: 0.0, Ea: 7700.0}
+  note: Dagaut           10.1080/00102209008951627
+- equation: C2H3 + H (+M) <=> C2H4 (+M)  # Reaction 57
+  type: falloff
+  low-P-rate-constant: {A: 1.4e+30, b: -3.86, Ea: 3320.0}
+  high-P-rate-constant: {A: 6.08e+12, b: 0.27, Ea: 280.0}
+  Troe: {A: 0.782, T3: 207.5, T1: 2663.0, T2: 6095.0}
+  efficiencies: {H2: 2.0, AR: 0.7, CH4: 2.0}
+  note: |-
+    C3H3 + H = C3H2 + H2                   2.1400000E+005     2.5200000E+00    7.4530000E+03    ! Curran           10.1016/j.combustflame.2018.08.006
+     ===============================================================================
+     Ethylene Reactions
+     ===============================================================================
+     Unimolecular
+     GRI 3.0
+- equation: C2H4 (+M) <=> H2 + H2CC (+M)  # Reaction 58
+  type: falloff
+  low-P-rate-constant: {A: 1.58e+51, b: -9.3, Ea: 9.78e+04}
+  high-P-rate-constant: {A: 8.0e+12, b: 0.44, Ea: 8.677e+04}
+  Troe: {A: 0.7345, T3: 180.0, T1: 1035.0, T2: 5417.0}
+  efficiencies: {H2: 2.0, AR: 0.7, CH4: 2.0}
+  note: GRI 3.0
+- equation: C2H4 + H <=> C2H3 + H2  # Reaction 59
+  rate-constant: {A: 5.0706426e+07, b: 1.93, Ea: 1.2952597e+04}
+  note: |-
+    RH + R Abstraction
+    Slagle           10.1021/jp9606568
+- equation: C2H4 + CH3 <=> C2H3 + CH4  # Reaction 60
+  duplicate: true
+  rate-constant: {A: 975.58682, b: 2.947, Ea: 1.5148e+04}
+  note: Miller           10.1021/jp312712p
+- equation: C2H4 + CH3 <=> C2H3 + CH4  # Reaction 61
+  duplicate: true
+  rate-constant: {A: 8.1298902e-05, b: 4.417, Ea: 8835.8}
+  note: Miller           10.1021/jp312712p
+- equation: CH + CH4 <=> C2H4 + H  # Reaction 62
+  rate-constant: {A: 1.324871e+16, b: -0.94, Ea: 57.628924}
+  note: |-
+    Radical Addition
+    Baulch           10.1063/1.1748524
+- equation: CH2(s) + CH3 <=> C2H4 + H  # Reaction 63
+  rate-constant: {A: 1.2e+13, b: 0.0, Ea: -570.0}
+  note: GRI 3.0
+- equation: C2H3 + H <=> H2CC + H2  # Reaction 64
+  rate-constant: {A: 6.0e+13, b: 0.0, Ea: 0.0}
+  note: |-
+    R + R Abstraction
+    Wang             USC Mech II                         Source: Estimated
+- equation: C2H3 + CH3 <=> CH4 + C2H2  # Reaction 65
+  rate-constant: {A: 3.92e+11, b: 0.0, Ea: 0.0}
+  note: Tsang            10.1063/1.555759
+- equation: C2H3 + C2H3 <=> C2H2 + C2H4  # Reaction 66
+  rate-constant: {A: 2.1077493e+13, b: 0.0, Ea: 0.0}
+  note: Laufer           10.1021/cr030039x
+- equation: C2H2 (+M) <=> H2CC (+M)  # Reaction 67
+  type: falloff
+  low-P-rate-constant: {A: 2.45e+15, b: -0.64, Ea: 4.97e+04}
+  high-P-rate-constant: {A: 8.0e+14, b: -0.52, Ea: 5.075e+04}
+  efficiencies: {H2: 2.0, CH4: 2.0, C2H2: 2.5, C2H4: 2.5}
+  note: |-
+    Vinylidene --------------------------------------------------------------------
+    Wang             10.1016/S0009-2614(99)00242-0       Source: RRKM with 97.7 kcal/mol for H2CC
+- equation: H2CC + H <=> C2H2 + H  # Reaction 68
+  rate-constant: {A: 1.0e+14, b: 0.0, Ea: 0.0}
+  note: 'Wang             10.1016/S0009-2614(99)00242-0       Source: Estimated'
+- equation: C2H2 + H2CC (+M) <=> C4H4 (+M)  # Reaction 69
+  type: falloff
+  low-P-rate-constant: {A: 1.4e+60, b: -12.599, Ea: 7417.0}
+  high-P-rate-constant: {A: 3.5e+05, b: 2.055, Ea: -2400.0}
+  Troe: {A: 0.98, T3: 56.0, T1: 580.0, T2: 4164.0}
+  efficiencies: {C2H2: 3.0, C2H4: 3.0, H2: 2.0}
+  note: 'Wang             10.1016/S0009-2614(99)00242-0       Source: RRKM*0.8'
+- equation: C4H3 + H <=> C2H2 + H2CC  # Reaction 70
+  type: pressure-dependent-Arrhenius
+  rate-constants:
+  - {P: 0.026315789 atm, A: 1.6e+19, b: -1.6, Ea: 2220.0}
+  - {P: 0.11842105 atm, A: 1.3e+20, b: -1.85, Ea: 2960.0}
+  - {P: 1.0 atm, A: 6.3e+25, b: -3.34, Ea: 1.0014e+04}
+  note: 'Wang             USC Mech II                           1 atm,  Source:
+    RRKM WAN/FRE'
+- equation: C2H2 + C2H2 <=> C4H4  # Reaction 71
+  rate-constant: {A: 1.5e+09, b: 0.0, Ea: 3.74e+04}
+  note: |-
+    ===============================================================================
+    Acetylene Reactions
+    ===============================================================================
+    for nC4H5 and iC4H5 benzene 10.1021/jp0675126
+    Ranzi            10.1021/ef402048q
+- equation: C2H2 + C2H2 <=> C4H2 + H2  # Reaction 72
+  rate-constant: {A: 1.0e+13, b: 0.0, Ea: 6.82e+04}
+  note: |-
+    C4H4 = C2H2 + C2H2                     1.3000000E+015     0.0000000E+00    8.2500000E+04
+     Colket           10.1016/S0082-0784(88)80317-5
+- equation: C4H4 <=> C4H2 + H2  # Reaction 73
+  rate-constant: {A: 3.5e+11, b: 0.0, Ea: 6.6e+04}
+  note: Colket           10.1016/S0082-0784(88)80317-5
+- equation: C2H2 + C2H2 <=> C4H3 + H  # Reaction 74
+  rate-constant: {A: 2.0e+13, b: 0.0, Ea: 8.15e+04}
+  note: Gardiner         10.1016/S0082-0784(79)80057-0
+- equation: C4H4 <=> C4H3 + H  # Reaction 75
+  rate-constant: {A: 3.682e+19, b: -1.0, Ea: 1.16282e+05}
+  note: Colket           10.1016/S0082-0784(88)80317-5
+- equation: C2H3 + C2H <=> C2H2 + C2H2  # Reaction 76
+  rate-constant: {A: 3.3e+09, b: 0.0, Ea: -1980.0}
+  note: Tsang            10.1063/1.555759
+- equation: C2H + H2 <=> H + C2H2  # Reaction 77
+  rate-constant: {A: 4.9e+05, b: 2.5, Ea: 560.0}
+  note: Frenklach        10.1016/S0010-2180(97)00068-0
+- equation: C2H + H (+M) <=> C2H2 (+M)  # Reaction 78
+  type: falloff
+  low-P-rate-constant: {A: 3.75e+33, b: -4.8, Ea: 1900.0}
+  high-P-rate-constant: {A: 1.7e+17, b: -1.0, Ea: 0.0}
+  Troe: {A: 0.6464, T3: 132.0, T1: 1315.0, T2: 5566.0}
+  note: |-
+    C2H2 + H = C2H + H2                    5.7000000E+005     1.9000000E+00    3.0259000E+04    ! Kiefer           10.1080/00102209208951815
+     GRI 3.0
+- equation: C2H + C2H2 <=> C4H3  # Reaction 79
+  rate-constant: {A: 1.5e+10, b: 0.0, Ea: 0.0}
+  note: Ranzi            10.1021/ef402048q
+- equation: C2H2 + C2H3 <=> C4H4 + H  # Reaction 80
+  rate-constant: {A: 8.0e+08, b: 0.0, Ea: 5000.0}
+  note: |-
+    C2H2 + C4H4 = Benzene                 6.0000000E+009     0.0000000E+00    3.7400000E+04    ! Colket           10.1016/S0082-0784(88)80317-5
+     Frenklach        10.1016/S0010-2180(97)00068-0
+- equation: C2H2 + C4H5 <=> Benzene + H  # Reaction 81
+  rate-constant: {A: 5.0e+08, b: 0.0, Ea: 5000.0}
+  note: Frenklach        10.1016/S0010-2180(97)00068-0
+- equation: C2H3 + H <=> C2H2 + H2  # Reaction 82
+  rate-constant: {A: 3.1622777e+13, b: 0.0, Ea: 1400.0}
+  note: |-
+    C2H2 + C8H5 = C10H7                   1.0000000E+009     0.0000000E+00    5.0000000E+03    ! Ranzi            10.1016/j.combustflame.2013.02.013
+     Kiefer           10.1080/00102209208951815
+- equation: C2H3 <=> C2H2 + H  # Reaction 83
+  rate-constant: {A: 1.0e+40, b: -7.2, Ea: 5.06e+04}
+  note: 'Kiefer           10.1080/00102209208951815           TODO: Check'
+- equation: C2H2 + H (+M) <=> C2H3 (+M)  # Reaction 84
+  type: falloff
+  low-P-rate-constant: {A: 6.346e+31, b: -4.664, Ea: 3780.0}
+  high-P-rate-constant: {A: 1.71e+10, b: 1.266, Ea: 2709.0}
+  Troe: {A: 0.788, T3: -1.02e+04, T1: 1.0e-30, T2: 0.0}
+  efficiencies: {H2: 2.0, AR: 0.7, CH4: 2.0}
+  note: Miller           10.1039/B313645K
+- equation: C4H4 <=> C2H + C2H3  # Reaction 85
+  rate-constant: {A: 1.0e+16, b: 0.0, Ea: 1.05e+05}
+  note: |-
+    ===============================================================================
+    Vinylacetylene and Diacetylene Reactions
+    ===============================================================================
+    Colket           10.1016/0010-2180(89)90048-5
+- equation: C4H4 + C4H4 <=> C4H3 + C4H5  # Reaction 86
+  rate-constant: {A: 5.0e+13, b: 0.0, Ea: 8.15e+04}
+  note: Ranzi            10.1021/ef402048q
+- equation: C4H4 + C4H4 <=> C8H8  # Reaction 87
+  rate-constant: {A: 1.2e+10, b: 0.0, Ea: 3.74e+04}
+  note: Ranzi            10.1021/ef402048q                   due to thermo,
+    only goes forward
+- equation: C4H4 + C4H4 <=> C8H6 + H2  # Reaction 88
+  rate-constant: {A: 1.0e+11, b: 0.0, Ea: 4.4e+04}
+  note: Ranzi            10.1021/ef402048q
+- equation: C4H4 + C4H4 <=> Benzene + C2H2  # Reaction 89
+  rate-constant: {A: 2.5e+11, b: 0.0, Ea: 4.4e+04}
+  note: Ranzi            10.1021/ef402048q
+- equation: C4H5 <=> H + C4H4  # Reaction 90
+  rate-constant: {A: 5.0e+12, b: 0.0, Ea: 4.4e+04}
+  note: Unknown Source
+- equation: H + C4H4 <=> C2H4 + C2H  # Reaction 91
+  rate-constant: {A: 2.0e+10, b: 0.0, Ea: 2000.0}
+  note: Ranzi            10.1021/ef402048q
+- equation: H + C4H3 <=> C4H2 + H2  # Reaction 92
+  rate-constant: {A: 1.0e+11, b: 0.0, Ea: 0.0}
+  note: Ranzi            10.1021/ef402048q
+- equation: H + C4H2 <=> C4H3  # Reaction 93
+  rate-constant: {A: 2.5e+11, b: 0.0, Ea: 3016.0}
+  note: Klippenstein     10.1021/jp058017x
+- equation: C6H2 + C2H <=> C8H2 + H  # Reaction 94
+  rate-constant: {A: 5.0e+09, b: 0.0, Ea: 0.0}
+  note: Ranzi            10.1021/ef402048q
+- equation: C4H + H2 <=> H + C4H2  # Reaction 95
+  rate-constant: {A: 4.9e+05, b: 2.5, Ea: 560.0}
+  note: |-
+    C4H2 + C2H = C6H2 + H                  7.5000000E+009     0.0000000E+00    0.0000000E+00    ! JetSurF 2.0
+     Frenklach        10.1016/S0082-0784(00)80552-4       Estimated from C2H + H2 => H + C2H2
+- equation: C6H2 + M <=> C6H + H + M  # Reaction 96
+  type: three-body
+  rate-constant: {A: 5.0e+16, b: 0.0, Ea: 8.0066922e+04}
+  note: Frenklach        10.1080/00102208708960325
+- equation: C2H2 + C2H <=> C4H2 + H  # Reaction 97
+  rate-constant: {A: 9.6e+13, b: 0.0, Ea: 0.0}
+  note: Frenklach        10.1016/S0010-2180(97)00068-0
+- equation: C6H3 + C2H <=> C4H2 + C4H2  # Reaction 98
+  rate-constant: {A: 5.5e+09, b: 0.0, Ea: 0.0}
+  note: Ranzi            10.1021/ef402048q
+- equation: C4H2 + C4H2 <=> C6H2 + C2H2  # Reaction 99
+  rate-constant: {A: 2.0e+13, b: 0.0, Ea: 5.4e+04}
+  note: Ranzi            10.1021/ef402048q
+- equation: C4H2 + C4H2 <=> C8H2 + H2  # Reaction 100
+  rate-constant: {A: 2.5e+11, b: 0.0, Ea: 4.4e+04}
+  note: Ranzi            10.1021/ef402048q
+- equation: C4H2 + C6H2 <=> C8H2 + C2H2  # Reaction 101
+  rate-constant: {A: 6.0e+12, b: 0.0, Ea: 4.4e+04}
+  note: Ranzi            10.1021/ef402048q
+- equation: C4H2 + C2H2 <=> C6H2 + H2  # Reaction 102
+  rate-constant: {A: 1.0e+13, b: 0.0, Ea: 6.8125e+04}
+  note: Ranzi            10.1021/ef402048q
+- equation: C4H2 + C2H <=> C6H2 + H  # Reaction 103
+  rate-constant: {A: 9.6e+13, b: 0.0, Ea: 0.0}
+  note: Frenklach        10.1016/S0010-2180(97)00068-0       Estimated from
+    C2H2+C2H=C4H2+H
+- equation: C4H + C2H2 <=> C6H2 + H  # Reaction 104
+  rate-constant: {A: 9.6e+13, b: 0.0, Ea: 0.0}
+  note: Frenklach        10.1016/S0010-2180(97)00068-0       Estimated from
+    C2H2+C2H=C4H2+H
+- equation: C4H2 <=> C4H + H  # Reaction 105
+  rate-constant: {A: 2.2e+14, b: 0.0, Ea: 1.166e+05}
+  note: Just             10.1016/0010-2180(80)90056-5
+- equation: C4H + H (+M) <=> C4H2 (+M)  # Reaction 106
+  type: falloff
+  low-P-rate-constant: {A: 3.75e+33, b: -4.8, Ea: 1900.0}
+  high-P-rate-constant: {A: 1.7e+17, b: -1.0, Ea: 0.0}
+  Troe: {A: 0.6464, T3: 132.0, T1: 1315.0, T2: 5566.0}
+  note: Frenklach        10.1016/S0010-2180(97)00068-0       Estimated from
+    GRI3.0 C2H+H(+M) = C2H2(+M)
+- equation: C2H2 + C6H2 <=> C8H2 + H2  # Reaction 107
+  rate-constant: {A: 5.0e+10, b: 0.0, Ea: 4.4e+04}
+  note: |-
+    C4H2 + M = C4H + H + M                 3.6000000E+016     0.0000000E+00    1.0650000E+05    ! PW                                                   Estimated from Just C2H2+M = C2H+H+M
+     Kiefer           10.1080/00102209208951815
+- equation: H + H + M <=> H2 + M  # Reaction 108
+  type: three-body
+  rate-constant: {A: 1.0e+18, b: -1.0, Ea: 0.0}
+  efficiencies: {Ar: 0.63, H2: 0.0, CH4: 2.0}
+  note: GRI 3.0

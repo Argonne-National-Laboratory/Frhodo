@@ -57,6 +57,8 @@ class Convert_Units:
             if 'pre_exponential_factor' in coef:
                 if 'Cantera2Bilbo' in conv_type:
                     coef[0] = 'log(A)'          # Corrects shorthand
+                else:
+                    coef[0] = 'A'          # Corrects shorthand
                 with np.errstate(over='raise'):
                     try:
                         coef[2] = conv_factor[conv_type]['A'](coef[2])

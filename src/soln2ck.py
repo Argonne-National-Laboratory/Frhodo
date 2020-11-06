@@ -7,7 +7,7 @@ Adapted from Kyle Niemeyer's pyMARS Jul 24, 2019
 
 Writes a solution object to a chemkin inp file
 currently only works for Elementary, Falloff and ThreeBody Reactions
-Cantera development version 2.3.0a2 required
+Cantera version 2.5 required
 
 KE Niemeyer, CJ Sung, and MP Raju. Skeletal mechanism generation for surrogate fuels using directed relation graph with error propagation and sensitivity analysis. Combust. Flame, 157(9):1760--1770, 2010. doi:10.1016/j.combustflflame.2009.12.022
 KE Niemeyer and CJ Sung. On the importance of graph search algorithms for DRGEP-based mechanism reduction methods. Combust. Flame, 158(8):1439--1443, 2011. doi:10.1016/j.combustflflame.2010.12.010.
@@ -16,16 +16,142 @@ TF Lu and CK Law. Combustion and Flame, 154:153--163, 2008. doi:10.1016/j.combus
 
 '''
 
-import os
+import os, pathlib, re
 from textwrap import fill
+from collections import Counter
 
 import cantera as ct
+
+try:
+    import ruamel_yaml as yaml
+except ImportError:
+    from ruamel import yaml
 
 # number of calories in 1000 Joules
 CALORIES_CONSTANT = 4184.0
 
 # Conversion from 1 debye to coulomb-meters
 DEBEYE_CONVERSION = 3.33564e-30
+
+def reorder_reaction_equation(solution, reaction):
+    # Split Reaction Equation
+    rxn_eqn = reaction.equation
+    for reaction_direction in ['<=>', '<=', '=>']:
+        if f' {reaction_direction} ' in rxn_eqn:
+            break
+    
+    regex_str = fr'{reaction_direction}|\+|\(\+M\)\s*(?![^()]*\))'
+    items_list = re.split(regex_str, rxn_eqn.replace(' ', ''))
+    items_list = ['(+M)' if not item else item for item in items_list]
+    for third_body in ['(+M)', 'M', '']: # search rxn for third body
+        if third_body in items_list:   # if reaches '', doesn't exist
+            if third_body == '(+M)':
+                third_body = ' (+M)'
+            elif third_body == 'M':
+                third_body = ' + M'
+            break
+
+    # Sort and apply to reaction equation
+    reaction_txt = []
+    reaction_split = {'reactants': reaction.reactants, 
+                      'products': reaction.products}
+    for n, (reaction_side, species) in enumerate(reaction_split.items()):
+        species_weights = []
+        for key in species.keys():
+            index = solution.species_index(key)
+            species_weights.append(solution.molecular_weights[index])
+        
+        # Append coefficient to species
+        species_list = []
+        for species_text, coef in species.items():
+            if coef == 1.0:
+                species_list.append(species_text)
+            elif coef.is_integer():
+                species_list.append(f'{coef:.0f} {species_text}')
+            else:
+                species_list.append(f'{coef:f}'.rstrip("0").rstrip(".") + f' {species_text}')
+                
+        species = species_list
+        
+        # Reorder species based on molecular weights
+        species = [x for y, x in sorted(zip(species_weights, species))][::-1]
+        reaction_txt.append(' + '.join(species) + third_body)
+    
+    reaction_txt = f' {reaction_direction} '.join(reaction_txt)
+    
+    return reaction_txt
+
+
+def match_reaction(solution, yaml_rxn):
+    yaml_rxn = {'eqn': yaml_rxn}
+    
+    for reaction_direction in [' <=> ', ' <= ', ' => ']:
+        if reaction_direction in yaml_rxn['eqn']:
+            break
+    for third_body in [' (+M)', ' + M', '']: # search eqn for third body
+        if third_body in yaml_rxn['eqn']:    # if reaches '', doesn't exist
+            break
+    
+    yaml_rxn_split = yaml_rxn['eqn'].split(reaction_direction)   
+    for i, side in zip([0, 1], ['reac', 'prod']):
+        yaml_rxn[side] = {}
+        species = yaml_rxn_split[i].replace(third_body, '').split(' + ')
+        yaml_rxn[side].update(Counter(species))
+    
+    for rxn in solution.reactions():
+        if (rxn.reactants == yaml_rxn['reac'] and    
+            rxn.products == yaml_rxn['prod'] and 
+            third_body in str(rxn)):
+                
+            return str(rxn) # return rxn if match
+    
+    return yaml_rxn['eqn']  # returns yaml_str if no match
+
+
+def get_notes(path=None, solution=None):
+    """Get notes by parsing input mechanism in yaml format
+    Parameters
+    ----------
+    path : path or str, optional
+        Path of yaml file used as input in order to parse for notes
+    solution : 
+    """
+    
+    note = {'header': [], 'species_thermo': {}, 'species': {}, 'reaction': {}}
+    
+    if path is None: return note
+    
+    with open(path, 'r') as yaml_file:
+        data = yaml.load(yaml_file, yaml.RoundTripLoader)
+    
+    # Header note
+    if 'description' in data:
+        note['header'] = data['description']
+    else:
+        note['header'] = ''
+    
+    # Species and thermo_species notes
+    for species in data['species']:
+        if 'note' in species:
+            note['species'][species['name']] = species['note']
+        else:
+            note['species'][species['name']] = ''
+
+        if 'note' in species['thermo']:
+            note['species_thermo'][species['name']] = species['thermo']['note']
+        else:
+            note['species_thermo'][species['name']] = ''
+    
+    if 'reactions' in data:
+        for rxn in data['reactions']:
+            ct_rxn_eqn = match_reaction(solution, rxn['equation'])
+            if 'note' in rxn:
+                note['reaction'][ct_rxn_eqn] = '! ' + rxn['note'].replace('\n', '\n! ')
+            else:
+                note['reaction'][ct_rxn_eqn] = ''
+    
+    return note
+    
 
 def eformat(f, precision=7, exp_digits=3):
     s = f"{f: .{precision}e}"
@@ -35,7 +161,8 @@ def eformat(f, precision=7, exp_digits=3):
         mantissa, exp = s.split('e')
         exp_digits += 1 # +1 due to sign
         return f"{mantissa}E{int(exp):+0{exp_digits}}" 
-        
+  
+ 
 def build_arrhenius(rate, reaction_order, reaction_type):
     """Builds Arrhenius coefficient string based on reaction type.
     Parameters
@@ -126,7 +253,12 @@ def build_falloff(parameters, falloff_function):
         String of falloff parameters
     """
     if falloff_function == 'Troe':
-        falloff = [f'{eformat(f)}'for f in parameters]
+        if parameters[-1] == 0.0:
+            falloff = [f'{eformat(f)}'for f in parameters[:-1]]
+            falloff.append(' '*15)
+        else:
+            falloff = [f'{eformat(f)}'for f in parameters]
+
         falloff_string = f"TROE / {'   '.join(falloff)} /\n"
     elif falloff_function == 'SRI':
         falloff = [f'{eformat(f)}'for f in parameters]
@@ -137,7 +269,36 @@ def build_falloff(parameters, falloff_function):
     return falloff_string
 
 
-def thermo_data_text(species_list, input_type='included'):
+def species_data_text(species_list, note):
+    max_species_len = max([len(s) for s in species_list])
+    if note:
+        max_species_len = max([16, max_species_len])
+        species_txt = []
+        for species in species_list:
+            text = f'{species:<{max_species_len}}   ! {note[species]}\n'
+            species_txt.append(text)
+        
+        species_txt = ''.join(species_txt)
+        
+    else:
+        species_names = [f"{s:<{max_species_len}}" for s in species_list]
+        species_names = fill(
+            '  '.join(species_names), 
+            width=72,   # max length is 16, this gives 4 species per line
+            break_long_words=False,
+            break_on_hyphens=False
+            )
+        
+        species_txt = f'{species_names}\n'
+        
+    text = ('SPECIES\n' + 
+            species_txt + 
+            'END\n\n\n')
+    
+    return text
+
+
+def thermo_data_text(species_list, note, input_type='included'):
     """Returns thermodynamic data in Chemkin-format file.
     Parameters
     ----------
@@ -163,9 +324,26 @@ def thermo_data_text(species_list, input_type='included'):
         # first line has species name, space for notes/date, elemental composition,
         # phase, thermodynamic range temperatures (low, high, middle), and a "1"
         # total length should be 80
-        species_string = (
-            f'{species.name:<18}' + 
-            6*' ' + # date/note field
+        
+        # attempt to split note and comment
+        if len(note[species.name].split('\n', 1)) == 1:
+            comment = ''
+            comment_str = ''
+            note_str = note[species.name]
+        else:
+            comment = '!\n'
+            note_str, comment_str = note[species.name].split('\n', 1)
+        
+        if len(f'{species.name} {note_str}') > 24:
+            comment_str += '\n' + note_str
+            note_str = ''
+            
+        comment_str = comment_str.replace('\n', '\n! ')
+        comment = f'{comment}! {comment_str}'
+        
+        name_and_note = f'{species.name} {note_str}'
+        species_string = (comment + '\n' +
+            f'{name_and_note:<24}' + # name and date/note field
             f'{composition_string:<20}' +
             'G' + # only supports gas phase
             f'{species.thermo.min_temp:10.3f}' +
@@ -204,7 +382,7 @@ def thermo_data_text(species_list, input_type='included'):
         thermo_text.append(species_string)
     
     if input_type == 'included':
-        thermo_text.append('END\n\n')
+        thermo_text.append('END\n\n\n')
     else:
         thermo_text.append('END\n')
     
@@ -217,12 +395,11 @@ def write_transport_data(species_list, filename='generated_transport.dat'):
     ----------
     species_list : list of cantera.Species
         List of species objects
-    filename : str, optional
+    filename : path or str, optional
         Filename for new Chemkin transport database file
     """
     geometry = {'atom': '0', 'linear': '1', 'nonlinear': '2'}
-
-    with open(filename, 'w') as the_file:
+    with open(filename, 'w') as trans_file:
 
         # write data for each species in the Solution object
         for species in species_list:
@@ -244,10 +421,10 @@ def write_transport_data(species_list, filename='generated_transport.dat'):
                 '\n'
             )
             
-            the_file.write(species_string)
+            trans_file.write(species_string)
 
 
-def write(solution, output_filename='', path='', 
+def write(solution, output_path='', input_yaml='',
           skip_thermo=False, same_file_thermo=True, 
           skip_transport=False):
     """Writes Cantera solution object to Chemkin-format file.
@@ -255,10 +432,10 @@ def write(solution, output_filename='', path='',
     ----------
     solution : cantera.Solution
         Model to be written
-    output_filename : str, optional
-        Name of file to be written; if not provided, use ``solution.name``
-    path : str, optional
-        Path for writing file.
+    output_path : path or str, optional
+        Path of file to be written; if not provided, use cd / 'solution.name'
+    input_yaml : path or str, optional
+        Path of yaml file used as input in order to parse for notes
     skip_thermo : bool, optional
         Flag to skip writing thermo data
     same_file_thermo : bool, optional
@@ -275,53 +452,71 @@ def write(solution, output_filename='', path='',
     >>> soln2ck.write(gas)
     reduced_gri30.ck
     """
-    if output_filename:
-        output_filename = os.path.join(path, output_filename)
+    if output_path:
+        if not isinstance(output_path, pathlib.PurePath):
+            output_path = pathlib.Path(output_path)
     else:
-        output_filename = os.path.join(path, f'{solution.name}.ck')
+        main_path = pathlib.Path.cwd()
+        output_path = main_path / f'{solution.name}.ck'
     
-    if os.path.isfile(output_filename):
-        os.remove(output_filename)
+    if output_path.is_file():
+        output_path.unlink()
+       
+    main_path = output_path.parents[0]
+    basename = output_path.stem
+    output_files = [output_path]
     
-    with open(output_filename, 'w') as the_file:
-
+    if input_yaml:
+        if not isinstance(input_yaml, pathlib.PurePath):
+            input_yaml = pathlib.Path(input_yaml)
+            
+        note = get_notes(input_yaml, solution)
+    else:    
+        note = get_notes()
+    
+    with open(output_path, 'w') as mech_file:
         # Write title block to file
-        the_file.write('!Chemkin file converted from Cantera solution object\n\n')
+        if note['header']:
+            note["header"] = note['header'].replace('\n', '\n! ')
+            mech_file.write(f'! {note["header"]}\n! \n')
+        mech_file.write('! Chemkin file converted from Cantera solution object\n! \n\n')
 
         # write species and element lists to file
         element_names = '  '.join(solution.element_names)
-        the_file.write(
+        mech_file.write(
             'ELEMENTS\n' + 
             f'{element_names}\n' +
-            'END\n\n'
-            )
-            
-        max_species_len = max([len(s) for s in solution.species_names])
-        species_names = [f"{s:<{max_species_len}}" for s in solution.species_names]
-        species_names = fill(
-            '  '.join(species_names), 
-            width=72,   # max length is 16, this gives 4 species per line
-            break_long_words=False,
-            break_on_hyphens=False
-            )
-        the_file.write(
-            'SPECIES\n' + 
-            f'{species_names}\n'
-            'END\n\n'
+            'END\n\n\n'
             )
         
+        mech_file.write(species_data_text(solution.species_names, note['species']))
+
         # Write thermo to file
         if not skip_thermo and same_file_thermo:
-            the_file.write(thermo_data_text(solution.species(), input_type='included'))
+            mech_file.write(thermo_data_text(solution.species(), note['species_thermo'], 
+                            input_type='included'))
             
         # Write reactions to file
         max_rxn_width = 3 + max([len(rxn.equation) for rxn in solution.reactions()] + [48])
         
-        the_file.write('REACTIONS\n')
+        mech_file.write('REACTIONS  CAL/MOLE  MOLES\n')
         # Write data for each reaction in the Solution Object
-        for reaction in solution.reactions():
-
-            reaction_string = f'{reaction.equation:<{max_rxn_width}}'
+        for n, reaction in enumerate(solution.reactions()):
+            reaction_equation = str(reaction)
+            
+            reaction_string = ''
+            if reaction_equation in note['reaction']:
+                rxn_note = note['reaction'][reaction_equation]
+                rxn_note = rxn_note.rsplit('\n! ', 1)
+                if len(rxn_note) > 1:
+                    reaction_string = f'{rxn_note[0]}\n'
+                    after_eqn_text = rxn_note[-1].strip()
+                    rxn_note[-1] = f'! {after_eqn_text}'
+            else:
+                rxn_note = ['']
+            
+            reaction_equation = reorder_reaction_equation(solution, reaction)
+            reaction_string += f'{reaction_equation:<{max_rxn_width}}'
 
             # The Arrhenius parameters that follow the equation string on the main line 
             # depend on the type of reaction.
@@ -362,13 +557,13 @@ def write(solution, output_filename='', path='',
             else:
                 raise NotImplementedError(f'Unsupported reaction type: {type(reaction)}')
 
-            reaction_string += arrhenius + '\n'
+            reaction_string += f'{arrhenius}    {rxn_note[-1]}\n'
             
             # now write any auxiliary information for the reaction
             if type(reaction) == ct.FalloffReaction:
                 # for falloff reaction, need to write low-pressure limit Arrhenius expression
                 arrhenius = build_falloff_arrhenius(
-                    reaction.high_rate, 
+                    reaction.low_rate, 
                     sum(reaction.reactants.values()), 
                     ct.FalloffReaction,
                     'low'
@@ -435,23 +630,23 @@ def write(solution, output_filename='', path='',
             if reaction.duplicate:
                 reaction_string += '   DUPLICATE\n'
                                 
-            the_file.write(reaction_string)
+            mech_file.write(reaction_string)
 
-        the_file.write('END')
-
-    basename = os.path.splitext(output_filename)[0]
-    outputs = [output_filename]
+        mech_file.write('END')
 
     # write thermo data
     if not skip_thermo and not same_file_thermo:
-        filename = basename + '.therm'
-        with open(filename, 'w') as the_file:
-            the_file.write(thermo_data_text(solution.species(), input_type='file'))
-        outputs.append(basename + '.therm')
+        therm_path = main_path / f'{basename}.therm'
+        with open(therm_path, 'w') as thermo_file:
+            thermo_file.write(thermo_data_text(solution.species(), input_type='file'))
+        output_files.append(therm_path)
 
     # TODO: more careful check for presence of transport data?
     if not skip_transport and all(sp.transport for sp in solution.species()):
-        write_transport_data(solution.species(), basename + '_transport.dat')
-        outputs.append(basename + '_transport.dat')
+        trans_path = main_path / f'{basename}_tranport.dat'
+        write_transport_data(solution.species(), trans_path)
+        output_files.append(trans_path)
 
-    return outputs
+    return output_files
+    
+

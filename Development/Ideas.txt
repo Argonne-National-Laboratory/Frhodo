@@ -1,0 +1,108 @@
+***** see Engines
+***** Address mplcairo for non windows systems
+***** see Recast Reaction Rate Eqns
+***** bug: Sim Explorer: if old mech species > new mech species/rxn, loading can cause outside vector range
+****  bug: changing x axis to reverse reaction rate and selecting reaction causes crash
+
+***** fix loading mech with unknown species (mix table doesn't update and plot doesn't show legend)
+****  bug: loading Z:\BilBo Models\cycloheptane\2018\Mechanisms as experiment file
+***   updating coef is causing rate to call twice
+***   bug: need to set limits on dependent reaction inputs
+***   bug: moving SIM line after optimizing causes it to show unopt SIM until mech is changed
+**    if rate const unc value is reduced and value now lies outside range, update a coef
+**    auto adjust subplots  (https://matplotlib.org/3.1.0/gallery/pyplots/auto_subplots_adjust.html)
+*     make set copying come from data instead of from table text
+*     change ode solver to solve until event rather than tf. Reinitialize solver?
+*     if error in shock properties: replace incident/reflected shock values with -
+*     qfilesystemwatcher to watch directory for file changes (update mech, new shocks etc)
+*     keep last used conditions the same if composition changes
+*     add toolbar commands for keyboard shortcuts of plot
+*     change keyword to search for exp data? box maybe?
+*     weight grid spacing based on derivatives of weight instead of experimental data
+
+Engines:
+***** sensitivity analysis (Vyaas)
+***** for slow simulations: update plot as calculation is performed or somehow update user
+**    pytorch for ode solver?
+**    consider diffeqpy (juliadiffeq) to solve ODE. Should be faster and has more options
+**    julia alternative: Implement cvode (sundials) for scipy or from cantera: https://pypi.org/project/scikits.odes/
+**    faster Python: https://www.ibm.com/developerworks/community/blogs/jfp/entry/Python_Meets_Julia_Micro_Performance?lang=en
+**    speed up with Numba
+
+
+Main Plot:
+****  need to be able to display multiple observables at a time (single pulse)
+***   add ability to plot multiple experiments at once (this is useful for single pulse experiments)
+**    link sim on plot with reactions in tables (colored legend for reaction history)
+**    delete history lines in a better way (last used or empty line)
+*     intercept home from toolbar and make it rescale instead
+
+Thermo Tables:
+***** add thermo in tables
+***** edit thermo alter h and s by scaling appropriate coefficients
+
+Save:
+***   add list of reactions and reaction number as output file
+***   search box for species and reactions in save dialog
+
+SIM Explorer:
+***** normalize by peak option in Sim Explorer
+****  add to sim explorer: all positive|all negative density gradients under both % and regular by maximum and minimum
+***   add right click option on sim explorer lines to scale
+***   multiple experiment values
+**    SIM Explorer: right click should offer y2 scale settings
+**    make Sim_Explorer_Plot legends grow down after being moved
+**    bug: Sim Explorer legends visually duplicate if moved together and then legend is recreated
+
+Recast Reaction Rate Eqns:
+***** add option to recast mechanism to modified arrhenius with checkbox, unit selection box, and pressure spinbox
+***** right click menu option to recast falloff reaction
+***** include fit all option
+***** show maximum error of arrhenius fit
+***** flag rxn if error in fit > user specified bounds
+***** provide options for individual temperature ranges/pressure etc
+***** change color and add warning if rxn has been recast
+***** output commented original values/commented refit arrhenius values/new values
+
+Optimization:
+***** move interpolation out of time_adjust_func
+***** is x0 being reset?
+***** proper uncertainties (coef_err = sqrt(diag(inv(Hessian)))) numdifftools for hessian
+***** studentized residuals for deleted residuals to calculate median: https://stackoverflow.com/questions/45485144/how-to-compute-studentized-residuals-in-python
+***** save output log
+****  temperature dependent branching ratio constraint for n reactions
+****  residual plot
+****  loss/sse plot
+****  switch to scikit-learn for kernal density bandwidth (cross validation)
+****  sum loss for each shock and compare, show outlier experiment on series viewer
+****  do saving opt better
+***   account for uncertainty in shock velocity
+***   pytables: more efficient storing of experimental data?
+***   numexpr: faster computation
+**    modify time based on weighting function. Don't need to calculate when weight = 0
+**    bug: if weights adjusted on shock with error and next shock weights defined, weight max set to 1 on bad shock
+**    lmfit-py instead of curve_fit if constraints are needed
+*     optimize RRKM/ME parameters instead of arrehenius parameters
+*     can base weight function on sensitivity analysis
+*     optimization libraries of note: COIN-OR, IPOPT, J. D. Powell's algorithms. NLOpt includes BOBYQA and others
+*     change from sse to must fit within 95% confidence interval of experiment?
+*     remove "load series into memory" requirement
+*     would save time but doesn't seem to work, cross-correlation for calculation of timeshift for t_unc
+
+Loading:
+****  abstract file loading system
+***   remove requirement for Sample Rate in exp file
+***   remove requirements for raw signal files
+
+Rate of Production Analysis Plot:
+***** Create widgets
+***** Process in memory
+****  Networkx?
+
+Misc:
+****  preferences menu/global settings for things like generated mech directory
+***   bug: ctrl+c not working on scientific spinboxes, probably related to hover shortcuts not working
+***   change spinboxes to scientific spinboxes
+***   boundary layer effects in shock solver
+***   add table of kinetic values etc with preset and movable column/row order
+**    SI units or CGS units output option

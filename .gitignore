@@ -121,8 +121,14 @@ venv.bak/
 .mypy_cache/
 
 # Development Folders
-Documentation/
-Development/
-*.7z
-*.ini
-*.log
+Development/Franklin
+Development/Old Versions
+Development/Documentation
+Development/Extras
+Paths/
+#*.7z
+#*.ini
+#*.log
+*.sln
+.vs/Frhodo_dev/v16/.suo
+*.pyproj

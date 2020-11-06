@@ -2,7 +2,7 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level 
 # directory for license and copyright information.
 
-import sys, ast, re
+import sys, ast, re, sip
 import misc_widget
 import cantera as ct
 import numpy as np
@@ -25,23 +25,53 @@ class Tree(QtCore.QObject):
         self.run_sim_on_change = True
         self.copyRates = False
         self.convert = parent.convert_units
-        
+
+        self.timer = QtCore.QTimer()
+
+        self.model = QtGui.QStandardItemModel(parent.mech_tree)
+        self.proxy_model = QSortFilterProxyModel(parent.mech_tree)
+        self.proxy_model.setSourceModel(self.model)
+        parent.mech_tree.setModel(self.proxy_model)
+        self.tree_filter = TreeFilter(parent, self.proxy_model, self.model, self._set_mech_widgets)
+
         self.color = {'variable_rxn': QtGui.QBrush(QtGui.QColor(188, 0, 188)),
                       'fixed_rxn': QtGui.QBrush(QtGui.QColor(0, 0, 0))}
         
         parent.mech_tree.setRootIsDecorated(False)
         parent.mech_tree.setIndentation(21)
-        parent.mech_tree.itemClicked.connect(self.item_clicked)
+        parent.mech_tree.setExpandsOnDoubleClick(False)
+        parent.mech_tree.clicked.connect(self.item_clicked)
+
+        # Set up right click popup menu and linked expand/collapse
+        parent.mech_tree.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        parent.mech_tree.customContextMenuRequested.connect(self._popup_menu)
+        parent.mech_tree.expanded.connect(lambda sender: self._tabExpanded(sender, True))
+        parent.mech_tree.collapsed.connect(lambda sender: self._tabExpanded(sender, False))
     
     def item_clicked(self, event):
-        if event.isExpanded():
-            event.setExpanded(False)
+        ix = self.proxy_model.mapToSource(event)
+        item = self.model.itemFromIndex(ix)
+        if not hasattr(item, 'info'): return
+        
+        rxnNum = item.info['rxnNum']
+        tree = self.parent().mech_tree
+        if tree.isExpanded(event):
+            tree.collapse(event)
+            self._tabExpanded(event, expanded=False)
+            item.info['isExpanded'] = False
         else:
-            event.setExpanded(True)
+            if not hasattr(item, 'info'): return # skip if not a reaction, hence no info
+            if not item.info['hasExpanded']:     # forward event if tab has never expanded
+                self._tabExpanded(event, expanded=True)
+            else:
+                self._set_mech_widgets(item)
+            tree.expand(event)
+            item.info['isExpanded'] = True
     
     def set_trees(self, mech):
         parent = self.parent()
-        parent.mech_tree.clear()
+        parent.mech_tree.reset()
+        self.model.removeRows(0, self.model.rowCount())
         if 'Chemkin' in parent.tab_select_comboBox.currentText():
             self.mech_tree_type = 'Chemkin'
         else:
@@ -81,10 +111,10 @@ class Tree(QtCore.QObject):
                     # Reorder coeffs into A, n, Ea
                     coeffs_order = [1, 2, 0]
                     
-                    if 'Bilbo' in selection:
-                        coeffs = self.convert._arrhenius(i, coeffs, 'Cantera2Bilbo')
-                    elif 'Chemkin' in selection:
-                        coeffs = self.convert._arrhenius(i, coeffs, 'Cantera2Chemkin')
+                    #if 'Bilbo' in selection:
+                    #    coeffs = self.convert._arrhenius(i, coeffs, 'Cantera2Bilbo')
+                    #elif 'Chemkin' in selection:
+                    #    coeffs = self.convert._arrhenius(i, coeffs, 'Cantera2Chemkin')
                   
                     data.append({'num': i, 'eqn': rxn.equation, 'type': 'Arrhenius', 
                             'coeffs': coeffs, 'coeffs_order': coeffs_order})
@@ -99,85 +129,25 @@ class Tree(QtCore.QObject):
     def _set_mech_tree(self, rxn_matrix):
         parent = self.parent()
         tree = parent.mech_tree           
-        tree.setColumnCount(1)
-        tree.setHeaderLabels(['Reaction'])
-        
-        # Set up right click popup menu and linked expand/collapse
-        tree.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        try:    # This tries to disconnect the previous signal, will fail for the first loaded shock
-            tree.customContextMenuRequested.disconnect()
-            tree.itemExpanded.disconnect()
-            tree.itemCollapsed.disconnect()
-        except: pass
-        tree.customContextMenuRequested.connect(self._popup_menu)
-        tree.itemExpanded.connect(lambda sender: self._tabExpanded(sender, True))
-        tree.itemCollapsed.connect(lambda sender: self._tabExpanded(sender, False))
+        #tree.setColumnCount(1)
+        self.model.setHorizontalHeaderLabels(['Reaction'])
                 
         tree.setUpdatesEnabled(False)
         tree.rxn = []
         for rxn in rxn_matrix:
-            L1 = QtWidgets.QTreeWidgetItem(tree)
-            L1.setText(0, ' R{:d}:   {:s}'.format(rxn['num']+1, rxn['eqn'].replace('<=>', '=')))
-            L1.setToolTip(0, rxn['type'])
-
-            L2 = QtWidgets.QTreeWidgetItem(L1)
-            
-            widget = rxnRate(parent, rxnType=rxn['type'])
-            L2.treeWidget().setItemWidget(L2, 0, widget)
-            L1.addChild(L2)
+            L1 = QtGui.QStandardItem(f" R{rxn['num']+1:d}:   {rxn['eqn'].replace('<=>', '=')}")
+            L1.setEditable(False)
+            L1.setToolTip(rxn['type'])
             L1.info = {'tree': tree.objectName(), 'type': 'rxn tab', 'rxnNum': rxn['num'], 'rxnType': rxn['type'],
-                       'hasExpanded': False}
-            
-            if rxn['type'] == 'Arrhenius':
-                for box in [widget.uncValBox, widget.uncTypeBox]:
-                    box.info = {'type': 'rateUnc', 'rxnNum': rxn['num']}   
-                widget.uncValBox.valueChanged.connect(self.update_uncertainties)       # no update between F and %
-
-                len_coef = len(rxn['coeffs_order'])
-                tree.rxn.append({'item': L1, 'num': rxn['num'], 'rxnType': rxn['type'],
-                                 'coef': rxn['coeffs'], 'dependent': False, 'rateBox': widget.valueBox, 
-                                 'formulaBox': [None]*len_coef, 'valueBox': [None]*len_coef, 
-                                 'uncBox': [widget.uncValBox]*(len_coef+1)})
-                for coefNum in rxn['coeffs_order']:
-                    coef = rxn['coeffs'][coefNum]
-                    
-                    L2 = QtWidgets.QTreeWidgetItem(L1)
-                    widget = rateExpCoefficient(parent=parent, coef=coef)
-                    widget.Label.setToolTip(coef[1].replace('_', ' ').title())
-                    if self.mech_tree_type == 'Bilbo':
-                        widget.valueBox.setSingleStep(0.01)
-                    elif self.mech_tree_type == 'Chemkin':
-                        widget.valueBox.setSingleStep(0.1)
-                    
-                    boxes_need_info = {'value': widget.valueBox, 'formula': widget.formulaBox, 
-                                       'uncValue': widget.uncValBox, 'uncType': widget.uncTypeBox}
-                    for type, box in boxes_need_info.items():
-                        box.info = {'type': type, 'rxnNum': rxn['num'], 'coefNum': coefNum, 'label': widget.Label,
-                                    'coef': coef[0:2], 'coefAbbr': coef[0], 'coefName': coef[1], 'coefVal': coef[2]}
-                    
-                    widget.formulaBox.setInitialFormula()
-                    widget.formulaBox.valueChanged.connect(self.update_value)
-                    widget.valueBox.valueChanged.connect(self.update_value)
-                    widget.valueBox.resetValueChanged.connect(self.update_mech_reset_value)
-                    widget.uncValBox.valueChanged.connect(self.update_uncertainties)
-                    
-                    tree.rxn[-1]['formulaBox'][coefNum] = widget.formulaBox
-                    tree.rxn[-1]['valueBox'][coefNum] = widget.valueBox
-                    tree.rxn[-1]['uncBox'][coefNum+1] = widget.uncValBox
-                    
-                    L2.treeWidget().setItemWidget(L2, 0, widget)
-                    L1.addChild(L2)
-
-            else:   # if not Arrhenius, show rate only
-                tree.rxn.append({'item': L1, 'num': rxn['num'], 'rxnType': rxn['type'], 'coef': [], 
-                                 'dependent': False, 'rateBox': widget.valueBox, 'formulaBox': [None], 
-                                 'valueBox': [None], 'uncBox': [None]})
+                       'hasExpanded': False, 'isExpanded': False, 'rxn_details': rxn, 'row': []}
+            self.model.appendRow(L1)
+            tree.rxn.append({'item': L1, 'num': rxn['num'], 'rxnType': rxn['type'], 'dependent': False})
         
         tree.setUpdatesEnabled(True)
-        self.update_box_reset_values()      # updates reset values, I don't know why this is needed now
+        tree.sortByColumn(0, QtCore.Qt.AscendingOrder)
         tree.header().setStretchLastSection(True)
         tree.header().setSectionResizeMode(0, QHeaderView.ResizeToContents) #QHeaderView.Stretch) #QHeaderView.Interactive)
-        
+
         # Set Tab Order         TODO: FIX THIS
         '''
         last_arrhenius = 0
@@ -205,6 +175,96 @@ class Tree(QtCore.QObject):
                 last_arrhenius = i
         '''
     
+    def _set_mech_widgets(self, sender):
+        def set_rate_widget(unc={}):
+            info = {'type': 'rateUnc', 'rxnNum': rxn['num']} 
+            if len(unc) == 0:
+                widget = rxnRate(parent, info, rxnType=rxn['type'])
+            else:
+                widget = rxnRate(parent, info, rxnType=rxn['type'], unc_type=unc['type'], unc_value=unc['value'])
+            L1.info['row'].append({'item': QtGui.QStandardItem(''), 'widget': widget})
+            L1.appendRow([L1.info['row'][-1]['item']])
+            mIndex = self.proxy_model.mapFromSource(L1.info['row'][-1]['item'].index())
+            tree.setIndexWidget(mIndex, L1.info['row'][-1]['widget'])
+
+            return widget
+
+        L1 = sender
+        rxn = L1.info['rxn_details']
+        rxnNum = rxn['num']
+        parent = self.parent()
+        tree = parent.mech_tree  
+
+        # clear rows of qstandarditem (L1)
+        L1.removeRows(0, L1.rowCount())
+
+        if rxn['type'] == 'Arrhenius':
+            widget = set_rate_widget(unc={'type': parent.mech.rate_bnds[rxnNum]['type'],
+                                          'value': parent.mech.rate_bnds[rxnNum]['value']})
+            widget.uncValBox.valueChanged.connect(self.update_uncertainties)       # no update between F and %
+
+            len_coef = len(rxn['coeffs_order'])
+            tree.rxn[rxnNum].update({'coef': rxn['coeffs'], 'rateBox': widget.valueBox, 
+                                     'formulaBox': [None]*len_coef, 'valueBox': [None]*len_coef, 
+                                     'uncBox': [widget.uncValBox]*(len_coef+1)})
+            
+            for coefNum in rxn['coeffs_order']:
+                # convert mech coeffs to display units
+                coef = rxn['coeffs'][coefNum]
+                coef[2] = parent.mech.coeffs[rxnNum][coef[1]]
+                conv_type = f'Cantera2{self.mech_tree_type}'
+                coef = self.convert._arrhenius(rxnNum, [coef], conv_type)[0]
+
+                unc_type = parent.mech.coeffs_bnds[rxnNum][coef[1]]['type']
+                unc_value = parent.mech.coeffs_bnds[rxnNum][coef[1]]['value']
+                if unc_type not in ['F', '%']:
+                    unc_value = self.convert._arrhenius(rxnNum, [[*coef[:2], unc_value]], conv_type)[0][2]
+
+                info = {'type': type, 'rxnNum': rxn['num'], 'coefNum': coefNum, 'label': '',
+                        'coef': coef[0:2], 'coefAbbr': coef[0], 'coefName': coef[1], 'coefVal': coef[2]}
+
+                widget = rateExpCoefficient(parent, coef, info, unc_type=unc_type, unc_value=unc_value)
+                widget.Label.setToolTip(coef[1].replace('_', ' ').title())
+                if self.mech_tree_type == 'Bilbo':
+                    widget.valueBox.setSingleStep(0.01)
+                elif self.mech_tree_type == 'Chemkin':
+                    widget.valueBox.setSingleStep(0.1)
+                    
+                widget.formulaBox.setInitialFormula()
+                widget.formulaBox.valueChanged.connect(self.update_value)
+                widget.valueBox.valueChanged.connect(self.update_value)
+                widget.valueBox.resetValueChanged.connect(self.update_mech_reset_value)
+                widget.uncValBox.valueChanged.connect(self.update_uncertainties)
+                    
+                tree.rxn[rxnNum]['formulaBox'][coefNum] = widget.formulaBox
+                tree.rxn[rxnNum]['valueBox'][coefNum] = widget.valueBox
+                tree.rxn[rxnNum]['uncBox'][coefNum+1] = widget.uncValBox
+                
+                L1.info['row'].append({'item': QtGui.QStandardItem(''), 'widget': widget})
+                L1.appendRow([L1.info['row'][-1]['item']])
+                mIndex = self.proxy_model.mapFromSource(L1.info['row'][-1]['item'].index())
+                tree.setIndexWidget(mIndex, L1.info['row'][-1]['widget'])
+
+        else:   # if not Arrhenius, show rate only
+            widget = set_rate_widget()
+            tree.rxn[rxnNum].update({'coef': [], 'rateBox': widget.valueBox, 'formulaBox': [None], 
+                                     'valueBox': [None], 'uncBox': [None]})
+        
+        # update rates and reset values of created boxes
+        self.update_box_reset_values(rxnNum)
+        self.update_rates(rxnNum)
+    
+    def currentRxn(self):
+        tree = self.parent().mech_tree
+        sender_idx = tree.selectedIndexes()[0]
+        ix = self.proxy_model.mapToSource(sender_idx)
+        selected = self.model.itemFromIndex(ix)
+        if hasattr(selected, 'info'):
+            rxnNum = selected.info['rxnNum']
+            return tree.rxn[rxnNum]
+        else:
+            return None
+
     def update_value(self, event):
         def getRateConst(parent, rxnNum, coefName, value):
             shock = parent.display_shock
@@ -231,8 +291,8 @@ class Tree(QtCore.QObject):
         cantera_value = self.convert._arrhenius(rxnNum, deepcopy([coeffs]), conv_type)
                 
         rateLimits = parent.display_shock['rate_bnds'][rxnNum]
-        coefLimits = parent.mech.coeffs_bnds[rxnNum][coefName]['limits']
-        outside_limits = True    
+        coefLimits = parent.mech.coeffs_bnds[rxnNum][coefName]['limits']()
+        outside_limits = True
         if not np.isnan(coefLimits).all():  # if coef limits exist, default to using these
             if cantera_value[0][2] < coefLimits[0]:
                 cantera_value[0][2] = coefLimits[0]
@@ -303,8 +363,14 @@ class Tree(QtCore.QObject):
             rxnNumRange = range(parent.mech.gas.n_reactions)
         
         for rxnNum in rxnNumRange:
-            conv = np.power(1E3, num_reac_all[rxnNum]-1)
+            if 'rateBox' not in parent.mech_tree.rxn[rxnNum]:
+                continue
+            
             rxn_rate_box = parent.mech_tree.rxn[rxnNum]['rateBox']
+            if sip.isdeleted(rxn_rate_box): 
+                continue
+            
+            conv = np.power(1E3, num_reac_all[rxnNum]-1)
             rxn_rate_box.setValue(np.multiply(rxn_rate[rxnNum], conv))
             
         self._copy_expanded_tab_rates()
@@ -324,10 +390,10 @@ class Tree(QtCore.QObject):
                 coefUncDict = mech.coeffs_bnds[rxnNum][coefName]
                 uncBox = parent.mech_tree.rxn[rxnNum]['uncBox'][coefNum+1]
                 
-                resetVal = mech.coeffs_bnds[rxnNum][coefName]['resetVal']
                 coefUncDict['value'] = uncVal = uncBox.uncValue
-                coefUncDict['limits'] = limits = uncBox.uncFcn(resetVal)
                 coefUncDict['type'] = uncBox.uncType
+                limits = coefUncDict['limits']()
+                
                 coefUncDict['opt'] = True
                 if uncVal == uncBox.minimumBaseValue: # not optimized
                     coefUncDict['opt'] = False                    
@@ -349,15 +415,17 @@ class Tree(QtCore.QObject):
             if 'Arrhenius' not in rxn['rxnType']:   # skip if not Arrhenius
                 mech.rate_bnds[rxnNum]['opt'] = False
                 continue
+            if 'uncBox' not in rxn:
+                continue
             
             mech.rate_bnds[rxnNum]['value'] = uncVal = rxn['uncBox'][0].uncValue
             mech.rate_bnds[rxnNum]['type'] = rxn['uncBox'][0].uncType
             if np.isnan(uncVal) or uncVal == rxn['uncBox'][0].minimumBaseValue: # not optimized
                 mech.rate_bnds[rxnNum]['opt'] = False
-                rxn['item'].setForeground(0, self.color['fixed_rxn'])
+                rxn['item'].setForeground(self.color['fixed_rxn'])
             else:
                 mech.rate_bnds[rxnNum]['opt'] = True
-                rxn['item'].setForeground(0, self.color['variable_rxn'])
+                rxn['item'].setForeground(self.color['variable_rxn'])
              
             # for coefNum, box in enumerate(parent.mech_tree.rxn[rxnNum]['uncBox'][1:]):
                 # coefName = parent.mech_tree.rxn[rxnNum]['coef'][coefNum][1]
@@ -400,12 +468,23 @@ class Tree(QtCore.QObject):
         parent.mech.coeffs_bnds[rxnNum][coefName]['resetVal'] = cantera_value[0][2]
         self.update_uncertainties(event, sender)        # update uncertainties based on new reset value
     
-    def update_box_reset_values(self):
+    def update_box_reset_values(self, rxnNum=None):
         parent = self.parent()
         conv_type = 'Cantera2' + self.mech_tree_type
-        for rxnNum, rxn in enumerate(self.mech_tree_data):
-            if 'Arrhenius' not in parent.mech_tree.rxn[rxnNum]['rxnType']:  # skip if not arrhenius
-                continue
+        
+        if rxnNum is not None:
+            if type(rxnNum) in [list, np.ndarray]:
+                rxnNumRange = rxnNum
+            else:
+                rxnNumRange = [rxnNum]
+        else:
+            rxnNumRange = range(parent.mech.gas.n_reactions)
+
+        for rxnNum in rxnNumRange:
+            rxn = parent.mech_tree.rxn[rxnNum]
+            if ('Arrhenius' not in rxn['rxnType'] 
+                or 'valueBox' not in rxn): continue
+            
                 
             valBoxes = parent.mech_tree.rxn[rxnNum]['valueBox']
             for n, valBox in enumerate(valBoxes):    # update value boxes
@@ -417,19 +496,23 @@ class Tree(QtCore.QObject):
     
     def update_display_type(self):
         parent = self.parent()
-        conv_type = 'Cantera2' + self.mech_tree_type
-        self.mech_tree_data = self._set_mech_tree_data(self.mech_tree_type, parent.mech)   # recalculate mech tree data
-        for rxnNum, rxn in enumerate(self.mech_tree_data):
+        conv_type = f'Cantera2{self.mech_tree_type}'
+        for rxnNum, rxn in enumerate(parent.mech.coeffs):
+            if 'valueBox' not in parent.mech_tree.rxn[rxnNum]: continue
+
             valBoxes = parent.mech_tree.rxn[rxnNum]['valueBox']
             uncBoxes = parent.mech_tree.rxn[rxnNum]['uncBox']
             for n, valBox in enumerate(valBoxes):    # update value boxes
-                if valBox is None:  # in case there is no valbox because not arrhenius
+                if valBox is None or sip.isdeleted(valBox):  # in case there is no valbox because not arrhenius
                     continue
                 
                 coefNum = valBox.info['coefNum']
                 coefName = valBox.info['coefName']
-                silentSetValue(valBox, rxn['coeffs'][coefNum][2])  # update value
-                valBox.info['coefAbbr'] = rxn['coeffs'][coefNum][0]    # update abbreviation
+                coeffs = [*valBox.info['coef'], rxn[coefName]]
+                coeffs = self.convert._arrhenius(rxnNum, [coeffs], conv_type)[0]
+                
+                silentSetValue(valBox, coeffs[2])  # update value
+                valBox.info['coefAbbr'] = f'{coeffs[0]}:'    # update abbreviation
                 valBox.info['label'].setText(valBox.info['coefAbbr'])
                 if self.mech_tree_type == 'Bilbo':              # update step size
                     valBox.setSingleStep(0.01)
@@ -448,21 +531,26 @@ class Tree(QtCore.QObject):
         self.update_box_reset_values()
         self._updateDependents()             # update dependents and rates
         
-    def _tabExpanded(self, sender, expanded):             # set uncboxes to not set upon first expand
+    def _tabExpanded(self, sender_idx, expanded):             # set uncboxes to not set upon first expand
         parent = self.parent()
-        if hasattr(sender, 'info') and 'Arrhenius' in sender.info['rxnType']:
+        ix = self.proxy_model.mapToSource(sender_idx)
+        sender = self.model.itemFromIndex(ix)
+        if hasattr(sender, 'info'):
             rxnNum = sender.info['rxnNum']
         else: return
         
         if expanded:
             if sender.info['hasExpanded']: return
-            else: sender.info['hasExpanded'] = True
+            else: 
+                sender.info['hasExpanded'] = True
+                self._set_mech_widgets(sender)
         
-            for box in parent.mech_tree.rxn[rxnNum]['uncBox']:
-                # box.blockSignals(True)
-                box.setValue(-1)
-                # box.blockSignals(False)
-                box.valueChanged.emit(box.value())
+            if 'Arrhenius' in sender.info['rxnType']:
+                for box in parent.mech_tree.rxn[rxnNum]['uncBox']:
+                    # box.blockSignals(True)
+                    box.setValue(-1)
+                    # box.blockSignals(False)
+                    box.valueChanged.emit(box.value())
             
             self._copy_expanded_tab_rates()
         else:
@@ -476,13 +564,10 @@ class Tree(QtCore.QObject):
             self.copyRates = event
             self._copy_expanded_tab_rates()   
         
-        sender = self.sender()
-        if len(self.sender().selectedItems()) > 0:
-            selected = self._find_mech_item(sender.selectedItems()[0])
-        else:
-            selected = None
+        tree = self.parent().mech_tree
+        rxn = self.currentRxn()
         
-        popup_menu = QMenu(sender)
+        popup_menu = QMenu(tree)
         
         copyRatesAction = QAction('Auto Copy Rates', checkable=True)
         copyRatesAction.setChecked(self.copyRates)
@@ -490,60 +575,69 @@ class Tree(QtCore.QObject):
         copyRatesAction.triggered.connect(lambda event: setCopyRates(self, event))
         
         popup_menu.addSeparator()
-        popup_menu.addAction('Expand All', lambda: sender.expandAll())
-        popup_menu.addAction('Collapse All', lambda: sender.collapseAll())
+        #popup_menu.addAction('Expand All', lambda: tree.expandAll()) # bad idea slow to create many widgets
+        popup_menu.addAction('Collapse All', lambda: tree.collapseAll())
         popup_menu.addSeparator()
         popup_menu.addAction('Reset All', lambda: self._reset_all())
         
         # this causes independent/dependent to not show if right click is not on rxn
-        if selected is not None and 'Arrhenius' in selected['rxnType']: 
+        if rxn is not None and 'Arrhenius' in rxn['rxnType']: 
             popup_menu.addSeparator()
             
             dependentAction = QAction('Set Dependent', checkable=True)
-            dependentAction.setChecked(selected['dependent'])
+            dependentAction.setChecked(rxn['dependent'])
             popup_menu.addAction(dependentAction)
-            dependentAction.triggered.connect(lambda event: self._setDependence(selected, event))
+            dependentAction.triggered.connect(lambda event: self._setDependence(rxn, event))
             
-        popup_menu.exec_(sender.mapToGlobal(event))
-        # popup_menu.exec_(QtGui.QCursor.pos()) # don't use exec_ twice or it will cause a double popup
+        #popup_menu.exec_(tree.mapToGlobal(event))
+        popup_menu.exec_(QtGui.QCursor.pos()) # don't use exec_ twice or it will cause a double popup
     
     def _reset_all(self):
         parent = self.parent()
         self.run_sim_on_change = False
         mech = parent.mech
         for rxn in parent.mech_tree.rxn:
-            if 'Arrhenius' not in rxn['rxnType']: continue # only reset Arrhenius rxns
+            if ('Arrhenius' not in rxn['rxnType'] 
+                or 'valueBox' not in rxn): continue # only reset Arrhenius boxes
+
             for spinbox in rxn['valueBox']:
                 rxnNum, coefName = spinbox.info['rxnNum'], spinbox.info['coefName']
                 resetCoef = mech.coeffs_bnds[rxnNum][coefName]['resetVal']
                 mech.coeffs[rxnNum][coefName] = resetCoef
                 
                 spinbox._reset(silent=True)
+                self.update_rates(rxnNum=rxnNum)
             
         mech.modify_reactions(mech.coeffs)
         self._updateDependents()
-        self.update_rates(rxnNum=rxnNum)
         
         self.run_sim_on_change = True
         parent.run_single()
     
     def _copy_expanded_tab_rates(self):
-        if not self.copyRates:
-            return
-
         parent = self.parent()
+
+        def copy_to_clipboard(values):
+            parent.clipboard.clear()
+            #data = parent.clipboard.mimeData()
+            #data.setText('\t'.join(values))
+            #parent.clipboard.setMimeData(data)
+            parent.clipboard.setText('\t'.join(values)) # tab for new column, new line for new row
+        
+        if not self.copyRates: return
+        elif parent.optimize_running: return
+        
         values = []
         for rxnNum, rxn in enumerate(parent.mech_tree.rxn):
-            if rxn['item'].isExpanded():
+            mIndex = self.proxy_model.mapFromSource(rxn['item'].index())
+            if parent.mech_tree.isExpanded(mIndex):
                 values.append(str(rxn['rateBox'].value))
-        
+
+        t_unit_conv = parent.var['reactor']['t_unit_conv']
+        values.append(str(parent.display_shock['time_offset']/t_unit_conv))       # add time offset
         if np.shape(values)[0] > 0: # only clear clipboard and copy if values exist
-            values.append(str(parent.display_shock['time_offset']))       # add time offset
-            parent.clipboard.clear()
-            # mime = parent.clipboard.mimeData()
-            # print(mime.formats()) # Maybe use xml spreadsheet?
-            # parent.clipboard.setMimeData(values)
-            parent.clipboard.setText('\t'.join(values)) # tab for new column, new line for new row
+            self.timer.singleShot(50, lambda: copy_to_clipboard(values))    # 50 ms to prevent errors
+            
     
     def _find_mech_item(self, item):
         if not hasattr(item, 'info'): return None
@@ -595,24 +689,129 @@ class Tree(QtCore.QObject):
         self.update_rates(rxnNum=updateRates)     # Must happen after the mech is changed
 
 
-class rateExpCoefficient(QWidget):  # rate expression coefficient # this is very slow
-    def __init__(self, parent, coef, *args, **kwargs):
-        # start_time = timer()
+class QSortFilterProxyModel(QtCore.QSortFilterProxyModel):
+    def __init__(self, parent=None, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+    
+    def filterAcceptsRow(self, row, parent):
+        model = self.sourceModel()
+        if parent.isValid(): # Do not apply the filter to child elements
+            return True
+        else:
+            return super().filterAcceptsRow(row, parent)
+        
+        # DELETE THIS IF NOT CREATING CUSTOM FILTER
+        #idx = model.index(row, 0, parent)
+        #print(model.item(row).text(), str(self.filterRegExp()))
+
+        #if (self._suffix
+        #    and isinstance(model, QtWidgets.QFileSystemModel)
+        #    and source_parent == model.index(model.rootPath())
+        #):
+        #    index = model.index(source_row, 0, source_parent)
+        #    name = index.data(QtWidgets.QFileSystemModel.FileNameRole)
+        #    file_info = model.fileInfo(index)
+        #    return name.split(".")[-1] == self._suffix and file_info.isDir()
+
+    def lessThan(self, left, right):
+        rxnNum = lambda text: int(text[2:].split(':')[0])
+        leftData = self.sourceModel().data(left)
+        rightData = self.sourceModel().data(right)
+
+        try:
+            return rxnNum(leftData) < rxnNum(rightData)
+        except ValueError:
+            return leftData < rightData  
+
+
+class TreeFilter:
+    def __init__(self, parent, proxy_model, model, _set_mech_widgets):
+        self.parent = parent
+        self.filter_input = parent.mech_tree_filter_box
+        self.tree = parent.mech_tree
+        self.proxy_model = proxy_model
+        self.model = model
+        self._set_mech_widgets = _set_mech_widgets
+
+        #self.mytreeview.setModel(self.proxy_model)
+        #self.mytreeview.clicked.connect(self.update_model)
+
+        self.filter_input.textChanged.connect(self.textChanged)
+
+    def textChanged(self, event):
+        regexp_raw = event.strip().split(' ')
+        regexp = ['^.*']    # create regeular expression based on filter text
+        for txt in regexp_raw:
+            if txt == '|':
+                regexp.append(txt)
+            elif txt == '&': continue
+            elif len(txt.strip()) > 0:
+                txt = txt.replace('*', '.*')
+                regexp.append(fr'(?=.*\b{txt}\b)')
+        regexp.append('.*$')
+        regexp = ''.join(regexp)
+
+        self.proxy_model.setFilterRegularExpression(regexp)
+        self.update_match_tooltip(self.proxy_model.rowCount())
+        self.expand_items()
+
+    def update_match_tooltip(self, num, show=True):
+        if num == 1:
+            self.filter_input.setToolTip(f'{num:d} match')
+        else:
+            self.filter_input.setToolTip(f'{num:d} matches')
+        
+        if show:
+            pos = self.filter_input.mapToGlobal(QtCore.QPoint(0, 0))
+            width = self.filter_input.sizeHint().width()
+            pos.setX(pos.x() + width*2)
+            height = self.filter_input.sizeHint().height()
+            pos.setY(pos.y() + int(height/4))
+
+            QToolTip.showText(pos, self.filter_input.toolTip())
+
+    def expand_items(self):
+        tree = self.parent.mech_tree
+        for row_idx in range(self.proxy_model.rowCount()):
+            proxy_idx = self.proxy_model.index(row_idx, 0)
+            idx = self.proxy_model.mapToSource(proxy_idx)
+            item = self.model.itemFromIndex(idx)
+            rxnNum = item.info['rxnNum']
+
+            if item.info['isExpanded']:
+                tree.expand(proxy_idx)
+                self._set_mech_widgets(item)  
+
+
+class rateExpCoefficient(QWidget):  # rate expression coefficient
+    def __init__(self, parent, coef, info, *args, **kwargs):
         QWidget.__init__(self)
         
         self.Label = QLabel(self.tr('{:s}:'.format(coef[0])))
-        self.valueBox = misc_widget.ScientificDoubleSpinBox(parent=parent, *args, **kwargs)
+        info['label'] = self.Label
+
+        exclude_keys = ['unc_value', 'unc_type', 'info']
+        valueBox_kwargs = {k: kwargs[k] for k in set(list(kwargs.keys())) - set(exclude_keys)}
+        self.valueBox = misc_widget.ScientificDoubleSpinBox(parent=parent, *args, **valueBox_kwargs)
+        self.valueBox.info = info
         self.valueBox.setValue(coef[2])
         self.valueBox.setMaximumWidth(75)   # This matches the coefficients
         self.valueBox.setToolTip('Coefficient Value')
         
         self.formulaBox = ScientificLineEdit(parent)
+        self.formulaBox.info = info
         self.formulaBox.setValue(coef[2])
         self.formulaBox.setMaximumWidth(75)   # This matches the coefficients
         self.formulaBox.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
         self.formulaBox.hide()
         
-        self.unc = Uncertainty(parent, 'coef')
+        info['mainValueBox'] = self.valueBox
+
+        if 'unc_value' in kwargs and 'unc_type' in kwargs:
+            self.unc = Uncertainty(parent, 'coef', info, value=kwargs['unc_value'], unc_choice=kwargs['unc_type'])
+        else:
+            self.unc = Uncertainty(parent, 'coef', info)
+
         self.uncValBox = self.unc.valBox
         self.uncTypeBox = self.unc.typeBox
         if coef[1] == 'pre_exponential_factor':                         # Lazy way to remove +/-
@@ -632,18 +831,19 @@ class rateExpCoefficient(QWidget):  # rate expression coefficient # this is very
         layout.addWidget(self.valueBox, 0, 2)          
         layout.addItem(end_spacer, 0, 3)
         layout.addWidget(self.unc, 0, 4)
-        
-        # print('{:.3f} ms'.format((timer() - start_time)*1E3))
+
                 
 class rxnRate(QWidget):
-    def __init__(self, parent=None, label='', rxnType='Arrhenius', *args, **kwargs):
+    def __init__(self, parent, info, rxnType='Arrhenius', label='', *args, **kwargs):
         QWidget.__init__(self, parent)
         self.parent = parent
         
         self.Label = QLabel(self.tr('k'))
         self.Label.setToolTip('Reaction Rate [mol, cm, s]')
         
-        self.valueBox = ScientificLineEditReadOnly(parent, *args, **kwargs)
+        exclude_keys = ['unc_value', 'unc_type']
+        valueBox_kwargs = {k: kwargs[k] for k in set(list(kwargs.keys())) - set(exclude_keys)}
+        self.valueBox = ScientificLineEditReadOnly(parent, *args, **valueBox_kwargs)
         self.valueBox.setMaximumWidth(75)   # This matches the coefficients
         self.valueBox.setDecimals(4)
         self.valueBox.setReadOnly(True)
@@ -661,13 +861,18 @@ class rxnRate(QWidget):
         layout.addWidget(self.valueBox, 0, 2)
         
         if 'Arrhenius' in rxnType:
-            end_spacer = QtWidgets.QSpacerItem(15, 10, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
-            
-            self.unc = Uncertainty(parent, 'rate')
+            info['mainValueBox'] = self.valueBox
+
+            if 'unc_value' in kwargs and 'unc_type' in kwargs:
+                self.unc = Uncertainty(parent, 'rate', info, value=kwargs['unc_value'], unc_choice=kwargs['unc_type'])
+            else:
+                self.unc = Uncertainty(parent, 'rate', info)
+
             self.uncValBox = self.unc.valBox
             self.uncTypeBox = self.unc.typeBox
             # layout.addItem(spacer, 0, 0)
-            
+
+            end_spacer = QtWidgets.QSpacerItem(15, 10, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
             layout.addItem(end_spacer, 0, 3)
             layout.addWidget(self.unc, 0, 4)
         else:
@@ -676,18 +881,20 @@ class rxnRate(QWidget):
 
 
 class Uncertainty(QWidget):
-    def __init__(self, parent, type, *args, **kwargs):
+    def __init__(self, parent, type, info, *args, **kwargs):
         super().__init__(parent)
         # QWidget.__init__(self, parent)
         self.parent = parent
-                
+        self.info = info
+
         self.typeBox = misc_widget.SearchComboBox() # uncertainty type
+        self.typeBox.info = info
         self.typeBox.lineEdit().setReadOnly(True)   # defeats point of widget, but I like the look
         if type == 'coef':
             self.typeBox.addItems(['F', '%', '±', '+', '-'])
         elif type == 'rate':
             self.typeBox.addItems(['F', '%'])
-            
+        
         # This isn't pretty but it works
         tooltipTxt = ['<html><table border="0" cellspacing="1" cellpadding="0">'
                       '<tr><td style="padding-top:0; padding-bottom:6; padding-left:0; padding-right:4;"><p>F</p></td>',
@@ -699,13 +906,23 @@ class Uncertainty(QWidget):
         self.typeBox.setToolTip(''.join(tooltipTxt))
         self.priorUncType = self.typeBox.currentText()
         self.typeBox.currentIndexChanged[str].connect(self.uncTypeChanged)
-        
+
         self.uncMax = 100
-        self.valBox = UncertaintyBox(parent, self.uncMax)        # uncertainty value
-        self.valBox.setUncType(self.priorUncType)   # initialize uncertainty type
+        if 'value' in kwargs:
+            self.valBox = UncertaintyBox(parent, self.uncMax, value=kwargs['value'])  # uncertainty value
+        else:
+            self.valBox = UncertaintyBox(parent, self.uncMax)  # uncertainty value
+        self.valBox.info = info
+
+        if 'unc_choice' in kwargs:
+            self.typeBox.setCurrentText(kwargs['unc_choice'])
+            self.uncTypeChanged(kwargs['unc_choice'], update=False)   # initialize uncertainty type
+        else:
+            self.valBox.setUncType(self.priorUncType)   # initialize uncertainty type
+
         if 'value' in kwargs:
             self.valBox.setValue(kwargs['value'])
-    
+            
         layout = QGridLayout(self)
         layout.setContentsMargins(0,0,0,0)
         layout.setSpacing(4)
@@ -713,27 +930,25 @@ class Uncertainty(QWidget):
         layout.addWidget(self.typeBox, 0, 0)
         layout.addWidget(self.valBox, 0, 1)
        
-    def uncTypeChanged(self, event):
+    def uncTypeChanged(self, event, update=True):
         def plus_minus_values():
-            tree = self.parent.mech_tree
-            rxnNum, coefNum = self.valBox.info['rxnNum'], self.valBox.info['coefNum']
-            coefBox = tree.rxn[rxnNum]['valueBox'][coefNum]
-            
+            coefBox = self.info['mainValueBox']
             return coefBox.strDecimals, coefBox.singleStep()*10, sys.float_info.max
             
         self.valBox.setUncType(event)   # pass event change to uncValBox
-        if self.priorUncType == '±':
+        if self.priorUncType == '±' and update:
             self.valBox.setValue(self.valBox.minimum())  # if prior uncertainty was +-, reset
 
         uncVal = self.valBox.uncValue
         
         if event == 'F':    # only happens on event change, must have been % or ±
-            if not np.isnan(uncVal):
+            if not np.isnan(uncVal) and update:
                 self.valBox.setValue(uncVal+1)
             self.valBox.setMinimum(1)
         elif self.priorUncType == 'F':
             self.valBox.setMinimum(0)
-            self.valBox.setValue(uncVal-1)
+            if update:
+                self.valBox.setValue(uncVal-1)
         
         if event in ['F', '%']:
             self.valBox.setDecimals(2)
@@ -744,11 +959,12 @@ class Uncertainty(QWidget):
             self.valBox.setDecimals(dec)
             self.valBox.setSingleStep(step)
             self.valBox.setMaximum(maxval)
-            self.valBox.setValue(-step)
+            if update:
+                self.valBox.setValue(-step)
         
         self.priorUncType = event
-        
-        self.parent.tree.update_uncertainties(event, self.sender())
+        if update:
+            self.parent.tree.update_uncertainties(event, self.typeBox)
 
   
 class UncValidator(QtGui.QValidator):
@@ -768,25 +984,13 @@ class UncValidator(QtGui.QValidator):
             state = QtGui.QValidator.Invalid
         return (state, string, position)
     
-    
-def uncertainty_fcn(x, uncVal, uncType):
-    if np.isnan(uncVal):
-        return [np.nan, np.nan]
-    elif uncType == 'F':
-        return np.sort([x/uncVal, x*uncVal])
-    elif uncType == '%':
-        return np.sort([x/(1+uncVal), x*(1+uncVal)])
-    elif uncType == '±':
-        return np.sort([x-uncVal, x+uncVal])
-    elif uncType == '+':
-        return np.sort([x, x+uncVal])
-    elif uncType == '-':
-        return np.sort([x-uncVal, x])
-    
+        
 class UncertaintyBox(misc_widget.ScientificDoubleSpinBox):
-    def __init__(self, parent, maxUnc, *args, **kwargs):
+    def __init__(self, parent, maxUnc, value=None, *args, **kwargs):
         super().__init__(parent=parent, *args, **kwargs)
         
+        self.tree = self.parent().tree
+
         self.validator = UncValidator()
         self.setKeyboardTracking(False)
         self.setAccelerated(True)
@@ -798,8 +1002,11 @@ class UncertaintyBox(misc_widget.ScientificDoubleSpinBox):
         self.minimumBaseValue= 1
         self.maximumBaseValue = maxUnc
         self.setSingleStep(0.25)
-        self.setValue(1)
         self.setDecimals(2)
+        if value is None:
+            self.setValue(-1)
+        else:
+            self.setValue(value)
         self.setToolTip('Coefficient Uncertainty\n\nBased on reset values\nReset values default to initial mechanism')
         
         self.uncValue = self.value()
@@ -875,7 +1082,7 @@ class UncertaintyBox(misc_widget.ScientificDoubleSpinBox):
         elif self.uncType in ['F', '%']:
             self.uncValue = event
         else:                               # if +-, need to convert to cantera units
-            tree = self.parent().parent.tree
+            tree = self.tree
             rxnNum = self.info['rxnNum']
             coeffs = [*self.info['coef'], event]
             conv_type = tree.mech_tree_type + '2Cantera'
@@ -883,9 +1090,6 @@ class UncertaintyBox(misc_widget.ScientificDoubleSpinBox):
             self.uncValue = cantera_value[0][2]
     
     def setUncType(self, event):    self.uncType = event
-    
-    def uncFcn(self, x):    
-        return uncertainty_fcn(x, self.uncValue, self.uncType)
        
    
 class ScientificLineEditReadOnly(QLineEdit):

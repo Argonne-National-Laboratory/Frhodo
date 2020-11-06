@@ -69,12 +69,10 @@ class Save:
         return table
     
     def write_table(self, path, table, line_start = 0): # Notepad has a maximum line length of 1024 characters
-        f = open(path, 'w')
-        for i, line in enumerate(table):
-            if i >= line_start:
-                f.write(line + '\n')  
-        f.write('\n')
-        f.close()
+        with open(path, 'w') as f:
+            for i, line in enumerate(table):
+                if i >= line_start:
+                    f.write(line + '\n')  
     
     def all(self, SIM, save_var, units = 'CGS'):
         def find_nearest(array, value):
@@ -90,11 +88,11 @@ class Save:
         
         # if save integrator_time is checked or SIM failed, save all
         if save_var['integrator_time'] or not SIM.success:
-            self.save_indices = range(np.shape(SIM.t_lab)[0])
+            self.save_indices = range(np.shape(SIM.t_lab(units=units))[0])
         else:
             self.save_indices = []   # Find indices of closest values to the save values
             for t_save in save_var['output_time']:
-                self.save_indices.append(find_nearest(SIM.t_lab, t_save))
+                self.save_indices.append(find_nearest(SIM.t_lab(units=units), t_save))
         
         for parameter in save_var['parameters']:
             sim_var_path = path_set(parameter)
@@ -114,32 +112,32 @@ class Save:
     
     def sim_parameter(self, SIM, save_var, parameter, path, units='CGS'):
         idx = self.save_indices       
-        data = np.array(SIM.t_lab[idx]).T + save_var['output_time_offset'] # add time offset to all
+        data = np.array(SIM.t_lab(units=units)[idx]).T + save_var['output_time_offset'] # add time offset to all
         
         header = ['time [s]']
-        sub_type = SIM.reactor_var[parameter]['sub_type']
-        SIM_name = SIM.reactor_var[parameter]['SIM_name']
+        sub_type = SIM.all_var[parameter]['sub_type']
+        SIM_name = SIM.all_var[parameter]['SIM_name']
         if sub_type is None:  # TODO: save in one file?
             header.append(parameter)
-            data = np.vstack((data, getattr(SIM, SIM_name)[idx]))
+            data = np.vstack((data, getattr(SIM, SIM_name)(units=units)[idx]))
         elif 'species' in sub_type:
             if 'total' in sub_type:
                 header.append('Total')
-                data = np.vstack((data, getattr(SIM, SIM_name+'_tot')[idx]))
+                data = np.vstack((data, getattr(SIM, SIM_name+'_tot')(units=units)[idx]))
                 
             if len(save_var['species']) > 0:
                 for species_idx, species_name in save_var['species'].items():
                     header.extend([species_name])
-                    data = np.vstack((data, getattr(SIM, SIM_name)[:,idx][species_idx]))
+                    data = np.vstack((data, getattr(SIM, SIM_name)(units=units)[:,idx][species_idx]))
         elif 'rxn' in sub_type:
             if 'total' in sub_type:
                 header.append('Total')
-                data = np.vstack((data, getattr(SIM, SIM_name+'_tot')[idx]))
+                data = np.vstack((data, getattr(SIM, SIM_name+'_tot')(units=units)[idx]))
                 
             if len(save_var['reactions']) > 0:
                 for rxn_idx, rxn_eqn in save_var['reactions'].items():
                     header.extend(['R{:.0f}'.format(rxn_idx+1)])
-                    data = np.vstack((data, getattr(SIM, SIM_name)[:,idx][rxn_idx]))
+                    data = np.vstack((data, getattr(SIM, SIM_name)(units=units)[:,idx][rxn_idx]))
         
         self.write_table(path, self.make_table(header, data, sig_fig=3))
         
@@ -150,63 +148,11 @@ class Save:
         elif 'SI' in units:
             labels = ['t_lab [s]', 'GRHO [kg/m4]']
         
-        data = np.array(SIM.t_lab).T + save_var['output_time_offset'] # add time offset to all
-        data = np.vstack((data, SIM.drhodz_tot))
+        data = np.array(SIM.t_lab(units=units)).T + save_var['output_time_offset'] # add time offset to all
+        data = np.vstack((data, SIM.drhodz_tot(units=units)))
         self.write_table(path, self.make_table(labels, data, sig_fig = 6))
-    
-    def sim_species_time_histories(self, SIM, units = 'CGS'): # defunct
-        s_names = self.gas.species_names
-        conc_names = ['[' + s + ']' for s in s_names]
-        wdot_names = ['wdot_' + s for s in s_names]    # net production rates
-        labels = ['t_lab [us]']
-        
-        # Remove columns of all species who's concentration is always zero
-        idx_del = np.where(~SIM.conc.any(axis=1))[0] # indices of columns containing all zeros
-        SIM.conc = np.delete(SIM.conc, idx_del, axis=0)
-        SIM.wdot = np.delete(SIM.wdot, idx_del, axis=0)
-        conc_names = [x for i,x in enumerate(conc_names) if i not in idx_del]
-        wdot_names = [x for i,x in enumerate(wdot_names) if i not in idx_del] 
-        
-        if 'CGS' in units:
-            name = ['Abbreviations: [Species] = Concentration, wdot = Net Production Rate\n' + 
-                    'Units:         Concentration [mol/cm3], wdot [mol/cm3/s]']
-            labels.extend(conc_names + wdot_names + ['T2 [K]', 'P2 [Torr]', 'U2 [cm/s]', 'RHO2 [g/cm3]', 'GRHO [g/cm4]'])
-        
-        elif 'SI' in units:
-            name = ['Abbreviations: [Species] = Concentration, wdot = Net Production Rate\n' + 
-                    'Units:         Concentration [kmol/m3], wdot [kmol/m3/s]']
-            labels.extend(conc_names + wdot_names + ['T2 [K]', 'P2 [Pa]', 'U2 [m/s]', 'RHO2 [kg/m3]', 'GRHO [kg/m4]'])
-        
-        
-        idx = self.save_indices
-        data = [SIM.t_lab[idx], *SIM.conc[:,idx], *SIM.wdot[:,idx], SIM.T[idx], 
-                SIM.P[idx], SIM.v[idx], SIM.rho[idx], SIM.drhodz[idx]]
-        table = self.make_table(name[0], labels, data, sig_fig = 3)
-        self.write_table(self.path['Species Time Histories.txt'], table)
-    
-    def sim_kinetic_time_histories(self, SIM, units = 'CGS'): # defunct
-        
-        labels = ['t_lab [us]']
-        variables = ['FR/RR', 'ROP', 'RC', 'EqC', 'GRHO', '%GRHO', 'dH']
-        for variable in variables:
-            labels.extend([rxn + ' ' + variable for rxn in rxn_nums])
-        
-        if 'CGS' in units:
-            name = ['Abbreviations: ROP = Net Rate of Progress, RC = Rate Constant, EqC = Equilibrium Constant\n' + 
-                    'Units:         ROP [mol/cm3/s], RC [mol,cm3,s], EqC [mol/cm3], GRHO [g/cm4], dH [cal/mol]']
-            
-        elif 'SI' in units:
-            name = ['Abbreviations: ROP = Net Rate of Progress, RC = Rate Constant, EqC = Equilibrium Constant\n' + 
-                    'Units:         ROP [kmol/m3/s], RC [kmol,m3,s], EqC [kmol/m3], GRHO [kg/m4], dH [J/kmol]']
-        
-        idx = self.save_indices
-        data = [SIM.t_lab[idx], *SIM.net_ROP[:,idx], *SIM.rate_con[:,idx], *SIM.eq_con[:,idx], 
-                *SIM.drhodz_per_rxn[:,idx], *SIM.perc_drhodz[:,idx], *SIM.delta_h[:,idx]]    
-        table = self.make_table(name[0], labels, data, sig_fig = 3)
-        self.write_table(self.path['Kinetic Time Histories.txt'], table, line_start = 0)
-   
-    def sim_log_txt(self, save_var):
-        f = open(self.path['Sim log'], 'a')   # open log in append mode
+       
+    def sim_log_txt(self, save_var): 
         name = self.path['Mech.ck'].parents[0].name
         if 'Sim' in name:    # Check for Sim in string (this should work beyond Sim 1)
             Sim_num = name
@@ -222,8 +168,9 @@ class Save:
                 comment = comment + '\n' + addComment
         
         comment = '\n\t'.join(comment.split('\n'))    # split and replace with tabs for formatting
-        f.write(Sim_num + ':\t' + comment + '\n')
-        f.close()
+        
+        with open(self.path['Sim log'], 'a') as f: # open log in append mode
+            f.write(Sim_num + ':\t' + comment + '\n')
         
     def chemkin_format(self, gas=[], path=[]):
         if not gas:
@@ -231,4 +178,4 @@ class Save:
         if not path:
             path = self.path['Mech.ck']
         
-        soln2ck.write(gas, output_filename=path.name, path=path.parent)
+        soln2ck.write(gas, path, self.path['Cantera_Mech'])

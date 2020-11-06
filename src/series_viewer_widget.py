@@ -96,13 +96,16 @@ class Series_Viewer:
                 height = np.min([treeHeight, tableHeight])
                 L2.setSizeHint(0, QtCore.QSize(width, height))
             
-    def update(self):
+    def update(self, shock_idx=None):
         if not self.data_table: return # in case no series have been added
         
         parent = self.parent
         for table in self.data_table:
             if parent.path['exp_main'] == table.main_path:
-                table._update()
+                if shock_idx is None:
+                    table._update()
+                else:
+                    table._update(shock_idx)
                 break
 
 
@@ -197,8 +200,8 @@ class DataSetsTable(QTableWidget):
             cell_widget = QWidget()
             self.include_box.append(QCheckBox())
             self.include_box[-1].info = {'shock_num': shock_num, 'shock_idx': idx}
-            self.include_box[-1].stateChanged.connect(self._toggle_checkbox)
-            self.include_box[-1].setChecked(True)
+            self.include_box[-1].toggled.connect(self._toggle_checkbox)
+            self.include_box[-1].setChecked(False)
             self.include_box[-1].setFocusPolicy(QtCore.Qt.NoFocus)
             # create layout to center checkbox in cell
             checkbox_layout = QHBoxLayout(cell_widget)
@@ -225,11 +228,16 @@ class DataSetsTable(QTableWidget):
 
         self._update()
         
-    def _update(self):
+    def _update(self, shock_idx=None):
         parent = self.parent
         data = self.shock
-         
-        for idx, shock_num in enumerate(self.all_shocks):
+        
+        if shock_idx is None:
+            shock_idxs = range(0, len(self.all_shocks))
+        else:
+            shock_idxs = [shock_idx]
+
+        for idx in shock_idxs:
             # Skip runs that did not load
             if 'exp_data' in data[idx]['err']:
                 self._toggle_checkbox(idx=idx, bool=False)
@@ -313,11 +321,12 @@ class DataSetsTable(QTableWidget):
             shock_err = list(dict.fromkeys(self.shock[idx]['err'])) # remove duplicate values
             if len(shock_err) > 0 and shock_err != ['raw_data']:    # ignore error if raw data doesn't exist
                 self.shock[idx]['include'] = False
+                #self.include_box[idx].setChecked(False)
                 silentSetChecked(self.include_box[idx], False)
                 return True
             else:
                 return False
-        
+
         if all(key in kwargs for key in ['idx', 'bool']):   # if changed programmatically
             chkboxIdx, bool = kwargs['idx'], kwargs['bool']
             if shockError(chkboxIdx): return
@@ -339,7 +348,8 @@ class DataSetsTable(QTableWidget):
                 columnName = self.horizontalHeaderItem(column).text()
                 if row != chkboxIdx and columnName == 'incl.':
                     self.shock[row]['include'] = bool
-                    silentSetChecked(self.include_box[row], bool) 
+                    silentSetChecked(self.include_box[row], bool)
+
     
     def keyPressEvent(self, event):
         key = {'change_shock': {'up': QtCore.Qt.Key_Up, 'down': QtCore.Qt.Key_Down},

@@ -62,7 +62,7 @@
         <enum>QTabWidget::Triangular</enum>
        </property>
        <property name="currentIndex">
-        <number>0</number>
+        <number>1</number>
        </property>
        <widget class="QWidget" name="directory_tab">
         <attribute name="title">
@@ -1464,7 +1464,7 @@ p, li { white-space: pre-wrap; }
                      <number>-16</number>
                     </property>
                     <property name="maximum">
-                     <number>-6</number>
+                     <number>-4</number>
                     </property>
                     <property name="value">
                      <number>-8</number>
@@ -1618,6 +1618,19 @@ p, li { white-space: pre-wrap; }
                     </property>
                    </widget>
                   </item>
+                  <item row="0" column="1">
+                   <spacer name="horizontalSpacer_18">
+                    <property name="orientation">
+                     <enum>Qt::Horizontal</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                     <size>
+                      <width>40</width>
+                      <height>20</height>
+                     </size>
+                    </property>
+                   </spacer>
+                  </item>
                   <item row="0" column="2">
                    <widget class="QSpinBox" name="ODE_rtol_box">
                     <property name="minimumSize">
@@ -1642,25 +1655,12 @@ p, li { white-space: pre-wrap; }
                      <number>-14</number>
                     </property>
                     <property name="maximum">
-                     <number>-3</number>
+                     <number>-2</number>
                     </property>
                     <property name="value">
                      <number>-6</number>
                     </property>
                    </widget>
-                  </item>
-                  <item row="0" column="1">
-                   <spacer name="horizontalSpacer_18">
-                    <property name="orientation">
-                     <enum>Qt::Horizontal</enum>
-                    </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>40</width>
-                      <height>20</height>
-                     </size>
-                    </property>
-                   </spacer>
                   </item>
                  </layout>
                 </widget>
@@ -1857,7 +1857,7 @@ p, li { white-space: pre-wrap; }
                <bool>false</bool>
               </property>
               <property name="minimum">
-               <number>1</number>
+               <number>-1</number>
               </property>
               <property name="maximum">
                <number>10000</number>
@@ -1978,6 +1978,9 @@ p, li { white-space: pre-wrap; }
               <property name="keyboardTracking">
                <bool>false</bool>
               </property>
+              <property name="decimals">
+               <number>3</number>
+              </property>
               <property name="maximum">
                <double>100.000000000000000</double>
               </property>
@@ -1985,18 +1988,12 @@ p, li { white-space: pre-wrap; }
                <double>0.010000000000000</double>
               </property>
               <property name="value">
-               <double>0.200000000000000</double>
+               <double>0.000000000000000</double>
               </property>
              </widget>
             </item>
             <item row="0" column="0">
              <widget class="QLabel" name="label">
-              <property name="minimumSize">
-               <size>
-                <width>170</width>
-                <height>0</height>
-               </size>
-              </property>
               <property name="text">
                <string>Time Uncertainty [μs]</string>
               </property>
@@ -2004,12 +2001,6 @@ p, li { white-space: pre-wrap; }
             </item>
             <item row="1" column="2">
              <widget class="QDoubleSpinBox" name="time_offset_twin_box">
-              <property name="maximumSize">
-               <size>
-                <width>61</width>
-                <height>16777215</height>
-               </size>
-              </property>
               <property name="accelerated">
                <bool>true</bool>
               </property>
@@ -2270,8 +2261,8 @@ p, li { white-space: pre-wrap; }
                 <rect>
                  <x>0</x>
                  <y>0</y>
-                 <width>223</width>
-                 <height>104</height>
+                 <width>291</width>
+                 <height>118</height>
                 </rect>
                </property>
                <attribute name="label">
@@ -2403,7 +2394,7 @@ p, li { white-space: pre-wrap; }
                    </sizepolicy>
                   </property>
                   <property name="text">
-                   <string>Relative Tolerance: SSE</string>
+                   <string>Relative Tolerance: loss fcn</string>
                   </property>
                  </widget>
                 </item>
@@ -2453,7 +2444,7 @@ p, li { white-space: pre-wrap; }
                 <rect>
                  <x>0</x>
                  <y>0</y>
-                 <width>165</width>
+                 <width>177</width>
                  <height>104</height>
                 </rect>
                </property>
@@ -2491,7 +2482,7 @@ p, li { white-space: pre-wrap; }
                 <item row="3" column="0">
                  <widget class="QLabel" name="local_text_3">
                   <property name="text">
-                   <string>Relative Tolerance: SSE</string>
+                   <string>Relative Tolerance: loss fcn</string>
                   </property>
                  </widget>
                 </item>
@@ -2626,7 +2617,7 @@ p, li { white-space: pre-wrap; }
             <bool>false</bool>
            </property>
            <layout class="QGridLayout" name="gridLayout_38">
-            <item row="0" column="2">
+            <item row="1" column="2">
              <widget class="QDoubleSpinBox" name="loss_alpha_box">
               <property name="accelerated">
                <bool>true</bool>
@@ -2648,20 +2639,20 @@ p, li { white-space: pre-wrap; }
               </property>
              </widget>
             </item>
-            <item row="0" column="0">
+            <item row="1" column="0">
              <widget class="QLabel" name="label_29">
               <property name="toolTip">
                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;right&quot;&gt;Less sensitive to outliers as alpha decreases&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;L2 loss (Mean Squared Error) = 2&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;Charbonnier (Huber-like) loss = 1&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;Cauchy loss = 0&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;Geman-McClure loss = −2&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;Welsch loss = −∞&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="text">
-               <string>alpha (shape parameter)</string>
+               <string>alpha (Shape Parameter)</string>
               </property>
               <property name="textFormat">
                <enum>Qt::RichText</enum>
               </property>
              </widget>
             </item>
-            <item row="1" column="2">
+            <item row="2" column="2">
              <widget class="QDoubleSpinBox" name="loss_c_box">
               <property name="accelerated">
                <bool>true</bool>
@@ -2670,10 +2661,10 @@ p, li { white-space: pre-wrap; }
                <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
               </property>
               <property name="minimum">
-               <double>0.100000000000000</double>
+               <double>0.010000000000000</double>
               </property>
               <property name="maximum">
-               <double>10.000000000000000</double>
+               <double>1000.000000000000000</double>
               </property>
               <property name="singleStep">
                <double>0.100000000000000</double>
@@ -2683,7 +2674,7 @@ p, li { white-space: pre-wrap; }
               </property>
              </widget>
             </item>
-            <item row="0" column="1">
+            <item row="1" column="1">
              <spacer name="horizontalSpacer_30">
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
@@ -2696,13 +2687,34 @@ p, li { white-space: pre-wrap; }
               </property>
              </spacer>
             </item>
-            <item row="1" column="0">
+            <item row="2" column="0">
              <widget class="QLabel" name="label_31">
               <property name="toolTip">
                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Decreasing reduces effect of outliers&lt;/p&gt;&lt;p&gt;An additional multiplier to internal scaling &lt;/p&gt;&lt;p&gt;Internal scaling based on 1.5 IQR rule&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="text">
-               <string>c (scale parameter)</string>
+               <string>c (Scale Parameter)</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="2">
+             <widget class="QComboBox" name="resid_scale_box">
+              <item>
+               <property name="text">
+                <string>Linear</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Log</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item row="0" column="0">
+             <widget class="QLabel" name="label_3">
+              <property name="text">
+               <string>Residual Scale</string>
               </property>
              </widget>
             </item>
@@ -2784,19 +2796,21 @@ p, li { white-space: pre-wrap; }
                 <property name="bottomMargin">
                  <number>0</number>
                 </property>
+                <item row="0" column="0">
+                 <widget class="QLineEdit" name="mech_tree_filter_box">
+                  <property name="text">
+                   <string/>
+                  </property>
+                  <property name="placeholderText">
+                   <string>Mechanism Filter, ex: CH4 &amp; H2 | *CH3</string>
+                  </property>
+                 </widget>
+                </item>
                 <item row="1" column="0">
-                 <widget class="QTreeWidget" name="mech_tree">
-                  <attribute name="headerCascadingSectionResizes">
+                 <widget class="QTreeView" name="mech_tree">
+                  <attribute name="headerHighlightSections">
                    <bool>true</bool>
                   </attribute>
-                  <attribute name="headerStretchLastSection">
-                   <bool>true</bool>
-                  </attribute>
-                  <column>
-                   <property name="text">
-                    <string/>
-                   </property>
-                  </column>
                  </widget>
                 </item>
                </layout>
@@ -2824,118 +2838,6 @@ p, li { white-space: pre-wrap; }
                    <enum>QFrame::Raised</enum>
                   </property>
                   <layout class="QGridLayout" name="thermo_tree_container"/>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-              <widget class="QWidget" name="series_viewer_tab">
-               <layout class="QGridLayout" name="gridLayout_13">
-                <property name="leftMargin">
-                 <number>0</number>
-                </property>
-                <property name="topMargin">
-                 <number>0</number>
-                </property>
-                <property name="rightMargin">
-                 <number>0</number>
-                </property>
-                <property name="bottomMargin">
-                 <number>0</number>
-                </property>
-                <item row="1" column="0" colspan="2">
-                 <widget class="QFrame" name="frame_16">
-                  <property name="frameShape">
-                   <enum>QFrame::NoFrame</enum>
-                  </property>
-                  <property name="frameShadow">
-                   <enum>QFrame::Plain</enum>
-                  </property>
-                  <property name="lineWidth">
-                   <number>0</number>
-                  </property>
-                  <layout class="QGridLayout" name="gridLayout">
-                   <property name="leftMargin">
-                    <number>0</number>
-                   </property>
-                   <property name="topMargin">
-                    <number>0</number>
-                   </property>
-                   <property name="rightMargin">
-                    <number>0</number>
-                   </property>
-                   <property name="bottomMargin">
-                    <number>0</number>
-                   </property>
-                   <property name="verticalSpacing">
-                    <number>9</number>
-                   </property>
-                   <item row="0" column="1">
-                    <spacer name="horizontalSpacer_25">
-                     <property name="orientation">
-                      <enum>Qt::Horizontal</enum>
-                     </property>
-                     <property name="sizeHint" stdset="0">
-                      <size>
-                       <width>40</width>
-                       <height>20</height>
-                      </size>
-                     </property>
-                    </spacer>
-                   </item>
-                   <item row="0" column="2">
-                    <widget class="QPushButton" name="add_series_button">
-                     <property name="text">
-                      <string>Add Series</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="0" column="3">
-                    <spacer name="horizontalSpacer_26">
-                     <property name="orientation">
-                      <enum>Qt::Horizontal</enum>
-                     </property>
-                     <property name="sizeHint" stdset="0">
-                      <size>
-                       <width>40</width>
-                       <height>20</height>
-                      </size>
-                     </property>
-                    </spacer>
-                   </item>
-                   <item row="3" column="0" colspan="4">
-                    <widget class="QFrame" name="series_viewer_frame">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-                       <horstretch>0</horstretch>
-                       <verstretch>0</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="frameShape">
-                      <enum>QFrame::NoFrame</enum>
-                     </property>
-                     <property name="frameShadow">
-                      <enum>QFrame::Plain</enum>
-                     </property>
-                     <property name="lineWidth">
-                      <number>0</number>
-                     </property>
-                     <layout class="QGridLayout" name="series_viewer_container">
-                      <property name="leftMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="topMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="rightMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="bottomMargin">
-                       <number>0</number>
-                      </property>
-                     </layout>
-                    </widget>
-                   </item>
-                  </layout>
                  </widget>
                 </item>
                </layout>
@@ -2969,11 +2871,6 @@ p, li { white-space: pre-wrap; }
            <item>
             <property name="text">
              <string>Thermodynamics</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Series Viewer</string>
             </property>
            </item>
           </widget>
@@ -3015,6 +2912,112 @@ p, li { white-space: pre-wrap; }
            <property name="maximum">
             <number>99</number>
            </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="series_tab">
+        <attribute name="title">
+         <string>Series</string>
+        </attribute>
+        <layout class="QGridLayout" name="gridLayout_27">
+         <property name="topMargin">
+          <number>15</number>
+         </property>
+         <item row="0" column="0">
+          <widget class="QFrame" name="frame_16">
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="frameShadow">
+            <enum>QFrame::Plain</enum>
+           </property>
+           <property name="lineWidth">
+            <number>0</number>
+           </property>
+           <layout class="QGridLayout" name="gridLayout">
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
+            <property name="verticalSpacing">
+             <number>9</number>
+            </property>
+            <item row="0" column="1">
+             <spacer name="horizontalSpacer_25">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="0" column="2">
+             <widget class="QPushButton" name="add_series_button">
+              <property name="text">
+               <string>Add Series</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="3">
+             <spacer name="horizontalSpacer_26">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="3" column="0" colspan="4">
+             <widget class="QFrame" name="series_viewer_frame">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="frameShape">
+               <enum>QFrame::NoFrame</enum>
+              </property>
+              <property name="frameShadow">
+               <enum>QFrame::Plain</enum>
+              </property>
+              <property name="lineWidth">
+               <number>0</number>
+              </property>
+              <layout class="QGridLayout" name="series_viewer_container">
+               <property name="leftMargin">
+                <number>0</number>
+               </property>
+               <property name="topMargin">
+                <number>0</number>
+               </property>
+               <property name="rightMargin">
+                <number>0</number>
+               </property>
+               <property name="bottomMargin">
+                <number>0</number>
+               </property>
+              </layout>
+             </widget>
+            </item>
+           </layout>
           </widget>
          </item>
         </layout>
@@ -3798,6 +3801,9 @@ p, li { white-space: pre-wrap; }
     <property name="title">
      <string>Help</string>
     </property>
+    <addaction name="actionUpdate_Frhodo"/>
+    <addaction name="separator"/>
+    <addaction name="actionAbout"/>
    </widget>
    <addaction name="menu_File"/>
    <addaction name="menuHelp"/>
@@ -3853,6 +3859,16 @@ p, li { white-space: pre-wrap; }
    </property>
    <property name="shortcut">
     <string>F5</string>
+   </property>
+  </action>
+  <action name="actionUpdate_Frhodo">
+   <property name="text">
+    <string>Update Frhodo</string>
+   </property>
+  </action>
+  <action name="actionAbout">
+   <property name="text">
+    <string>About</string>
    </property>
   </action>
  </widget>

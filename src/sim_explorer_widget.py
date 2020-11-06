@@ -8,6 +8,7 @@ from qtpy.QtWidgets import *
 from qtpy import QtWidgets, QtGui, QtCore
 from copy import deepcopy
 import re
+from timeit import default_timer as timer
 
 class SIM_Explorer_Widgets(QtCore.QObject):
     def __init__(self, parent):
@@ -70,50 +71,44 @@ class SIM_Explorer_Widgets(QtCore.QObject):
         
     def tab_changed(self, idx): # Run simulation is tab changed to Sim Explorer
         if self.parent.plot_tab_widget.tabText(idx) == 'Sim Explorer':
-            # update choices
-            # self.var_dict = self.parent.SIM.reactor_var
-        
-            # for axis in ['x', 'y', 'y2']:
-                # self.create_choices(axis=axis)
-        
-            self.parent.run_single()
+            self.populate_main_parameters()
+            self.update_plot(SIM=self.parent.SIM)
     
     def populate_main_parameters(self, comboBoxes=None):
         if len(self.parent.SIM.reactor_var) > 0:    # if SIM has reactor variables
-            reactor_vars = deepcopy(self.parent.SIM.reactor_var)
-            reactor_vars = list(reactor_vars.keys())
+            reactor_vars = deepcopy(list(self.parent.SIM.reactor_var.keys()))
         else:
             reactor_vars = list(self.var_dict.keys())
-
+        
         # create list of comboboxes
         if comboBoxes is None:
             comboBoxes = [boxes[0] for boxes in self.widget]
         else:
             comboBoxes = [comboBoxes] 
         
-        
         for comboBox in comboBoxes:
             if comboBox.info['axis'] == 'y2':
                 reactor_vars.insert(0, '-')
+              
+            choice = comboBox.currentText()
                 
-            if list(comboBox.info['itemMemory'].keys()) != ['species', 'rxn']:   # create memory if doesn't exist
-                choice = comboBox.currentText()
-                
-                comboBox.blockSignals(True)
-                comboBox.clear()
-                comboBox.addItems(reactor_vars)
-                comboBox.blockSignals(False)
-                comboBox.itemList = reactor_vars
-                
+            comboBox.blockSignals(True)
+            comboBox.clear()
+            comboBox.addItems(reactor_vars)
+            comboBox.blockSignals(False)
+            comboBox.itemList = reactor_vars
+
+            # create memory if doesn't exist
+            if list(comboBox.info['itemMemory'].keys()) != ['species', 'rxn']:   
                 # update item memory for switching variables and keeping selections
                 itemMemory = {var: {'selected': None, 'checked': []} for var in ['species', 'rxn']}
                 comboBox.info['itemMemory'].clear() # preserve original dictionary to keep link between main/sub
                 comboBox.info['itemMemory'].update(itemMemory)
                 
-                if choice not in reactor_vars:  # defaults to temperature if variable not found
-                    choice = 'Temperature'
-                comboBox.setCurrentText(choice)
-                comboBox.setCurrentIndex(reactor_vars.index(choice))
+            if choice not in reactor_vars:  # defaults to temperature if variable not found
+                choice = 'Temperature'
+            comboBox.setCurrentText(choice)
+            comboBox.setCurrentIndex(reactor_vars.index(choice))
         
         # keeps selected options
         tab_widget_idx = self.parent.plot_tab_widget.currentIndex()
@@ -123,6 +118,7 @@ class SIM_Explorer_Widgets(QtCore.QObject):
     def main_parameter_changed(self, event):
         if not self.parent.mech_loaded: return # if mech isn't loaded successfully, exit
         
+        start = timer()
         sender = self.sender()   
         subComboBox = sender.info['boxes'][1]
         self.updating_boxes = True  # to prevent multiple plot updates
@@ -153,9 +149,8 @@ class SIM_Explorer_Widgets(QtCore.QObject):
                     
                 items.extend(rxn_strings)
             
+            subComboBox.addItems(items)
             for n, text in enumerate(items):
-                subComboBox.addItem(text)
-                
                 # Check if text in prior settings
                 if ':' in text: # if reaction, strip R# from text
                     text = text.split(':')[1].lstrip()
@@ -191,7 +186,7 @@ class SIM_Explorer_Widgets(QtCore.QObject):
             if ':' in text: # if reaction, strip R# from text
                 text = text.split(':')[1].lstrip()
             return text
-                
+              
         if self.updating_boxes: return  # do not run if updating boxes from main_parameter_changed
         sender = self.sender()
         if type(sender) is misc_widget.CheckableSearchComboBox: # if sender is widget, not checkbox
@@ -270,7 +265,7 @@ class SIM_Explorer_Widgets(QtCore.QObject):
         if SIM is None: return                 # if SIM hasn't run, exit
         
         def getData(SIM, var):
-            return eval('SIM.' + var)
+            return eval(f'SIM.{var}()')
         
         label = {'y': [], 'y2': []}
         label_order = {'y': [], 'y2': []}

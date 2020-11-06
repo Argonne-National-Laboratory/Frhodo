@@ -14,8 +14,7 @@ from copy import deepcopy
 class Initialize(QtCore.QObject):
     def __init__(self, parent):
         super().__init__(parent)
-        prnt = parent
-        
+
         parent.log = Log(parent.option_tab_widget, parent.log_box,
             parent.clear_log_button, parent.copy_log_button)
         
@@ -23,18 +22,35 @@ class Initialize(QtCore.QObject):
         parent.directory = Directories(parent)
         
         # Connect and Reorder settings boxes
-        box_list = [prnt.shock_choice_box, prnt.time_offset_box]
+        box_list = [parent.shock_choice_box, parent.time_offset_box]
         
         self._set_user_settings_boxes(box_list)
         
+        # Create toolbar experiment number spinbox
+        parent.toolbar_shock_choice_box = QtWidgets.QSpinBox()
+        parent.toolbar_shock_choice_box.setKeyboardTracking(False)
+        parent.toolbar_shock_choice_box.label = QtWidgets.QAction('Shock # ')
+        parent.toolbar_shock_choice_box.label.setEnabled(False)
+        parent.toolbar_shock_choice_box.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
+        
+        parent.toolBar.insertAction(parent.action_Run, parent.toolbar_shock_choice_box.label)
+        parent.toolBar.insertWidget(parent.action_Run, parent.toolbar_shock_choice_box)
+        parent.toolBar.insertSeparator(parent.action_Run)
+        parent.toolBar.setStyleSheet("QToolButton:disabled { color: black } " + 
+                                     "QToolButton:enabled { color: black }")   # alter color
+
         # Set twinned boxes
-        self.twin = [[parent.time_offset_box, parent.time_offset_twin_box]] # main box first
+        self.twin = [[parent.time_offset_box, parent.time_offset_twin_box], # main box first
+                     [parent.shock_choice_box, parent.toolbar_shock_choice_box]]
         for boxes in self.twin:
             for box in boxes:
                 box.twin = boxes
-                box.setValue(parent.time_offset_box.value())   # set all values to be time_offset_box
-                box.valueChanged.connect(self.twin_change)
-        
+                box.setValue(boxes[0].value())   # set all values to be main
+                box.setMinimum(boxes[0].minimum())
+                box.setMaximum(boxes[0].maximum())
+                if box is not parent.shock_choice_box: # prevent double signals, boxes changed in settings
+                    box.valueChanged.connect(self.twin_change)  
+
         # Connect optimization widgets
         parent.optimization_settings = Optimization(parent)
         
@@ -74,14 +90,14 @@ class Initialize(QtCore.QObject):
             parent.setTabOrder(box_list[i], box_list[i+1])
             
     def twin_change(self, event):
-        if self.sender() is self.sender().twin[0]:    # if box is main, update others
+        if self.sender() is self.sender().twin[0]:   # if box is main, update others
             for box in self.sender().twin:
                 if box is not self.sender():
-                    box.blockSignals(True)                          # stop changing text from signaling
+                    box.blockSignals(True)           # stop changing text from signaling
                     box.setValue(event)
-                    box.blockSignals(False)                         # allow signals again
+                    box.blockSignals(False)          # allow signals again
         else:                                                       
-            self.sender().twin[0].setValue(event)            # if box isn't main, update main
+            self.sender().twin[0].setValue(event)    # if box isn't main, update main
         
 
 class Directories(QtCore.QObject):
@@ -156,7 +172,7 @@ class Directories(QtCore.QObject):
                     
                 eval('parent.' + key + '_box.setPlainText(str(path))')
                 parent.path[key] = path
-                parent.user_settings.save(parent.path['default_settings.ini'], save_all = False)
+                parent.user_settings.save(save_all = False)
 
         elif 'box' in type:
             text = self.sender().toPlainText()
@@ -169,6 +185,7 @@ class Directories(QtCore.QObject):
             # select will modify box, this section is under if box to prevent double calling
             self.update_icons()
             if 'mech_main' in key and 'mech_main' not in self.invalid:  # Mech path changed: update mech combobox
+                parent.path_set.set_watch_dir()  # update watched directory
                 parent.path_set.mech()
                 # if no mechs found, do not try to load, return
                 if parent.mech_select_comboBox.count() == 0: return
@@ -215,7 +232,7 @@ class Directories(QtCore.QObject):
         if path[0] and 'exp_main' not in self.invalid:
             parent.path_set.save_dir_file(path[0])
             parent.path_file_box.setPlainText(path[0])
-            parent.user_settings.save(parent.path['default_settings.ini'], save_all = False)
+            parent.user_settings.save(save_all = False)
         elif self.invalid:
             parent.log.append('Could not save directory settings:\nInvalid directory found')
             
@@ -583,6 +600,7 @@ class Mix_Table(QtCore.QObject):
             save_species_alias = True
 
         # parent.series.current['species_alias'] = {} # set to empty dict and create from boxes
+        parent.display_shock['exp_mix'] = {}
         for row in valid_row:
             molFrac = self.molFrac_box[row].value()
             thermo_name = str(self.thermoSpecies_box[row].currentText())
@@ -681,14 +699,14 @@ class Weight_Parameters_Table(QtCore.QObject):
                                                 'minimum': 0,   'decimals': 3,      'suffix': '%'},
                                'weight_min':   {'value': 0,     'singleStep': 1,    'maximum': 100, 
                                                 'minimum': 0,   'decimals': 3,      'suffix': '%'},
-                               'weight_shift': {'value': 0.5,   'singleStep': 0.01, 'decimals': 3,
-                                                'minimum': 0},              
+                               'weight_shift': {'value': 4.5,   'singleStep': 0.1,  'maximum': 100,
+                                                'minimum': 0,   'decimals': 3,      'suffix': '%'},              
                                'weight_k':     {'value': 0,     'singleStep': 0.01, 'decimals': 3,
                                                 'minimum': 0}},
                      'end':   {'weight_min':   {'value': 0,     'singleStep': 1,    'maximum': 100, 
                                                 'minimum': 0,   'decimals': 3,      'suffix': '%'},
-                               'weight_shift': {'value': 3.7,   'singleStep': 0.01, 'decimals': 3,
-                                                'minimum': 0},
+                               'weight_shift': {'value': 36.0,  'singleStep': 0.1,  'maximum': 100,
+                                                'minimum': 0,   'decimals': 3,      'suffix': '%'},
                                'weight_k':     {'value': 0.3,   'singleStep': 0.01, 'decimals': 3,
                                                 'minimum': 0}}}
                           
@@ -732,10 +750,10 @@ class Weight_Parameters_Table(QtCore.QObject):
             update_plot = True
         
         shock['weight_max'] = [self.boxes['weight_max'][0].value()]
-        shock['weight_k'] = [box.value() for box in self.boxes['weight_k']]
-        shock['weight_shift'] = [box.value() for box in self.boxes['weight_shift']]
         shock['weight_min'] = [box.value() for box in self.boxes['weight_min']]
-        
+        shock['weight_shift'] = [box.value() for box in self.boxes['weight_shift']]
+        shock['weight_k'] = [box.value() for box in self.boxes['weight_k']]
+
         if parent.display_shock['exp_data'].size > 0 and update_plot: # If exp_data exists
             parent.plot.signal.update(update_lim=False)
             parent.plot.signal.canvas.draw()
@@ -865,6 +883,7 @@ class Optimization(QtCore.QObject):
         
         for box in [parent.loss_alpha_box, parent.loss_c_box]:
             box.valueChanged.connect(self.update_loss_settings)
+        parent.resid_scale_box.currentTextChanged.connect(self.update_loss_settings)
         self.update_loss_settings() # initialize settings
         
         parent.multiprocessing_box  # checkbox
@@ -908,11 +927,14 @@ class Optimization(QtCore.QObject):
                 self.widgets[opt_type][var_type].setStrDecimals(1)
                 layout.addWidget(self.widgets[opt_type][var_type], n, 0)
              
-    def update_loss_settings(self, event=[]):
+    def update_loss_settings(self, event=None):
         settings = self.settings['loss']
         
         settings['alpha'] = self.parent().loss_alpha_box.value()
         settings['c'] = self.parent().loss_c_box.value()
+        settings['resid_scale'] = self.parent().resid_scale_box.currentText()
+
+        self.save_settings(event)
          
     def update_opt_settings(self, event=None):
         if event is not None:
@@ -943,7 +965,16 @@ class Optimization(QtCore.QObject):
                     self.settings[opt_type][var_type] = optAlgorithm[box.currentText()]
                 elif isinstance(box, QtWidgets.QCheckBox):
                     self.settings[opt_type][var_type] = box.isChecked()
-                    
+        
+        self.save_settings(event)
+    
+    def save_settings(self, event=None):
+        if event is None: return
+        if not hasattr(self.parent(), 'user_settings'): return
+        if 'path_file' not in self.parent().path: return
+
+        self.parent().user_settings.save()
+
     def get(self, opt_type, var_type):
         return self.settings[opt_type][var_type]
         
