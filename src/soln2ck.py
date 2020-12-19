@@ -326,7 +326,9 @@ def thermo_data_text(species_list, note, input_type='included'):
         # total length should be 80
         
         # attempt to split note and comment
-        if len(note[species.name].split('\n', 1)) == 1:
+        if not note:
+            comment, comment_str, note_str = '', '', ''
+        elif len(note[species.name].split('\n', 1)) == 1:
             comment = ''
             comment_str = ''
             note_str = note[species.name]
