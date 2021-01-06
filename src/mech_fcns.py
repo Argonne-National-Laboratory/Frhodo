@@ -25,7 +25,8 @@ all_var = {'Laboratory Time':                  {'SIM_name': 't_lab',        'sub
            'Concentration':                    {'SIM_name': 'conc',         'sub_type':  ['species']}, 
            'Net Production Rate':              {'SIM_name': 'wdot',         'sub_type':  ['species']},
            'Creation Rate':                    {'SIM_name': 'wdotfor',      'sub_type':  ['species']},      
-           'Destruction Rate':                 {'SIM_name': 'wdotrev',      'sub_type':  ['species']},      
+           'Destruction Rate':                 {'SIM_name': 'wdotrev',      'sub_type':  ['species']},
+           'Heat Release Rate':                {'SIM_name': 'HRR',          'sub_type':  ['total', 'rxn']},
            'Delta Enthalpy (Heat of Reaction)':{'SIM_name': 'delta_h',      'sub_type':  ['rxn']},
            'Delta Entropy':                    {'SIM_name': 'delta_s',      'sub_type':  ['rxn']},  
            'Equilibrium Constant':             {'SIM_name': 'eq_con',       'sub_type':  ['rxn']}, 
@@ -45,6 +46,7 @@ SIM_Dict = {'t_lab': 't', 't_shock': 't_shock', 'z': 'z', 'A': 'A', 'vel': 'vel'
             'rho': 'density', 'drhodz_tot': 'drhodz_tot', 'drhodz': 'drhodz', 'perc_drhodz': 'perc_drhodz',
             'Y': 'Y', 'X': 'X', 'conc': 'concentrations', 'wdot': 'net_production_rates', 
             'wdotfor': 'creation_rates', 'wdotrev': 'destruction_rates', 
+            'HRR_tot': 'heat_release_rate', 'HRR': 'heat_production_rates',
             'delta_h': 'delta_enthalpy', 'delta_s': 'delta_entropy', 
             'eq_con': 'equilibrium_constants', 'rate_con': 'forward_rate_constants', 
             'rate_con_rev': 'reverse_rate_constants', 'net_ROP': 'net_rates_of_progress',
@@ -133,6 +135,8 @@ class Simulation_Result:
             self.observable = self.P(units=units)
         elif observable['main'] == 'Density Gradient':
             self.observable = self.drhodz_tot(units=units)
+        elif observable['main'] == 'Heat Release Rate':
+            self.observable = self.HRR_tot(units=units)
         elif observable['main'] == 'Mole Fraction':
             self.observable = self.X(units=units)
         elif observable['main'] == 'Mass Fraction':
@@ -513,7 +517,8 @@ class Reactor:
         
         reactor_vars = ['t_lab', 't_shock', 'z', 'A', 'vel', 'T', 'P', 'h_tot', 'h', 
                         's_tot', 's', 'rho', 'drhodz_tot', 'drhodz', 'perc_drhodz',
-                        'Y', 'X', 'conc', 'wdot', 'wdotfor', 'wdotrev', 'delta_h', 'delta_s', 
+                        'Y', 'X', 'conc', 'wdot', 'wdotfor', 'wdotrev', 
+                        'HRR_tot', 'HRR', 'delta_h', 'delta_s', 
                         'eq_con', 'rate_con', 'rate_con_rev', 'net_ROP', 'for_ROP', 'rev_ROP']
 
         num = {'reac': np.sum(gas.reactant_stoich_coeffs(), axis=0),
@@ -561,7 +566,7 @@ class Reactor:
         details['success'] = True
         
         reactor_vars = ['t_lab', 'T', 'P', 'h_tot', 'h', 's_tot', 's', 'rho', 
-                        'Y', 'X', 'conc', 'wdot', 'wdotfor', 'wdotrev', 
+                        'Y', 'X', 'conc', 'wdot', 'wdotfor', 'wdotrev', 'HRR_tot', 'HRR',
                         'delta_h', 'delta_s', 'eq_con', 'rate_con', 'rate_con_rev', 
                         'net_ROP', 'for_ROP', 'rev_ROP']
 
