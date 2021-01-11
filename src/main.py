@@ -5,7 +5,7 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level 
 # directory for license and copyright information.
 
-version = '1.2.5'
+version = '1.2.6'
 
 import os, sys, platform, multiprocessing, pathlib
 # os.environ['QT_API'] = 'pyside2'        # forces pyside2
