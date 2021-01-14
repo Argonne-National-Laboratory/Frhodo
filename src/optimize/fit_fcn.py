@@ -167,14 +167,14 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             std_resid = chi_sqr**(1/2)
             loss_scalar = np.average(std_resid, weights=weights)
             objective_function_value = loss_scalar
-            if verbose:
+            if verbose: #return early for verbose case.
                 output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
                           'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
                 return output
         elif objective_function_type.lower() == 'bayesian':
-            objective_function_type = log_posterior_density
+            objective_function_value = log_posterior_density
             #TODO: call CheKiPEUQ from here.
-            if verbose:
+            if verbose: #return early for verbose case.
                 output = ''
                 return output
         
