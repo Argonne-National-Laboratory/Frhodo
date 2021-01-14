@@ -123,7 +123,7 @@ def update_mech_coef_opt(mech, coef_opt, x):
         mech.modify_reactions(mech.coeffs)  # Update mechanism with new coefficients
   
 #below was formerly calculate_residuals  
-def calculate_objective_function(args_list):   
+def calculate_objective_function(args_list, objective_function_type='residual'):   
     def calc_exp_bounds(t_sim, t_exp):
         t_bounds = [max([t_sim[0], t_exp[0]])]       # Largest initial time in SIM and Exp
         t_bounds.append(min([t_sim[-1], t_exp[-1]])) # Smallest final time in SIM and Exp
@@ -133,7 +133,7 @@ def calculate_objective_function(args_list):
         return exp_bounds
     
     def time_adjust_func(t_offset, t_adjust, t_sim, obs_sim, t_exp, obs_exp, weights, 
-                         loss_alpha=2, loss_c=1, scale='Linear', DoF=1, verbose=False):
+                         loss_alpha=2, loss_c=1, scale='Linear', DoF=1, verbose=False, objective_function_type='residual'):
 
         t_sim_shifted = t_sim + t_offset + t_adjust
 
@@ -151,27 +151,35 @@ def calculate_objective_function(args_list):
             weights = weights[ind].flatten()
             m = np.divide(obs_exp[ind], obs_sim_interp[ind])
             resid = np.log10(np.abs(m)).flatten()
+            
+        #There are two possible objective_function_types: 'residual' and 'Bayesian'.
+        if objective_function_type.lower() == 'residual':
+            resid_outlier = outlier(resid, a=loss_alpha, c=loss_c, weights=weights)
+            loss = generalized_loss_fcn(resid, a=loss_alpha, c=resid_outlier)
+            loss_sqr = loss**2
+            wgt_sum = weights.sum()
+            N = wgt_sum - DoF
+            if N <= 0:
+                N = wgt_sum
+            stderr_sqr = (loss_sqr*weights).sum()/N
+            chi_sqr = loss_sqr/stderr_sqr
+            #loss_scalar = (chi_sqr*weights).sum()
+            std_resid = chi_sqr**(1/2)
+            loss_scalar = np.average(std_resid, weights=weights)
+            objective_function_value = loss_scalar
+            if verbose:
+                output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
+                          'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
+                return output
+        elif objective_function_type.lower() == 'bayesian':
+            objective_function_type = posterior
+            #TODO: call CheKiPEUQ from here.
+            if verbose:
+                output = ''
+                return output
         
-        resid_outlier = outlier(resid, a=loss_alpha, c=loss_c, weights=weights)
-        loss = generalized_loss_fcn(resid, a=loss_alpha, c=resid_outlier)
-
-        loss_sqr = loss**2
-        wgt_sum = weights.sum()
-        N = wgt_sum - DoF
-        if N <= 0:
-            N = wgt_sum
-        stderr_sqr = (loss_sqr*weights).sum()/N
-        chi_sqr = loss_sqr/stderr_sqr
-        #loss_scalar = (chi_sqr*weights).sum()
-        std_resid = chi_sqr**(1/2)
-        loss_scalar = np.average(std_resid, weights=weights)
-        
-        if verbose:
-            output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
-                      'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
-            return output
-        else:   # needs to return single value for optimization
-            return loss_scalar
+        else: # The normal return, when verbose is not turned on, is to return a single value for optimization
+            return objective_function_value
     
     def calc_density(x, data, dim=1):
         stdev = np.std(data)
@@ -217,14 +225,14 @@ def calculate_objective_function(args_list):
         # calculate time adjust with mse (loss_alpha = 2, loss_c =1)
         time_adj_decorator = lambda t_adjust: time_adjust_func(shock['time_offset'], t_adjust*10**t_unc_OoM, 
                 ind_var, obs, obs_exp[:,0], obs_exp[:,1], weights, scale=var['resid_scale'], 
-                DoF=len(coef_opt))
-        
+                DoF=len(coef_opt), objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
         res = minimize_scalar(time_adj_decorator, bounds=var['t_unc']/10**t_unc_OoM, method='bounded')
         t_unc = res.x*10**t_unc_OoM
     
     output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs, obs_exp[:,0], obs_exp[:,1], 
                               weights, loss_alpha=var['loss_alpha'], loss_c=var['loss_c'], 
-                              scale=var['resid_scale'], DoF=len(coef_opt), verbose=True)  
+                              scale=var['resid_scale'], DoF=len(coef_opt), verbose=True, objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
+                                  
     
     output['shock'] = shock
     output['independent_var'] = ind_var
@@ -232,9 +240,12 @@ def calculate_objective_function(args_list):
 
     plot_stats = True
     if plot_stats:
-        x = np.linspace(output['resid'].min(), output['resid'].max(), 300)
-        density = calc_density(x, output['resid'], dim=1)   #kernel density estimation
-        output['KDE'] = np.column_stack((x, density))
+        if objective_function_type== 'residual':
+            x = np.linspace(output['resid'].min(), output['resid'].max(), 300)
+            density = calc_density(x, output['resid'], dim=1)   #kernel density estimation
+            output['KDE'] = np.column_stack((x, density))
+        if objective_function_type== 'Bayesian':
+            pass #To be added.
 
     return output
 
