@@ -122,6 +122,7 @@ def update_mech_coef_opt(mech, coef_opt, x):
     if mech_changed:
         mech.modify_reactions(mech.coeffs)  # Update mechanism with new coefficients
   
+#below was formerly calculate_residuals  
 def calculate_objective_function(args_list):   
     def calc_exp_bounds(t_sim, t_exp):
         t_bounds = [max([t_sim[0], t_exp[0]])]       # Largest initial time in SIM and Exp
@@ -271,11 +272,11 @@ class Fit_Fun:
         self.__abort = False
     
     def __call__(self, s, optimizing=True):
+        # Below, calc_objective_function_output was formerly calc_resid_output 
         def append_output(output_dict, calc_objective_function_output):
             for key in calc_objective_function_output:
                 if key not in output_dict:
                     output_dict[key] = []
-                    
                 output_dict[key].append(calc_objective_function_output[key])
             
             return output_dict
@@ -300,6 +301,8 @@ class Fit_Fun:
         
         display_ind_var = None
         display_observable = None
+        
+        # Below, calc_objective_function_output was formerly calc_resid_output 
         if self.multiprocessing:
             args_list = ((var_dict, self.coef_opt, x, shock) for shock in self.shocks2run)
             calc_objective_function_outputs = self.pool.map(calculate_objective_function, args_list)
@@ -308,10 +311,8 @@ class Fit_Fun:
                 if shock is self.parent.display_shock:
                     display_ind_var = calc_objective_function_output['independent_var'] 
                     display_observable = calc_objective_function_output['observable']
-
         else:
             mpMech['obj'] = self.mech
-            
             for shock in self.shocks2run:
                 args_list = (var_dict, self.coef_opt, x, shock)
                 calc_objective_function_output = calculate_objective_function(args_list)
