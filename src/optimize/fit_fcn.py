@@ -122,7 +122,7 @@ def update_mech_coef_opt(mech, coef_opt, x):
     if mech_changed:
         mech.modify_reactions(mech.coeffs)  # Update mechanism with new coefficients
   
-def calculate_residuals(args_list):   
+def calculate_objective_function(args_list):   
     def calc_exp_bounds(t_sim, t_exp):
         t_bounds = [max([t_sim[0], t_exp[0]])]       # Largest initial time in SIM and Exp
         t_bounds.append(min([t_sim[-1], t_exp[-1]])) # Smallest final time in SIM and Exp
@@ -271,12 +271,12 @@ class Fit_Fun:
         self.__abort = False
     
     def __call__(self, s, optimizing=True):
-        def append_output(output_dict, calc_resid_output):
-            for key in calc_resid_output:
+        def append_output(output_dict, calc_objective_function_output):
+            for key in calc_objective_function_output:
                 if key not in output_dict:
                     output_dict[key] = []
                     
-                output_dict[key].append(calc_resid_output[key])
+                output_dict[key].append(calc_objective_function_output[key])
             
             return output_dict
         
@@ -302,23 +302,23 @@ class Fit_Fun:
         display_observable = None
         if self.multiprocessing:
             args_list = ((var_dict, self.coef_opt, x, shock) for shock in self.shocks2run)
-            calc_resid_outputs = self.pool.map(calculate_residuals, args_list)
-            for calc_resid_output, shock in zip(calc_resid_outputs, self.shocks2run):
-                append_output(output_dict, calc_resid_output)
+            calc_objective_function_outputs = self.pool.map(calculate_objective_function, args_list)
+            for calc_objective_function_output, shock in zip(calc_objective_function_outputs, self.shocks2run):
+                append_output(output_dict, calc_objective_function_output)
                 if shock is self.parent.display_shock:
-                    display_ind_var = calc_resid_output['independent_var'] 
-                    display_observable = calc_resid_output['observable']
+                    display_ind_var = calc_objective_function_output['independent_var'] 
+                    display_observable = calc_objective_function_output['observable']
 
         else:
             mpMech['obj'] = self.mech
             
             for shock in self.shocks2run:
                 args_list = (var_dict, self.coef_opt, x, shock)
-                calc_resid_output = calculate_residuals(args_list)
-                append_output(output_dict, calc_resid_output)
+                calc_objective_function_output = calculate_objective_function(args_list)
+                append_output(output_dict, calc_objective_function_output)
                 if shock is self.parent.display_shock:
-                    display_ind_var = calc_resid_output['independent_var'] 
-                    display_observable = calc_resid_output['observable']
+                    display_ind_var = calc_objective_function_output['independent_var'] 
+                    display_observable = calc_objective_function_output['observable']
         
         # loss = np.concatenate(output_dict['loss'], axis=0)
         loss = np.array(output_dict['loss'])
