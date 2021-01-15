@@ -173,6 +173,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             else:
                 output = objective_function_value #normal case.
         elif objective_function_type.lower() == 'bayesian':
+            log_posterior_density = CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object)
             objective_function_value = log_posterior_density
             #TODO: call CheKiPEUQ from here.
             if verbose: 
@@ -218,16 +219,30 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     weights = shock['weights_trim']
     obs_exp = shock['exp_data_trim']
     
+    #If we are doing a Bayesian parameter estimation, we need to create CheKiPEUQ_PE_object. This has to come between the above functions because we need to feed in the simulation_function, and it needs to come above the 'minimize' function that is below.
+    if objective_function_type.lower() == 'bayesian':
+        import CheKiPEUQ_from_Frhodo #may need to pass 
+        if weightsExists: #need to make sure that the weights_data is only populated if weighting is being used.
+            weights_data = weights
+        else:
+            weights_data = []
+        pars_bnds = [] #somehow from mech.coeffs_bnds 
+        pars_initial_guess = [] #somehow from mech.coeffs 
+        CheKiPEUQ_PE_object = CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(simulation_function=time_adj_decorator_wrapper, observed_data=obs_exp, pars_initial_guess = [], pars_bnds=[], observed_data_bounds=[], weights_data=weights_data))
+    
     if not np.any(var['t_unc']):
         t_unc = 0
     else:
-        t_unc_OoM = np.mean(OoM(var['t_unc']))  # Do at higher level? (computationally efficient)
-        # calculate time adjust with mse (loss_alpha = 2, loss_c =1)
-        time_adj_decorator = lambda t_adjust: time_adjust_func(shock['time_offset'], t_adjust*10**t_unc_OoM, 
-                ind_var, obs, obs_exp[:,0], obs_exp[:,1], weights, scale=var['resid_scale'], 
-                DoF=len(coef_opt), objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
-        res = minimize_scalar(time_adj_decorator, bounds=var['t_unc']/10**t_unc_OoM, method='bounded')
-        t_unc = res.x*10**t_unc_OoM
+        if objective_function_type.lower() == 'residual':
+            t_unc_OoM = np.mean(OoM(var['t_unc']))  # Do at higher level? (computationally efficient)
+            # calculate time adjust with mse (loss_alpha = 2, loss_c =1)
+            time_adj_decorator = lambda t_adjust: time_adjust_func(shock['time_offset'], t_adjust*10**t_unc_OoM, 
+                    ind_var, obs, obs_exp[:,0], obs_exp[:,1], weights, scale=var['resid_scale'], 
+                    DoF=len(coef_opt), objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
+            res = minimize_scalar(time_adj_decorator, bounds=var['t_unc']/10**t_unc_OoM, method='bounded')
+            t_unc = res.x*10**t_unc_OoM
+        if objective_function_type.lower() == 'bayesian':
+            res = minimize_scalar(CheKiPEUQ_from_Frhodo.get_log_posterior_density) #maybe a wrapper of somekind is ndeeded.
     
     output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs, obs_exp[:,0], obs_exp[:,1], 
                               weights, loss_alpha=var['loss_alpha'], loss_c=var['loss_c'], 
