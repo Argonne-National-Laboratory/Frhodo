@@ -1,10 +1,10 @@
 Notes: 
-
+0) I was mistaken about only a numpy dependence: we need scipy as well. But that is also standard for Anaconda so should not be hard to add.
 1) There is a flag at top top of fit_fcn.py to forceBayesian = True
 2) The capturing of error messages and printing inside the log tab is useful, but sometimes makes it hard to trace which line an error is coming from, because the line number seems to be printed for only some kinds of errors.
-3) 
-
+3) if len(weights) <= 1: objective_function_type = 'residual'  #FIXME: #this line has been added 
+because Ashi doees not understand why sometimes weights is simply a value of 0 vs. other times equal to the length of the number of points.
+4) elif scale == 'Log':  #TODO: Ashi is not sure if some kind of trimming is happening to the experimental data in log scale.
+#For log scale, we would also need to change the PE_object creation to take in the log_scale data.
 
 *** I need to check if the initial guess is really being retained with the shock or is being changed each time.  need to make rate_val_original or something like that.
-
-operands could not be broadcast together with shapes (573,2) (1,573) 

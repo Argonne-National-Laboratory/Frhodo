@@ -150,11 +150,17 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
         
         if scale == 'Linear':
             resid = np.subtract(obs_exp, obs_sim_interp)
+            if objective_function_type.lower() == 'bayesian':
+                shock['last_obs_sim_interp'] = obs_sim_interp
         elif scale == 'Log':
             ind = np.argwhere(((obs_exp!=0.0)&(obs_sim_interp!=0.0)))
             weights = weights[ind].flatten()
             m = np.divide(obs_exp[ind], obs_sim_interp[ind])
             resid = np.log10(np.abs(m)).flatten()
+            #TODO: Ashi is not sure if some kind of trimming is happening to the experimental data in log scale.
+            #For log scale, we would also need to change the PE_object creation to take in the log_scale data.
+            if objective_function_type.lower() == 'bayesian':
+                shock['last_obs_sim_interp'] = obs_sim_interp
             
         #There are two possible objective_function_types: 'residual' and 'Bayesian'.
         if objective_function_type.lower() == 'residual':
@@ -177,8 +183,10 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             else:
                 output = objective_function_value #normal case for residuals based optimization.
         elif objective_function_type.lower() == 'bayesian':
+            print("line 186, getting the objective_function_value")
             log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object)
             objective_function_value = log_posterior_density
+            print("line 189, about to return the objective_function_value", objective_function_value)
             #TODO: call CheKiPEUQ from here.
             if verbose: 
                 output = objective_function_value #to be made a dictionary.
