@@ -245,7 +245,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     
     #If we are doing a Bayesian parameter estimation, we need to create CheKiPEUQ_PE_object. This has to come between the above functions because we need to feed in the simulation_function, and it needs to come above the 'minimize' function that is below.
     if objective_function_type.lower() == 'bayesian':        
-        if 'original_rate_vals' not in shock: #check if this is the first time being called, and store rate_vals and create PE_object if it is.
+        if 'original_rate_val' not in shock: #check if this is the first time being called, and store rate_vals and create PE_object if it is.
             shock['original_rate_val'] = deepcopy(shock['rate_val'])
             shock['newOptimization'] = True
             #FIXME: #TODO: Need to add an "or" statement or flag to allow below to execute when somebody has changed their initial guesses intentionally or are doing a new optimization.
