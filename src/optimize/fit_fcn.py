@@ -171,15 +171,15 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
                 output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
                           'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
             else:
-                output = objective_function_value #normal case.
+                output = objective_function_value #normal case for residuals based optimization.
         elif objective_function_type.lower() == 'bayesian':
-            log_posterior_density = CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object)
+            log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object)
             objective_function_value = log_posterior_density
             #TODO: call CheKiPEUQ from here.
             if verbose: 
                 output = objective_function_value #to be made a dictionary.
             else:
-                output = objective_function_value #normal case.
+                output = objective_function_value #normal case for Bayesian based optimization.
         return output
     
     def calc_density(x, data, dim=1):
@@ -199,7 +199,10 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     
     var, coef_opt, x, shock = args_list
     mech = mpMech['obj']
-    
+    print("line 202", var)
+    print("line 203", coef_opt)
+    print("line 204", x)
+    print("line 205", shock);    sys.exit()
     # Optimization Begins, update mechanism
     update_mech_coef_opt(mech, coef_opt, x)
 
@@ -221,14 +224,11 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     
     #If we are doing a Bayesian parameter estimation, we need to create CheKiPEUQ_PE_object. This has to come between the above functions because we need to feed in the simulation_function, and it needs to come above the 'minimize' function that is below.
     if objective_function_type.lower() == 'bayesian':
-        import CheKiPEUQ_from_Frhodo #may need to pass 
-        if weightsExists: #need to make sure that the weights_data is only populated if weighting is being used.
-            weights_data = weights
-        else:
-            weights_data = []
+        import optimize.CheKiPEUQ_from_Frhodo        
+        weights_data = weights
         pars_bnds = [] #somehow from mech.coeffs_bnds 
         pars_initial_guess = [] #somehow from mech.coeffs 
-        CheKiPEUQ_PE_object = CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(simulation_function=time_adj_decorator_wrapper, observed_data=obs_exp, pars_initial_guess = [], pars_bnds=[], observed_data_bounds=[], weights_data=weights_data))
+        CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(simulation_function=time_adj_decorator_wrapper, observed_data=obs_exp, pars_initial_guess = [], pars_bnds=[], observed_data_bounds=[], weights_data=weights_data)
     
     if not np.any(var['t_unc']):
         t_unc = 0
