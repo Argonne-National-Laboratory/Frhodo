@@ -54,7 +54,6 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
     UserInput.model['InputParameterPriorValues_upperBounds'] = pars_upper_bnds
     UserInput.model['InputParameterPriorValues_lowerBounds'] = pars_lower_bnds
     UserInput.model['simulateByInputParametersOnlyFunction'] = simulation_function
-    print("line 63", UserInput.model['InputParametersPriorValuesUncertainties'])
     PE_object = CKPQ.parameter_estimation(UserInput)
     return PE_object
 
