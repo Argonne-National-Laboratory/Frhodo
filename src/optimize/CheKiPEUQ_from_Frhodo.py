@@ -57,7 +57,7 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
     PE_object = CKPQ.parameter_estimation(UserInput)
     return PE_object
 
-def get_log_posterior_density(PE_object):
+def get_log_posterior_density(PE_object, parameters):
     return PE_object.getLogP(parameters)
 
 #calculates delta between initial guess and bounds, takes the larger delta, and divides by sigma_multiple to return sigma.

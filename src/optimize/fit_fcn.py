@@ -194,7 +194,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             #Here, the "shock" variable is a dictionary in the present namespace, a higher space than the time_adjust_func,
             #so we will just access a field from the shock variable. That field does not need to exist at the time of this function's creation,
             #just at the time that this function gets called.
-            #We will only pass in the rate_vals that are being allowed to vary.
+            #We will only pass in the rate_val values that are being allowed to vary.
             #Note that the output does not actually depend on varying_rate_vals, so we rely upon only calling it
             #after last_obs_sim_interp has been changed.
             def get_last_obs_sim_interp(varying_rate_vals): 
@@ -209,9 +209,11 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
                 return last_obs_sim_interp
             import optimize.CheKiPEUQ_from_Frhodo    
             #now we make a PE_object from a wrapper function inside CheKiPEUQ_from_Frhodo. This PE_object can be accessed from inside time_adjust_func.
+            print("line 212, USING varying_rate_vals_initial_guess ", varying_rate_vals_initial_guess)
             CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(simulation_function=get_last_obs_sim_interp, observed_data=obs_exp, pars_initial_guess = varying_rate_vals_initial_guess, pars_lower_bnds = varying_rate_vals_lower_bnds, pars_upper_bnds = varying_rate_vals_upper_bnds, observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=weights, pars_uncertainty_distribution='gaussian')
-            print("line 186, getting the objective_function_value")
-            log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object)
+            varying_rate_vals = shock['rate_val'][list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
+            print("line 186, getting the objective_function_value for ")
+            log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object, varying_rate_vals)
             objective_function_value = log_posterior_density
             print("line 189, about to return the objective_function_value", objective_function_value)
             #TODO: call CheKiPEUQ from here.
@@ -240,7 +242,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     
     #coef_opt is a list of dictionaries containing reaction parameters to optimize (but not their bounds):  [{'rxnIdx': 2, 'coefIdx': 0, 'coefName': 'activation_energy'}, {'rxnIdx': 2, 'coefIdx': 1, 'coefName': 'pre_exponential_factor'}, {'rxnIdx': 2, 'coefIdx': 2, 'coefName': 'temperature_exponent'}] Note that the rxnIdx has array indexing, so rxnIdx of 2 is actually "R3" in the example reaction.
     
-    #x is a small list: [0.         4.16233447 3.04590318]
+    #x is a small list of the coefficients which are being allowed to vary: [0.         4.16233447 3.04590318]
     
     #shock is a HUGE dictionary, like a global namespace. It includes all of the species % ratios, the rate_vals, the weightings, timeoffset, and many other things.  The rate boundaries are in absolute values in rate_bnds. The experimental dat is in exp_data, and the weights are in weights.
     var, coef_opt, x, shock = args_list
@@ -248,7 +250,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     
     # print("line 202", var)
     # print("line 203", coef_opt)
-    # print("line 204", x)
+    print("line 204", x)
     # print("line 205", shock);    sys.exit()
     # Optimization Begins, update mechanism
     update_mech_coef_opt(mech, coef_opt, x)
@@ -279,7 +281,8 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             shock['original_rate_val'] = deepcopy(shock['rate_val']) #TODO: Check if this is the correct place to make original_rate_val
             shock['newOptimization'] = True
             #TODO: need to make sure we get the **original** rate_vals and bounds and keep them as the prior.
-            varying_rate_vals_indices, varying_rate_vals_initial_guess, varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds = optimize.CheKiPEUQ_from_Frhodo.get_varying_rate_vals_and_bnds(shock['original_rate_val'],shock['rate_bnds'])
+        varying_rate_vals_indices, varying_rate_vals_initial_guess, varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds = optimize.CheKiPEUQ_from_Frhodo.get_varying_rate_vals_and_bnds(shock['original_rate_val'],shock['rate_bnds'])
+        print("line 283, CREATING varying_rate_vals_initial_guess ", varying_rate_vals_initial_guess)
             #FIXME: #TODO: Need to add an "or" statement or flag to allow below to execute when somebody has changed their initial guesses intentionally or are doing a new optimization.
         # if ('newOptimization' in shock) and (shock['newOptimization'] == True):
     
@@ -368,7 +371,7 @@ class Fit_Fun:
             self.signals.log.emit('\nOptimization aborted')
             return
         
-        # Convert to mech values
+        # Convert to mech values, by putting in rate constants.
         x = self.fit_all_coeffs(np.exp(s*self.x0))
         if x is None: 
             return np.inf
@@ -465,5 +468,5 @@ class Fit_Fun:
                 coeffs = np.append(coeffs, coeffs_append)
             
             i += len(T)
-
+        #The coeffs are log(A), n, Ea
         return coeffs
