@@ -35,22 +35,26 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
     except:
         import CheKiPEUQ_local.UserInput as UserInput
     #TODO: put a "clear UserInput" type call here to UnitTesterSG_local
+    print("line 38", np.shape(observed_data), np.shape(weights_data))
     UserInput.responses['responses_abscissa'] = []
-    UserInput.responses['responses_observed'] = observed_data
+    UserInput.responses['responses_observed'] = np.array(observed_data).T
+    num_responses = np.shape(UserInput.responses['responses_observed'])[0]
     UserInput.responses['responses_observed_uncertainties'] = []
     if len(observed_data_lower_bounds) > 0: #assume that both lower and upper bounds exist on data in this case.
         UserInput.responses['responses_observed_uncertainties'] = extract_larger_delta_and_make_sigma_values(observed_data, observed_data_lower_bounds, observed_data_upper_bounds, sigma_multiple)   
-    UserInput.responses['responses_observed_weighting'] = weights_data
+    UserInput.responses['responses_observed_weighting'] = np.array(weights_data).T*np.ones(num_responses)
     UserInput.model['InputParameterPriorValues'] = pars_initial_guess
     if pars_uncertainty_distribution.lower() == 'uniform': #make an array of -1 for uncertainties to signify a uniform distribution.
-        UserInput.responses['InputParametersPriorValuesUncertainties'] = -1*np.ones(len(pars_initial_guess))
+        UserInput.model['InputParametersPriorValuesUncertainties'] = -1*np.ones(len(pars_initial_guess))
         print("line 47!!!!!!!!")
     if pars_uncertainty_distribution.lower() == 'gaussian': 
-        UserInput.responses['InputParametersPriorValuesUncertainties'] = extract_larger_delta_and_make_sigma_values(pars_initial_guess, pars_lower_bnds, pars_upper_bnds, sigma_multiple)
+        UserInput.model['InputParametersPriorValuesUncertainties'] = extract_larger_delta_and_make_sigma_values(pars_initial_guess, pars_lower_bnds, pars_upper_bnds, sigma_multiple)
         print("line 50!!!!!!!!", pars_initial_guess, pars_lower_bnds, pars_upper_bnds, sigma_multiple)
+        print("line 51!!!!!!!!", UserInput.model['InputParametersPriorValuesUncertainties'])
     UserInput.model['InputParameterPriorValues_upperBounds'] = pars_upper_bnds
     UserInput.model['InputParameterPriorValues_lowerBounds'] = pars_lower_bnds
     UserInput.model['simulateByInputParametersOnlyFunction'] = simulation_function
+    print("line 55", UserInput.model['InputParametersPriorValuesUncertainties'])
     PE_object = CKPQ.parameter_estimation(UserInput)
     return PE_object
 

@@ -1,0 +1,10 @@
+Notes: 
+
+1) There is a flag at top top of fit_fcn.py to forceBayesian = True
+2) The capturing of error messages and printing inside the log tab is useful, but sometimes makes it hard to trace which line an error is coming from, because the line number seems to be printed for only some kinds of errors.
+3) 
+
+
+*** I need to check if the initial guess is really being retained with the shock or is being changed each time.  need to make rate_val_original or something like that.
+
+operands could not be broadcast together with shapes (573,2) (1,573) 

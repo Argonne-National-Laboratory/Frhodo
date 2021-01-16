@@ -255,7 +255,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             #Note that the output does not actually depend on varying_rate_vals, so we rely upon only calling it
             #after last_obs_sim_interp has been changed.
             def get_last_obs_sim_interp(varying_rate_vals): 
-                return shock['last_obs_sim_interp']
+                return np.array(shock['last_obs_sim_interp']).T
             import optimize.CheKiPEUQ_from_Frhodo    
             #TODO: need to make sure we get the **original** rate_vals and bounds and keep them as the prior.
             varying_rate_vals_indices, varying_rate_vals_initial_guess, varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds = optimize.CheKiPEUQ_from_Frhodo.get_varying_rate_vals_and_bnds(shock['original_rate_val'],shock['rate_bnds'])
