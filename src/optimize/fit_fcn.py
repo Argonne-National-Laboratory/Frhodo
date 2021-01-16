@@ -127,7 +127,7 @@ def update_mech_coef_opt(mech, coef_opt, x):
   
 #below was formerly calculate_residuals  
 def calculate_objective_function(args_list, objective_function_type='residual'):   
-    if forceBayesian = True: objective_function_type = 'Bayesian'
+    if forceBayesian == True: objective_function_type = 'Bayesian'
     def calc_exp_bounds(t_sim, t_exp):
         t_bounds = [max([t_sim[0], t_exp[0]])]       # Largest initial time in SIM and Exp
         t_bounds.append(min([t_sim[-1], t_exp[-1]])) # Smallest final time in SIM and Exp
@@ -238,7 +238,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     #If we are doing a Bayesian parameter estimation, we need to create CheKiPEUQ_PE_object. This has to come between the above functions because we need to feed in the simulation_function, and it needs to come above the 'minimize' function that is below.
     if objective_function_type.lower() == 'bayesian':        
         if 'original_rate_vals' not in shock: #check if this is the first time being called, and store rate_vals and create PE_object if it is.
-            shock['original_rate_val'] = copy.deepcopy(shock['rate_val'])
+            shock['original_rate_val'] = deepcopy(shock['rate_val'])
             shock['newOptimization'] = True
             #FIXME: #TODO: Need to add an "or" statement or flag to allow below to execute when somebody has changed their initial guesses intentionally or are doing a new optimization.
         if ('newOptimization' in shock) and (shock['newOptimization'] == True):
