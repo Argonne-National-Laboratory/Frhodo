@@ -197,8 +197,16 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
         x[x==0] = 1                       # if zero, make OoM 0
         return np.floor(np.log10(np.abs(x)))
     
+    #var is a dictionary of Connected Variables: {'t_unit_conv': 1e-06, 'name': 'Incident Shock Reactor', 'solve_energy': True, 'frozen_comp': False, 'ode_solver': 'BDF', 'ode_rtol': 1e-06, 'ode_atol': 1e-08, 't_end': 1.2e-05, 'sim_interp_factor': 1, 't_unc': (-0.0, 0.0), 'resid_scale': 'Linear', 'loss_alpha': -2.0, 'loss_c': 1.0}
+    
+    #coef_opt is a list of dictionaries containing reaction parameters to optimize (but not their bounds):  [{'rxnIdx': 2, 'coefIdx': 0, 'coefName': 'activation_energy'}, {'rxnIdx': 2, 'coefIdx': 1, 'coefName': 'pre_exponential_factor'}, {'rxnIdx': 2, 'coefIdx': 2, 'coefName': 'temperature_exponent'}] Note that the rxnIdx has array indexing, so rxnIdx of 2 is actually "R3" in the example reaction.
+    
+    #x is a small list: [0.         4.16233447 3.04590318]
+    
+    #shock is a HUGE dictionary, like a global namespace. It includes all of the species % ratios, the rate_vals, the weightings, timeoffset, and many other things.  The rate boundaries are in absolute values in rate_bnds. The experimental dat is in exp_data, and the weights are in weights.
     var, coef_opt, x, shock = args_list
     mech = mpMech['obj']
+    
     print("line 202", var)
     print("line 203", coef_opt)
     print("line 204", x)
