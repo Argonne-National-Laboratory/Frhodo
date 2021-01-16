@@ -220,7 +220,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             if verbose: #FIXME: this dictionary is currently populated from the residuals.
                 print("line 223, about to return the objective_function_value", objective_function_value)
                 output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
-                          'loss': objective_function_value, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
+                          'loss': 10**objective_function_value, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
             else:
                 print("line 225, about to return the objective_function_value", objective_function_value)
                 output = objective_function_value #normal case for Bayesian based optimization.
