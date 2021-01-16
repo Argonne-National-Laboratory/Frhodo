@@ -7,4 +7,6 @@ because Ashi doees not understand why sometimes weights is simply a value of 0 v
 4) elif scale == 'Log':  #TODO: Ashi is not sure if some kind of trimming is happening to the experimental data in log scale.
 #For log scale, we would also need to change the PE_object creation to take in the log_scale data.
 
+5) #FIXME: the **final** output after minimization currently requires the verbose version of time_adjust_func. The verbose version of time_adjust_func does not currently work for the Bayesian case. So we are currently using the 'residual' version even after a minimization on the Bayesian case.
+
 *** I need to check if the initial guess is really being retained with the shock or is being changed each time.  need to make rate_val_original or something like that.

@@ -1,4 +1,5 @@
 # This file is part of Frhodo. Copyright © 2020, UChicago Argonne, LLC
+# This file is part of Frhodo. Copyright © 2020, UChicago Argonne, LLC
 # and licensed under BSD-3-Clause. See License.txt in the top-level 
 # directory for license and copyright information.
 
@@ -180,9 +181,11 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             loss_scalar = np.average(std_resid, weights=weights)
             objective_function_value = loss_scalar
             if verbose: 
+                print("line 183, about to return the objective_function_value", objective_function_value)
                 output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
                           'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
             else:
+                print("line 189, about to return the objective_function_value", objective_function_value)
                 output = objective_function_value #normal case for residuals based optimization.
         elif objective_function_type.lower() == 'bayesian':
             #CheKiPEUQ requires a simulation_function based on only the paramters of interest.
@@ -200,19 +203,16 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             def get_last_obs_sim_interp(varying_rate_vals): 
                 try:
                     last_obs_sim_interp = shock['last_obs_sim_interp']
-                    print("line 266 succeeded in finding last_obs_sim_interp")
                     last_obs_sim_interp = np.array(shock['last_obs_sim_interp']).T
-                    print('line 266 of fit_fcn, succeeded to transpose last_obs_sim_interp')
                 except:
-                    print('line 266 of fit_fcn, failing to call the simulation function')
+                    print("this isline 207! There may be an error occurring!")
                     last_obs_sim_interp = None
                 return last_obs_sim_interp
             import optimize.CheKiPEUQ_from_Frhodo    
             #now we make a PE_object from a wrapper function inside CheKiPEUQ_from_Frhodo. This PE_object can be accessed from inside time_adjust_func.
-            print("line 212, USING varying_rate_vals_initial_guess ", varying_rate_vals_initial_guess)
+            #TODO: we should bring in x_bnds (the coefficent bounds) so that we can use the elementary step coefficients for Bayesian rather than the rate_val values.
             CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(simulation_function=get_last_obs_sim_interp, observed_data=obs_exp, pars_initial_guess = varying_rate_vals_initial_guess, pars_lower_bnds = varying_rate_vals_lower_bnds, pars_upper_bnds = varying_rate_vals_upper_bnds, observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=weights, pars_uncertainty_distribution='gaussian')
             varying_rate_vals = np.array(shock['rate_val'])[list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
-            print("line 186, getting the objective_function_value for ")
             log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object, varying_rate_vals)
             objective_function_value = log_posterior_density
             print("line 189, about to return the objective_function_value", objective_function_value)
@@ -303,9 +303,12 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
         if objective_function_type.lower() == 'bayesian':
             res = minimize_scalar(CheKiPEUQ_from_Frhodo.get_log_posterior_density) #maybe a wrapper of somekind is ndeeded.
     
+    
+    #FIXME: right now, after the above minimization routine, we currently **must** set the objective_function_type='residual' in the below call
+    #because we don't have the 'verbose' version for the Bayesian case, at present. So 'residual' has been put below, manually, but later should allow 'bayesian'.
     output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], 
                               weights, loss_alpha=var['loss_alpha'], loss_c=var['loss_c'], 
-                              scale=var['resid_scale'], DoF=len(coef_opt), verbose=True, objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
+                              scale=var['resid_scale'], DoF=len(coef_opt), verbose=True, objective_function_type='residual') #objective_function_type is 'residual' or 'Bayesian'
                                   
     
     output['shock'] = shock
