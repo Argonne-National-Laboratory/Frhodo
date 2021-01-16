@@ -274,6 +274,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     #The whole block of code for CheKiPEUQ_PE_object creation has been moved into time_adjust_func because Frhodo seems to do one concentration at a time and to change the array size while doing so.
     #If we are doing a Bayesian parameter estimation, we need to create CheKiPEUQ_PE_object. This has to come between the above functions because we need to feed in the simulation_function, and it needs to come above the 'minimize' function that is below.
     if objective_function_type.lower() == 'bayesian':        
+        import optimize.CheKiPEUQ_from_Frhodo    
         if 'original_rate_val' not in shock: #check if this is the first time being called, and store rate_vals and create PE_object if it is.
             shock['original_rate_val'] = deepcopy(shock['rate_val']) #TODO: Check if this is the correct place to make original_rate_val
             shock['newOptimization'] = True
