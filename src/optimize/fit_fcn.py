@@ -251,7 +251,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
         #TODO: need to make sure we get the **original** rate_vals and bounds and keep them as the prior.
         varying_rate_vals_indices, varying_rate_vals_initial_guess, varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds = optimize.CheKiPEUQ_from_Frhodo.get_varying_rate_vals_and_bnds(shock['rate_val'],shock['rate_bnds'])
         #now we make a PE_object from a wrapper function inside CheKiPEUQ_from_Frhodo. This PE_object can be accessed from inside time_adjust_func.
-        CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(simulation_function=get_last_obs_sim_interp, observed_data=obs_exp, pars_initial_guess = varying_rate_vals_initial_guess, pars_lower_bnds = varying_rate_vals_lower_bnds, pars_upper_bnds = varying_rate_vals_upper_bnds, observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=weights, uncertainty_distribution='gaussian')
+        CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(simulation_function=get_last_obs_sim_interp, observed_data=obs_exp, pars_initial_guess = varying_rate_vals_initial_guess, pars_lower_bnds = varying_rate_vals_lower_bnds, pars_upper_bnds = varying_rate_vals_upper_bnds, observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=weights, pars_uncertainty_distribution='gaussian')
     
     if not np.any(var['t_unc']):
         t_unc = 0
