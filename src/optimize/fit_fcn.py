@@ -166,7 +166,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
                 shock['last_obs_sim_interp'] = obs_sim_interp
             
         #There are two possible objective_function_types: 'residual' and 'Bayesian'.
-        if objective_function_type.lower() == 'residual':
+        if objective_function_type.lower() == 'residual' or objective_function_type.lower() == 'bayesian': #FIXME: currently we go into this code for Bayesian also, but that is just to satisfy the QQ etc.
             resid_outlier = outlier(resid, a=loss_alpha, c=loss_c, weights=weights)
             loss = generalized_loss_fcn(resid, a=loss_alpha, c=resid_outlier)
             loss_sqr = loss**2
@@ -187,7 +187,9 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             else:
                 print("line 189, about to return the objective_function_value", objective_function_value)
                 output = objective_function_value #normal case for residuals based optimization.
-        elif objective_function_type.lower() == 'bayesian':
+        
+        #FIXME: for Verbose currently we make most of the outputs above, and then override the 'loss_scalar' with the objective function from CheKiPEUQ.
+        if objective_function_type.lower() == 'bayesian':
             #CheKiPEUQ requires a simulation_function based on only the paramters of interest.
             #Typically, we would us a wrapper.  However, here the structure is a bit different.
             #We have time_adjust_func and time_adj_decorator, so we need to create a function
@@ -215,11 +217,12 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             varying_rate_vals = np.array(shock['rate_val'])[list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
             log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object, varying_rate_vals)
             objective_function_value = -1*log_posterior_density #need neg_logP because minimizing.
-            print("line 189, about to return the objective_function_value", objective_function_value)
-            #TODO: call CheKiPEUQ from here.
-            if verbose: 
-                output = objective_function_value #to be made a dictionary.
+            if verbose: #FIXME: this dictionary is currently populated from the residuals.
+                print("line 223, about to return the objective_function_value", objective_function_value)
+                output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
+                          'loss': objective_function_value, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
             else:
+                print("line 225, about to return the objective_function_value", objective_function_value)
                 output = objective_function_value #normal case for Bayesian based optimization.
         return output
     
@@ -288,27 +291,21 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     
     if not np.any(var['t_unc']):
         t_unc = 0
-    else:
-        if objective_function_type.lower() == 'residual':
-            t_unc_OoM = np.mean(OoM(var['t_unc']))  # Do at higher level? (computationally efficient)
-            # calculate time adjust with mse (loss_alpha = 2, loss_c =1)
-            
-            #comparing to time_adjust_func, arguments below are...: t_offset=shock['time_offset'], t_adjust=t_adjust*10**t_unc_OoM,
-            #            t_sim=ind_var, obs_sim=obs_sim, t_exp=obs_exp[:,0], obs_exp=obs_exp[:,1], weights=weights
-            time_adj_decorator = lambda t_adjust: time_adjust_func(shock['time_offset'], t_adjust*10**t_unc_OoM, 
-                    ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], weights, scale=var['resid_scale'], 
-                    DoF=len(coef_opt), objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
-            res = minimize_scalar(time_adj_decorator, bounds=var['t_unc']/10**t_unc_OoM, method='bounded')
-            t_unc = res.x*10**t_unc_OoM
-        if objective_function_type.lower() == 'bayesian':
-            res = minimize_scalar(CheKiPEUQ_from_Frhodo.get_log_posterior_density) #maybe a wrapper of somekind is ndeeded.
+    else:        
+        t_unc_OoM = np.mean(OoM(var['t_unc']))  # Do at higher level? (computationally efficient)
+        # calculate time adjust with mse (loss_alpha = 2, loss_c =1)
+        
+        #comparing to time_adjust_func, arguments below are...: t_offset=shock['time_offset'], t_adjust=t_adjust*10**t_unc_OoM,
+        #            t_sim=ind_var, obs_sim=obs_sim, t_exp=obs_exp[:,0], obs_exp=obs_exp[:,1], weights=weights
+        time_adj_decorator = lambda t_adjust: time_adjust_func(shock['time_offset'], t_adjust*10**t_unc_OoM, 
+                ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], weights, scale=var['resid_scale'], 
+                DoF=len(coef_opt), objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
+        res = minimize_scalar(time_adj_decorator, bounds=var['t_unc']/10**t_unc_OoM, method='bounded')
+        t_unc = res.x*10**t_unc_OoM    
     
-    
-    #FIXME: right now, after the above minimization routine, we currently **must** set the objective_function_type='residual' in the below call
-    #because we don't have the 'verbose' version for the Bayesian case, at present. So 'residual' has been put below, manually, but later should allow 'bayesian'.
     output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], 
                               weights, loss_alpha=var['loss_alpha'], loss_c=var['loss_c'], 
-                              scale=var['resid_scale'], DoF=len(coef_opt), verbose=True, objective_function_type='residual') #objective_function_type is 'residual' or 'Bayesian'
+                              scale=var['resid_scale'], DoF=len(coef_opt), verbose=True, objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
                                   
     
     output['shock'] = shock
