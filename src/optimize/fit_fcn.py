@@ -236,7 +236,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
         weights_data = weights
         pars_bnds = [] #somehow from mech.coeffs_bnds 
         pars_initial_guess = [] #somehow from mech.coeffs 
-        CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(simulation_function=time_adj_decorator_wrapper, observed_data=obs_exp, pars_initial_guess = [], pars_bnds=[], observed_data_bounds=[], weights_data=weights_data)
+        CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(simulation_function=time_adj_decorator_wrapper, observed_data=obs_exp, pars_initial_guess = shock['rate_vals'], pars_bnds=['rate_bnds'], observed_data_bounds=[], weights_data=weights_data)
     
     if not np.any(var['t_unc']):
         t_unc = 0
@@ -244,6 +244,9 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
         if objective_function_type.lower() == 'residual':
             t_unc_OoM = np.mean(OoM(var['t_unc']))  # Do at higher level? (computationally efficient)
             # calculate time adjust with mse (loss_alpha = 2, loss_c =1)
+            
+            #comparing to time_adjust_func, arguments below are...: t_offset=shock['time_offset'], t_adjust=t_adjust*10**t_unc_OoM,
+            #            t_sim=ind_var, obs_sim=obs, t_exp=obs_exp[:,0], obs_exp=obs_exp[:,1], weights=weights
             time_adj_decorator = lambda t_adjust: time_adjust_func(shock['time_offset'], t_adjust*10**t_unc_OoM, 
                     ind_var, obs, obs_exp[:,0], obs_exp[:,1], weights, scale=var['resid_scale'], 
                     DoF=len(coef_opt), objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
