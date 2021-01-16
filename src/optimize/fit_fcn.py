@@ -12,6 +12,9 @@ from copy import deepcopy
 import mech_fcns
 from optimize.fit_coeffs import fit_coeffs
 
+####THE BELOW LINE IS FOR BAYESIAN PARAMETER ESTIMATION DEVELOPMENT AND SHOULD BE REMOVED LATER####
+forceBayesian = True
+
 mpMech = {}
 
 def initialize_parallel_worker(mech_txt, coeffs, coeffs_bnds, rate_bnds):
@@ -124,6 +127,7 @@ def update_mech_coef_opt(mech, coef_opt, x):
   
 #below was formerly calculate_residuals  
 def calculate_objective_function(args_list, objective_function_type='residual'):   
+    if forceBayesian = True: objective_function_type = 'Bayesian'
     def calc_exp_bounds(t_sim, t_exp):
         t_bounds = [max([t_sim[0], t_exp[0]])]       # Largest initial time in SIM and Exp
         t_bounds.append(min([t_sim[-1], t_exp[-1]])) # Smallest final time in SIM and Exp
@@ -207,10 +211,10 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     var, coef_opt, x, shock = args_list
     mech = mpMech['obj']
     
-    print("line 202", var)
-    print("line 203", coef_opt)
-    print("line 204", x)
-    print("line 205", shock);    sys.exit()
+    # print("line 202", var)
+    # print("line 203", coef_opt)
+    # print("line 204", x)
+    # print("line 205", shock);    sys.exit()
     # Optimization Begins, update mechanism
     update_mech_coef_opt(mech, coef_opt, x)
 
