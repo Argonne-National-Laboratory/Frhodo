@@ -23,7 +23,7 @@ software_unique_id = "https://doi.org/10.1002/cctc.202000953"
 software_kwargs = {"version": software_version, "author": ["Aditya Savara", "Eric A. Walker"], "doi": "https://doi.org/10.1002/cctc.202000953", "cite": "Savara, A. and Walker, E.A. (2020), CheKiPEUQ Intro 1: Bayesian Parameter Estimation Considering Uncertainty or Error from both Experiments and Theory. ChemCatChem. Accepted. doi:10.1002/cctc.202000953"} 
 @CiteSoft.after_call_compile_consolidated_log()
 @CiteSoft.module_call_cite(unique_id=software_unique_id, software_name=software_name, **software_kwargs)    
-def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess = [], pars_lower_bnds=[], pars_upper_bnds =[],observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=[], pars_uncertainty_distribution='gaussian', sigma_multiple = 3):
+def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess = [], pars_lower_bnds=[], pars_upper_bnds =[],observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=[], pars_uncertainty_distribution='gaussian', sigma_multiple = 3.0):
     #observed_data is an array of values of observed data (can be nested if there is more than one observable)
     #pars_lower_bnds and pars_upper_bnds are the bounds of the parameters ('coefficents') in absolute values.
     #  for 'uniform' distribution the bounds are taken directly. For Gaussian, the larger of the 2 deltas is taken and divided by 3 for sigma.
@@ -44,8 +44,10 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
     UserInput.model['InputParameterPriorValues'] = pars_initial_guess
     if pars_uncertainty_distribution.lower() == 'uniform': #make an array of -1 for uncertainties to signify a uniform distribution.
         UserInput.responses['InputParametersPriorValuesUncertainties'] = -1*np.ones(len(pars_initial_guess))
+        print("line 47!!!!!!!!")
     if pars_uncertainty_distribution.lower() == 'gaussian': 
         UserInput.responses['InputParametersPriorValuesUncertainties'] = extract_larger_delta_and_make_sigma_values(pars_initial_guess, pars_lower_bnds, pars_upper_bnds, sigma_multiple)
+        print("line 50!!!!!!!!", pars_initial_guess, pars_lower_bnds, pars_upper_bnds, sigma_multiple)
     UserInput.model['InputParameterPriorValues_upperBounds'] = pars_upper_bnds
     UserInput.model['InputParameterPriorValues_lowerBounds'] = pars_lower_bnds
     UserInput.model['simulateByInputParametersOnlyFunction'] = simulation_function
@@ -63,7 +65,7 @@ def extract_larger_delta_and_make_sigma_values(initial_guess, lower_bound, upper
         upper_delta = np.abs(upper_bound[index]-initial_guess[index])
         lower_delta = np.abs(lower_bound[index]-initial_guess[index])
         max_delta = np.max([upper_delta,lower_delta])
-        current_sigma = max_delta/sigma_multiple
+        current_sigma = max_delta/np.float(sigma_multiple)
         sigma_values[index] = current_sigma
     return sigma_values
     
