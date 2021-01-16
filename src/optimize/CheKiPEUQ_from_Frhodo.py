@@ -42,9 +42,9 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
         UserInput.responses['responses_observed_uncertainties'] = extract_larger_delta_and_make_sigma_values(observed_data, observed_data_lower_bounds, observed_data_upper_bounds, sigma_multiple)   
     UserInput.responses['responses_observed_weighting'] = weights_data
     UserInput.model['InputParameterPriorValues'] = pars_initial_guess
-    if pars_uncertainty_distribution.lower() = 'uniform': #make an array of -1 for uncertainties to signify a uniform distribution.
+    if pars_uncertainty_distribution.lower() == 'uniform': #make an array of -1 for uncertainties to signify a uniform distribution.
         UserInput.responses['InputParametersPriorValuesUncertainties'] = -1*np.ones(len(pars_initial_guess))
-    if pars_uncertainty_distribution.lower() = 'gaussian': 
+    if pars_uncertainty_distribution.lower() == 'gaussian': 
         UserInput.responses['InputParametersPriorValuesUncertainties'] = extract_larger_delta_and_make_sigma_values(pars_initial_guess, pars_lower_bnds, pars_upper_bnds, sigma_multiple)
     UserInput.model['InputParameterPriorValues_upperBounds'] = pars_upper_bnds
     UserInput.model['InputParameterPriorValues_lowerBounds'] = pars_lower_bnds
@@ -68,7 +68,7 @@ def extract_larger_delta_and_make_sigma_values(initial_guess, lower_bound, upper
     return sigma_values
     
 #This currently assumes all bounds are in pairs, but does not assume they are asymmetric.    
-def get_varying_rate_vals_and_bnds(rate_vals, rate_bnds)
+def get_varying_rate_vals_and_bnds(rate_vals, rate_bnds):
     #this takes in shock['rate_vals'] and and shock['rate_bnds'] returns the indices of the rate_vals that are varying, as well as their bounds.
     varying_rate_vals_indices = []
     varying_rate_vals_initial_guess = []
@@ -79,5 +79,5 @@ def get_varying_rate_vals_and_bnds(rate_vals, rate_bnds)
             varying_rate_vals_indices.append(bounds_index) #store this index.
             varying_rate_vals_initial_guess.append(rate_vals[bounds_index]) #append current rate_val
             varying_rate_vals_lower_bnds.append(rate_bnds[bounds_index][0]) #append current lower bound
-            varying_rate_vals_upper_bnds.append(boundrate_bnds[bounds_index][1]) #append current upper bound
+            varying_rate_vals_upper_bnds.append(rate_bnds[bounds_index][1]) #append current upper bound
     return varying_rate_vals_indices, varying_rate_vals_initial_guess, varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds
