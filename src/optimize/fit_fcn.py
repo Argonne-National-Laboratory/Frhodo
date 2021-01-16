@@ -263,7 +263,15 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             #Note that the output does not actually depend on varying_rate_vals, so we rely upon only calling it
             #after last_obs_sim_interp has been changed.
             def get_last_obs_sim_interp(varying_rate_vals): 
-                return np.array(shock['last_obs_sim_interp']).T
+                try:
+                    last_obs_sim_interp = shock['last_obs_sim_interp']
+                    print("line 266 succeeded in finding last_obs_sim_interp")
+                    last_obs_sim_interp = np.array(shock['last_obs_sim_interp']).T
+                    print('line 266 of fit_fcn, succeeded to transpose last_obs_sim_interp')
+                except:
+                    print('line 266 of fit_fcn, failing to call the simulation function')
+                    last_obs_sim_interp = None
+                return last_obs_sim_interp
             import optimize.CheKiPEUQ_from_Frhodo    
             #TODO: need to make sure we get the **original** rate_vals and bounds and keep them as the prior.
             varying_rate_vals_indices, varying_rate_vals_initial_guess, varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds = optimize.CheKiPEUQ_from_Frhodo.get_varying_rate_vals_and_bnds(shock['original_rate_val'],shock['rate_bnds'])
