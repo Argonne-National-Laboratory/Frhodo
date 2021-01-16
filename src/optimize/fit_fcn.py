@@ -211,7 +211,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             #now we make a PE_object from a wrapper function inside CheKiPEUQ_from_Frhodo. This PE_object can be accessed from inside time_adjust_func.
             print("line 212, USING varying_rate_vals_initial_guess ", varying_rate_vals_initial_guess)
             CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(simulation_function=get_last_obs_sim_interp, observed_data=obs_exp, pars_initial_guess = varying_rate_vals_initial_guess, pars_lower_bnds = varying_rate_vals_lower_bnds, pars_upper_bnds = varying_rate_vals_upper_bnds, observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=weights, pars_uncertainty_distribution='gaussian')
-            varying_rate_vals = shock['rate_val'][list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
+            varying_rate_vals = np.array(shock['rate_val'])[list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
             print("line 186, getting the objective_function_value for ")
             log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object, varying_rate_vals)
             objective_function_value = log_posterior_density
