@@ -1,3 +1,4 @@
+import numpy as np
 import sys; sys.path.append('../../'); 
 try:
     import CheKiPEUQ as CKPQ
@@ -47,3 +48,18 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
 
 def get_log_posterior_density(PE_object):
     return PE_object.getLogP(parameters)
+    
+#This currently assumes all bounds are in pairs, but does not assume they are asymmetric.    
+def get_varying_rate_vals_and_bnds(rate_vals, rate_bnds)
+    #this takes in shock['rate_vals'] and and shock['rate_bnds'] returns the indices of the rate_vals that are varying, as well as their bounds.
+    varying_rate_vals_indices = []
+    varying_rate_vals_initial_guess = []
+    varying_rate_vals_lower_bnds = []
+    varying_rate_vals_upper_bnds = []
+    for bounds_index, bounds_pair in enumerate(rate_bnds):
+        if np.isnan(bounds_pair[0]) == False or np.isnan(bounds_pair[1]) == False: #this means there is a pair of bounds.
+            varying_rate_vals_indices.append(bounds_index) #store this index.
+            varying_rate_vals_initial_guess.append(rate_vals[bounds_index]) #append current rate_val
+            varying_rate_vals_lower_bnds.append(rate_bnds[bounds_index][0]) #append current lower bound
+            varying_rate_vals_upper_bnds.append(boundrate_bnds[bounds_index][1]) #append current upper bound
+    return varying_rate_vals_indices, varying_rate_vals_initial_guess, varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds
