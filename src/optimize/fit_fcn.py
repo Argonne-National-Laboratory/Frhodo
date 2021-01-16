@@ -233,11 +233,25 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     
     #If we are doing a Bayesian parameter estimation, we need to create CheKiPEUQ_PE_object. This has to come between the above functions because we need to feed in the simulation_function, and it needs to come above the 'minimize' function that is below.
     if objective_function_type.lower() == 'bayesian':
-        import optimize.CheKiPEUQ_from_Frhodo        
-        weights_data = weights
-        pars_bnds = [] #somehow from mech.coeffs_bnds 
-        pars_initial_guess = [] #somehow from mech.coeffs 
-        CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(simulation_function=time_adj_decorator_wrapper, observed_data=obs_exp, pars_initial_guess = shock['rate_vals'], pars_bnds=['rate_bnds'], observed_data_bounds=[], weights_data=weights_data)
+        #CheKiPEUQ requires a simulation_function based on only the paramters of interest.
+        #Typically, we would us a wrapper.  However, here the structure is a bit different.
+        #We have time_adjust_func and time_adj_decorator, so we need to create a function
+        #that will get values from **inside** that function.
+        #We could just "make" the PE_object again and again inside that function,
+        #but doing so is not a good solution. Instead, we will use something like a global variable.
+        #Here, the "shock" variable is a dictionary in the present namespace, a higher space than the time_adjust_func,
+        #so we will just access a field from the shock variable. That field does not need to exist at the time of this function's creation,
+        #just at the time that this function gets called.
+        #We will only pass in the rate_vals that are being allowed to vary.
+        #Note that the output does not actually depend on varying_rate_vals, so we rely upon only calling it
+        #after last_obs_sim_interp has been changed.
+        def get_last_obs_sim_interp(varying_rate_vals): 
+            return shock['last_obs_sim_interp']
+        import optimize.CheKiPEUQ_from_Frhodo    
+        varying_rate_vals_indices, varying_rate_vals_initial_guess = optimize.CheKiPEUQ_from_Frhodo.get_varying_rate_vals(shock['rate_vals'])
+        varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds = optimize.CheKiPEUQ_from_Frhodo.get_varying_rate_vals_bnds(varying_rate_vals_indices,shock['rate_bnds'])
+        #now we make a PE_object from a wrapper function inside CheKiPEUQ_from_Frhodo. This PE_object can be accessed from inside time_adjust_func.
+        CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(simulation_function=get_last_obs_sim_interp, observed_data=obs_exp, pars_initial_guess = varying_rate_vals_initial_guess, pars_lower_bnds = varying_rate_vals_lower_bnds, pars_upper_bnds = varying_rate_vals_upper_bnds, observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=weights, uncertainty_distribution='gaussian')
     
     if not np.any(var['t_unc']):
         t_unc = 0
