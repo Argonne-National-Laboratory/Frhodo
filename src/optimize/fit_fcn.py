@@ -224,8 +224,9 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
         SIM_kwargs['solve_energy'] = var['solve_energy']
         SIM_kwargs['frozen_comp'] = var['frozen_comp']
     
+    #Below, SIM is a simulation result, and includes obs_sim
     SIM, verbose = mech.run(var['name'], var['t_end'], T_reac, P_reac, mix, **SIM_kwargs)    
-    ind_var, obs = SIM.independent_var[:,None], SIM.observable[:,None]
+    ind_var, obs_sim = SIM.independent_var[:,None], SIM.observable[:,None]
     
     weights = shock['weights_trim']
     obs_exp = shock['exp_data_trim']
@@ -246,23 +247,23 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             # calculate time adjust with mse (loss_alpha = 2, loss_c =1)
             
             #comparing to time_adjust_func, arguments below are...: t_offset=shock['time_offset'], t_adjust=t_adjust*10**t_unc_OoM,
-            #            t_sim=ind_var, obs_sim=obs, t_exp=obs_exp[:,0], obs_exp=obs_exp[:,1], weights=weights
+            #            t_sim=ind_var, obs_sim=obs_sim, t_exp=obs_exp[:,0], obs_exp=obs_exp[:,1], weights=weights
             time_adj_decorator = lambda t_adjust: time_adjust_func(shock['time_offset'], t_adjust*10**t_unc_OoM, 
-                    ind_var, obs, obs_exp[:,0], obs_exp[:,1], weights, scale=var['resid_scale'], 
+                    ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], weights, scale=var['resid_scale'], 
                     DoF=len(coef_opt), objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
             res = minimize_scalar(time_adj_decorator, bounds=var['t_unc']/10**t_unc_OoM, method='bounded')
             t_unc = res.x*10**t_unc_OoM
         if objective_function_type.lower() == 'bayesian':
             res = minimize_scalar(CheKiPEUQ_from_Frhodo.get_log_posterior_density) #maybe a wrapper of somekind is ndeeded.
     
-    output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs, obs_exp[:,0], obs_exp[:,1], 
+    output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], 
                               weights, loss_alpha=var['loss_alpha'], loss_c=var['loss_c'], 
                               scale=var['resid_scale'], DoF=len(coef_opt), verbose=True, objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
                                   
     
     output['shock'] = shock
     output['independent_var'] = ind_var
-    output['observable'] = obs
+    output['observable'] = obs_sim
 
     plot_stats = True
     if plot_stats:
