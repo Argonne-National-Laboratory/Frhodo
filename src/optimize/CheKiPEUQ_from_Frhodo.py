@@ -34,7 +34,7 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
         import CheKiPEUQ.UserInput as UserInput
     except:
         import CheKiPEUQ_local.UserInput as UserInput
-    clear UserInput:
+    #TODO: put a "clear UserInput" type call here to UnitTesterSG_local
     UserInput.responses['responses_abscissa'] = []
     UserInput.responses['responses_observed'] = observed_data
     UserInput.responses['responses_observed_uncertainties'] = []
