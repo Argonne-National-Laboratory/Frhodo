@@ -24,7 +24,7 @@ software_kwargs = {"version": software_version, "author": ["Aditya Savara", "Eri
 
 @CiteSoft.after_call_compile_consolidated_log()
 @CiteSoft.module_call_cite(unique_id=software_unique_id, software_name=software_name, **software_kwargs)    
-def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess = [], pars_bnds=[], observed_data_bounds=[], weights_data=[]):
+def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess = [], pars_lower_bnds=[], pars_upper_bnds =[],observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=[], uncertainty_distribution='gaussian'):
     #observed_data is an array of values of observed data (can be nested if there is more than one observable)
     #pars_bnds is the bounds of the parmaeters ('coefficents') and is in the format of _______
     #pars_initial_guess is the initial guess for the parameters ('coefficients')
