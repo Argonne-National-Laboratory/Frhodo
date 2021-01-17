@@ -213,14 +213,33 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             import optimize.CheKiPEUQ_from_Frhodo    
             #now we make a PE_object from a wrapper function inside CheKiPEUQ_from_Frhodo. This PE_object can be accessed from inside time_adjust_func.
             #TODO: we should bring in x_bnds (the coefficent bounds) so that we can use the elementary step coefficients for Bayesian rather than the rate_val values.
-            CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(simulation_function=get_last_obs_sim_interp, observed_data=obs_exp, pars_initial_guess = varying_rate_vals_initial_guess, pars_lower_bnds = varying_rate_vals_lower_bnds, pars_upper_bnds = varying_rate_vals_upper_bnds, observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=weights, pars_uncertainty_distribution='gaussian')
+            Bayesian_dict = {}
+            Bayesian_dict['simulation_function'] = get_last_obs_sim_interp #a wrapper that just returns the last_obs_sim_interp
+            Bayesian_dict['observed_data'] = obs_exp
+            Bayesian_dict['pars_initial_guess'] = varying_rate_vals_initial_guess
+            Bayesian_dict['pars_lower_bnds'] = varying_rate_vals_lower_bnds
+            Bayesian_dict['pars_upper_bnds'] = varying_rate_vals_upper_bnds
+            Bayesian_dict['observed_data_lower_bounds'] = []
+            Bayesian_dict['observed_data_upper_bounds'] = []
+            Bayesian_dict['weights_data'] = weights
+            Bayesian_dict['pars_uncertainty_distribution'] = 'gaussian' #A. Savara recommends 'uniform' for rate constants and 'gaussian' for things like "log(A)" and "Ea"
+            CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(
+                simulation_function=    Bayesian_dict['simulation_function'],
+                observed_data=          Bayesian_dict['observed_data'],
+                pars_initial_guess =    Bayesian_dict['pars_initial_guess'],
+                pars_lower_bnds =       Bayesian_dict['pars_lower_bnds'],
+                pars_upper_bnds =       Bayesian_dict['pars_upper_bnds'],
+                observed_data_lower_bounds= Bayesian_dict['observed_data_lower_bounds'],
+                observed_data_upper_bounds= Bayesian_dict['observed_data_upper_bounds'],
+                weights_data=               Bayesian_dict['weights_data'],
+                pars_uncertainty_distribution=  Bayesian_dict['pars_uncertainty_distribution'])
             varying_rate_vals = np.array(shock['rate_val'])[list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
             log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object, varying_rate_vals)
             objective_function_value = -1*log_posterior_density #need neg_logP because minimizing.
-            if verbose: #FIXME: this dictionary is currently populated from the residuals.
+            if verbose: #FIXME: most of this dictionary is currently populated from values calculated for residuals.
                 print("line 223, about to return the objective_function_value", objective_function_value)
                 output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
-                          'loss': 10**objective_function_value, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
+                          'loss': objective_function_value, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
             else:
                 print("line 225, about to return the objective_function_value", objective_function_value)
                 output = objective_function_value #normal case for Bayesian based optimization.
