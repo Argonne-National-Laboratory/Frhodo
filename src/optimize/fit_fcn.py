@@ -341,12 +341,9 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
 
     plot_stats = True
     if plot_stats:
-        if objective_function_type== 'residual':
-            x = np.linspace(output['resid'].min(), output['resid'].max(), 300)
-            density = calc_density(x, output['resid'], dim=1)   #kernel density estimation
-            output['KDE'] = np.column_stack((x, density))
-        if objective_function_type== 'Bayesian':
-            pass #To be added.
+        x = np.linspace(output['resid'].min(), output['resid'].max(), 300)
+        density = calc_density(x, output['resid'], dim=1)   #kernel density estimation
+        output['KDE'] = np.column_stack((x, density))
 
     return output
 
