@@ -181,11 +181,11 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             loss_scalar = np.average(std_resid, weights=weights)
             objective_function_value = loss_scalar
             if verbose: 
-                print("line 183, about to return the objective_function_value", objective_function_value)
+                print("line 183, about to fill output with the residual objective_function_value", objective_function_value)
                 output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
                           'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
             else:
-                print("line 189, about to return the objective_function_value", objective_function_value)
+                print("line 189, about to fill output with the residual objective_function_value", objective_function_value)
                 output = objective_function_value #normal case for residuals based optimization.
         
         #FIXME: for Verbose currently we make most of the outputs above, and then override the 'loss_scalar' with the objective function from CheKiPEUQ.
@@ -243,11 +243,11 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             #Step 5 of Bayesian:  return the objective function and any other metrics desired.
             objective_function_value = -1*log_posterior_density #need neg_logP because minimizing.
             if verbose: #FIXME: most of this dictionary is currently populated from values calculated for residuals.
-                print("line 223, about to return the objective_function_value", objective_function_value)
+                print("line 223, about to fill output with the Bayesian objective_function_value", objective_function_value)
                 output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
                           'loss': objective_function_value, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
             else:
-                print("line 225, about to return the objective_function_value", objective_function_value)
+                print("line 225, about to fill output with the Bayesian objective_function_value", objective_function_value)
                 output = objective_function_value #normal case for Bayesian based optimization.
         return output
     
