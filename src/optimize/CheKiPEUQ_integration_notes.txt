@@ -1,6 +1,6 @@
 General Notes: 
 0) I was mistaken about only a numpy dependence: we need scipy as well. But that is also standard for Anaconda so should not be hard to add.
-1) There is a flag at top top of fit_fcn.py to forceBayesian = True until the GUI has it.
+1) There is a flag at top top of fit_fcn.py to forceBayesian = True until the GUI has it. FOR NOW, SET THIS TO FALSE TO TURN BAYESIAN OFF, AND TO TRUE IF YOU WANT BAYESIAN ON.
 2) The capturing of error messages and printing inside the log tab is useful, but sometimes makes it hard to trace which line an error is coming from, because the line number seems to be printed for only some kinds of errors.
 
 Bayesian Notes:
