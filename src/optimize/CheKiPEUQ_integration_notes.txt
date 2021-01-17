@@ -13,6 +13,8 @@ Bayesian Notes: I have put comments labeling the below steps in the code.  To si
 
 #ATTENTION: Currently the optimization statistics tabs still show the residuals outputs. I had to make it this way becuse the **final** output after minimization currently requires the verbose version of time_adjust_func. The verbose version of time_adjust_func does not currently work for the Bayesian case. So we are currently using the 'residual' version even after a minimization on the Bayesian case.  This is probably okay. You currently mainly use the Density Plot to see if there are bad experiments and if the fit is good, so that objective can still be fulfilled with this strategy.
 
+#ATTENTION: The Bayesian objective function is currently negative. This is completely normal. It can be anywhere from +inf to -inf, but has been set so that minimizing it finds the optimum. So don't worry about whether it is positive or negative! Just worry about whether you see it going down during optimization!
+
 #ATTENTION: for Step 1 of Bayesian we need to check if the initial guess is really being retained with the shock or is being changed each time.  need to make rate_val_original or something like that.
 
 
