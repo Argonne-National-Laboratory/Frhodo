@@ -213,6 +213,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             import optimize.CheKiPEUQ_from_Frhodo    
             #now we make a PE_object from a wrapper function inside CheKiPEUQ_from_Frhodo. This PE_object can be accessed from inside time_adjust_func.
             #TODO: we should bring in x_bnds (the coefficent bounds) so that we can use the elementary step coefficients for Bayesian rather than the rate_val values.
+            #Step 2 of Bayesian:  populate Bayesian_dict with any variables and uncertainties needed.
             Bayesian_dict = {}
             Bayesian_dict['simulation_function'] = get_last_obs_sim_interp #a wrapper that just returns the last_obs_sim_interp
             Bayesian_dict['observed_data'] = obs_exp
@@ -223,6 +224,8 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             Bayesian_dict['observed_data_upper_bounds'] = []
             Bayesian_dict['weights_data'] = weights
             Bayesian_dict['pars_uncertainty_distribution'] = 'gaussian' #A. Savara recommends 'uniform' for rate constants and 'gaussian' for things like "log(A)" and "Ea"
+            
+            #Step 3 of Bayesian:  create a CheKiPEUQ_PE_Object (this is a class object)
             CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(
                 simulation_function=    Bayesian_dict['simulation_function'],
                 observed_data=          Bayesian_dict['observed_data'],
@@ -233,8 +236,11 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
                 observed_data_upper_bounds= Bayesian_dict['observed_data_upper_bounds'],
                 weights_data=               Bayesian_dict['weights_data'],
                 pars_uncertainty_distribution=  Bayesian_dict['pars_uncertainty_distribution'])
+            #Step 4 of Bayesian:  call a function to get the posterior density which will be used as the objective function.
+            #We need to provide the current values of the varying_rate_vals to feed into the function.
             varying_rate_vals = np.array(shock['rate_val'])[list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
             log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object, varying_rate_vals)
+            #Step 5 of Bayesian:  return the objective function and any other metrics desired.
             objective_function_value = -1*log_posterior_density #need neg_logP because minimizing.
             if verbose: #FIXME: most of this dictionary is currently populated from values calculated for residuals.
                 print("line 223, about to return the objective_function_value", objective_function_value)
@@ -297,8 +303,10 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     #TO CONSIDER: the CheKiPEUQ_PE_object creation can be created earlier (here or higher) if obs_exp would be 'constant' in size from here.
     #The whole block of code for CheKiPEUQ_PE_object creation has been moved into time_adjust_func because Frhodo seems to do one concentration at a time and to change the array size while doing so.
     #If we are doing a Bayesian parameter estimation, we need to create CheKiPEUQ_PE_object. This has to come between the above functions because we need to feed in the simulation_function, and it needs to come above the 'minimize' function that is below.
+    
     if objective_function_type.lower() == 'bayesian':        
         import optimize.CheKiPEUQ_from_Frhodo    
+        #Step 1 of Bayesian:  Prepare any variables that need to be passed into time_adjust_func.
         if 'original_rate_val' not in shock: #check if this is the first time being called, and store rate_vals and create PE_object if it is.
             shock['original_rate_val'] = deepcopy(shock['rate_val']) #TODO: Check if this is the correct place to make original_rate_val
             shock['newOptimization'] = True
