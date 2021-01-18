@@ -1,0 +1,1 @@
+This directory is intended to be empty when a user is performing their First Time Use example. New directories will be created as the user performs optimizations.
