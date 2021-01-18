@@ -183,7 +183,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
                 print("line 189, about to fill output with the residual objective_function_value", objective_function_value)
                 output = objective_function_value #normal case for residuals based optimization.
         
-        #FIXME: for Verbose currently we make most of the outputs above, and then override the 'loss_scalar' with the objective function from CheKiPEUQ.
+        #FIXME: for Verbose currently we make most of the outputs above, and then also put in the objective function from CheKiPEUQ.
         if objective_function_type.lower() == 'bayesian':
             #CheKiPEUQ requires a simulation_function based on only the paramters of interest.
             #Typically, we would us a wrapper.  However, here the structure is a bit different.
