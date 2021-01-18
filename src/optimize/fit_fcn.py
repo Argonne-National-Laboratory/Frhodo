@@ -122,7 +122,8 @@ def update_mech_coef_opt(mech, coef_opt, x):
     if mech_changed:
         mech.modify_reactions(mech.coeffs)  # Update mechanism with new coefficients
   
-def calculate_residuals(args_list):   
+#below was formerly calculate_residuals  
+def calculate_objective_function(args_list, objective_function_type='residual'):   
     def calc_exp_bounds(t_sim, t_exp):
         t_bounds = [max([t_sim[0], t_exp[0]])]       # Largest initial time in SIM and Exp
         t_bounds.append(min([t_sim[-1], t_exp[-1]])) # Smallest final time in SIM and Exp
@@ -132,7 +133,7 @@ def calculate_residuals(args_list):
         return exp_bounds
     
     def time_adjust_func(t_offset, t_adjust, t_sim, obs_sim, t_exp, obs_exp, weights, 
-                         loss_alpha=2, loss_c=1, scale='Linear', DoF=1, verbose=False):
+                         loss_alpha=2, loss_c=1, scale='Linear', DoF=1, verbose=False, objective_function_type='residual'):
 
         t_sim_shifted = t_sim + t_offset + t_adjust
 
@@ -150,27 +151,35 @@ def calculate_residuals(args_list):
             weights = weights[ind].flatten()
             m = np.divide(obs_exp[ind], obs_sim_interp[ind])
             resid = np.log10(np.abs(m)).flatten()
-        
-        resid_outlier = outlier(resid, a=loss_alpha, c=loss_c, weights=weights)
-        loss = generalized_loss_fcn(resid, a=loss_alpha, c=resid_outlier)
-
-        loss_sqr = loss**2
-        wgt_sum = weights.sum()
-        N = wgt_sum - DoF
-        if N <= 0:
-            N = wgt_sum
-        stderr_sqr = (loss_sqr*weights).sum()/N
-        chi_sqr = loss_sqr/stderr_sqr
-        #loss_scalar = (chi_sqr*weights).sum()
-        std_resid = chi_sqr**(1/2)
-        loss_scalar = np.average(std_resid, weights=weights)
-        
-        if verbose:
-            output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
-                      'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
-            return output
-        else:   # needs to return single value for optimization
-            return loss_scalar
+            
+        #There are two possible objective_function_types: 'residual' and 'Bayesian'.
+        if objective_function_type.lower() == 'residual':
+            resid_outlier = outlier(resid, a=loss_alpha, c=loss_c, weights=weights)
+            loss = generalized_loss_fcn(resid, a=loss_alpha, c=resid_outlier)
+            loss_sqr = loss**2
+            wgt_sum = weights.sum()
+            N = wgt_sum - DoF
+            if N <= 0:
+                N = wgt_sum
+            stderr_sqr = (loss_sqr*weights).sum()/N
+            chi_sqr = loss_sqr/stderr_sqr
+            #loss_scalar = (chi_sqr*weights).sum()
+            std_resid = chi_sqr**(1/2)
+            loss_scalar = np.average(std_resid, weights=weights)
+            objective_function_value = loss_scalar
+            if verbose: 
+                output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
+                          'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
+            else:
+                output = objective_function_value #normal case.
+        elif objective_function_type.lower() == 'bayesian':
+            objective_function_value = log_posterior_density
+            #TODO: call CheKiPEUQ from here.
+            if verbose: 
+                output = objective_function_value #to be made a dictionary.
+            else:
+                output = objective_function_value #normal case.
+        return output
     
     def calc_density(x, data, dim=1):
         stdev = np.std(data)
@@ -216,14 +225,14 @@ def calculate_residuals(args_list):
         # calculate time adjust with mse (loss_alpha = 2, loss_c =1)
         time_adj_decorator = lambda t_adjust: time_adjust_func(shock['time_offset'], t_adjust*10**t_unc_OoM, 
                 ind_var, obs, obs_exp[:,0], obs_exp[:,1], weights, scale=var['resid_scale'], 
-                DoF=len(coef_opt))
-        
+                DoF=len(coef_opt), objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
         res = minimize_scalar(time_adj_decorator, bounds=var['t_unc']/10**t_unc_OoM, method='bounded')
         t_unc = res.x*10**t_unc_OoM
     
     output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs, obs_exp[:,0], obs_exp[:,1], 
                               weights, loss_alpha=var['loss_alpha'], loss_c=var['loss_c'], 
-                              scale=var['resid_scale'], DoF=len(coef_opt), verbose=True)  
+                              scale=var['resid_scale'], DoF=len(coef_opt), verbose=True, objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
+                                  
     
     output['shock'] = shock
     output['independent_var'] = ind_var
@@ -231,9 +240,12 @@ def calculate_residuals(args_list):
 
     plot_stats = True
     if plot_stats:
-        x = np.linspace(output['resid'].min(), output['resid'].max(), 300)
-        density = calc_density(x, output['resid'], dim=1)   #kernel density estimation
-        output['KDE'] = np.column_stack((x, density))
+        if objective_function_type== 'residual':
+            x = np.linspace(output['resid'].min(), output['resid'].max(), 300)
+            density = calc_density(x, output['resid'], dim=1)   #kernel density estimation
+            output['KDE'] = np.column_stack((x, density))
+        if objective_function_type== 'Bayesian':
+            pass #To be added.
 
     return output
 
@@ -271,12 +283,12 @@ class Fit_Fun:
         self.__abort = False
     
     def __call__(self, s, optimizing=True):
-        def append_output(output_dict, calc_resid_output):
-            for key in calc_resid_output:
+        # Below, calc_objective_function_output was formerly calc_resid_output 
+        def append_output(output_dict, calc_objective_function_output):
+            for key in calc_objective_function_output:
                 if key not in output_dict:
                     output_dict[key] = []
-                    
-                output_dict[key].append(calc_resid_output[key])
+                output_dict[key].append(calc_objective_function_output[key])
             
             return output_dict
         
@@ -300,25 +312,25 @@ class Fit_Fun:
         
         display_ind_var = None
         display_observable = None
+        
+        # Below, calc_objective_function_output was formerly calc_resid_output 
         if self.multiprocessing:
             args_list = ((var_dict, self.coef_opt, x, shock) for shock in self.shocks2run)
-            calc_resid_outputs = self.pool.map(calculate_residuals, args_list)
-            for calc_resid_output, shock in zip(calc_resid_outputs, self.shocks2run):
-                append_output(output_dict, calc_resid_output)
+            calc_objective_function_outputs = self.pool.map(calculate_objective_function, args_list)
+            for calc_objective_function_output, shock in zip(calc_objective_function_outputs, self.shocks2run):
+                append_output(output_dict, calc_objective_function_output)
                 if shock is self.parent.display_shock:
-                    display_ind_var = calc_resid_output['independent_var'] 
-                    display_observable = calc_resid_output['observable']
-
+                    display_ind_var = calc_objective_function_output['independent_var'] 
+                    display_observable = calc_objective_function_output['observable']
         else:
             mpMech['obj'] = self.mech
-            
             for shock in self.shocks2run:
                 args_list = (var_dict, self.coef_opt, x, shock)
-                calc_resid_output = calculate_residuals(args_list)
-                append_output(output_dict, calc_resid_output)
+                calc_objective_function_output = calculate_objective_function(args_list)
+                append_output(output_dict, calc_objective_function_output)
                 if shock is self.parent.display_shock:
-                    display_ind_var = calc_resid_output['independent_var'] 
-                    display_observable = calc_resid_output['observable']
+                    display_ind_var = calc_objective_function_output['independent_var'] 
+                    display_observable = calc_objective_function_output['observable']
         
         # loss = np.concatenate(output_dict['loss'], axis=0)
         loss = np.array(output_dict['loss'])
