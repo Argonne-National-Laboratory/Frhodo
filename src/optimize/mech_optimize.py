@@ -183,12 +183,12 @@ class Multithread_Optimize:
         return rxn_coef_opt
 
     def update(self, result):
-        loss_str = f"{result['loss']:.3e}"
+        obj_fcn_str = f"{result['obj_fcn']:.3e}"
         replace_strs = [['e+', 'e'], ['e0', 'e'], ['e0', ''], ['e-0', 'e-']]
         for pair in replace_strs:
-            loss_str = loss_str.replace(pair[0], pair[1])
+            obj_fcn_str = obj_fcn_str.replace(pair[0], pair[1])
         self.parent.log.append('\t{:s} {:^5d}\t\t\t{:^s}'.format(
-            result['type'][0].upper(), result['i'], loss_str), alert=False)
+            result['type'][0].upper(), result['i'], obj_fcn_str), alert=False)
         self.parent.tree.update_coef_rate_from_opt(result['coef_opt'], result['x'])
         
         # if displayed shock isn't in shocks being optimized, calculate the new plot
