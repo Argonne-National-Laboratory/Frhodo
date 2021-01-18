@@ -12,9 +12,6 @@ from copy import deepcopy
 import mech_fcns
 from optimize.fit_coeffs import fit_coeffs
 
-####THE BELOW LINE IS FOR BAYESIAN PARAMETER ESTIMATION DEVELOPMENT AND SHOULD BE REMOVED LATER####
-forceBayesian = True
-
 mpMech = {}
 
 def initialize_parallel_worker(mech_txt, coeffs, coeffs_bnds, rate_bnds):
@@ -127,7 +124,6 @@ def update_mech_coef_opt(mech, coef_opt, x):
   
 #below was formerly calculate_residuals  
 def calculate_objective_function(args_list, objective_function_type='residual'):   
-    if forceBayesian == True: objective_function_type = 'Bayesian'
     def calc_exp_bounds(t_sim, t_exp):
         t_bounds = [max([t_sim[0], t_exp[0]])]       # Largest initial time in SIM and Exp
         t_bounds.append(min([t_sim[-1], t_exp[-1]])) # Smallest final time in SIM and Exp
@@ -303,7 +299,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     #The whole block of code for CheKiPEUQ_PE_object creation has been moved into time_adjust_func because Frhodo seems to do one concentration at a time and to change the array size while doing so.
     #If we are doing a Bayesian parameter estimation, we need to create CheKiPEUQ_PE_object. This has to come between the above functions because we need to feed in the simulation_function, and it needs to come above the 'minimize' function that is below.
     
-    if objective_function_type.lower() == 'bayesian':        
+    if var['obj_fcn_type'].lower() == 'bayesian':        
         import optimize.CheKiPEUQ_from_Frhodo    
         #Step 1 of Bayesian:  Prepare any variables that need to be passed into time_adjust_func.
         if 'original_rate_val' not in shock: #check if this is the first time being called, and store rate_vals and create PE_object if it is.
@@ -325,13 +321,13 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
         #            t_sim=ind_var, obs_sim=obs_sim, t_exp=obs_exp[:,0], obs_exp=obs_exp[:,1], weights=weights
         time_adj_decorator = lambda t_adjust: time_adjust_func(shock['time_offset'], t_adjust*10**t_unc_OoM, 
                 ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], weights, scale=var['scale'], 
-                DoF=len(coef_opt), objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
+                DoF=len(coef_opt), objective_function_type=var['obj_fcn_type']) #objective_function_type is 'residual' or 'Bayesian'
         res = minimize_scalar(time_adj_decorator, bounds=var['t_unc']/10**t_unc_OoM, method='bounded')
         t_unc = res.x*10**t_unc_OoM    
     
     output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], 
                               weights, loss_alpha=var['loss_alpha'], loss_c=var['loss_c'], 
-                              scale=var['scale'], DoF=len(coef_opt), verbose=True, objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
+                              scale=var['scale'], DoF=len(coef_opt), verbose=True, objective_function_type=var['obj_fcn_type']) #objective_function_type is 'residual' or 'Bayesian'
                                   
     
     output['shock'] = shock
@@ -362,10 +358,13 @@ class Fit_Fun:
         self.opt_type = 'local' # this is updated outside of the class
         
         self.dist = self.parent.optimize.dist
-        self.scale = self.parent.optimization_settings.get('obj_fcn', 'scale')
-        self.loss_alpha = self.parent.optimization_settings.get('obj_fcn', 'alpha')
-        self.loss_c = self.parent.optimization_settings.get('obj_fcn', 'c')
-        
+        self.opt_settings = {'obj_fcn_type': self.parent.optimization_settings.get('obj_fcn', 'type'),
+                             'scale': self.parent.optimization_settings.get('obj_fcn', 'scale'),
+                             'loss_alpha': self.parent.optimization_settings.get('obj_fcn', 'alpha'),
+                             'loss_c': self.parent.optimization_settings.get('obj_fcn', 'c'),
+                             'bayes_dist_type': self.parent.optimization_settings.get('obj_fcn', 'bayes_dist_type'),
+                             'bayes_unc_sigma': self.parent.optimization_settings.get('obj_fcn', 'bayes_unc_sigma')}
+
         if 'multiprocessing' in input_dict:
             self.multiprocessing = input_dict['multiprocessing']
         
@@ -404,8 +403,7 @@ class Fit_Fun:
         
         var_dict = {key: val for key, val in self.var['reactor'].items()}
         var_dict['t_unc'] = self.t_unc
-        var_dict['scale'] = self.scale
-        var_dict.update({'loss_alpha': self.loss_alpha, 'loss_c': self.loss_c})
+        var_dict.update(self.opt_settings)
         
         display_ind_var = None
         display_observable = None
@@ -433,8 +431,8 @@ class Fit_Fun:
         obj_fcn = np.array(output_dict['obj_fcn'])
 
         if np.size(obj_fcn) > 1:
-            c = outlier(obj_fcn, a=self.loss_alpha, c=self.loss_c)
-            obj_fcn = generalized_loss_fcn(obj_fcn, a=self.loss_alpha, c=c)
+            c = outlier(obj_fcn, a=self.opt_settings['loss_alpha'], c=self.opt_settings['loss_c'])
+            obj_fcn = generalized_loss_fcn(obj_fcn, a=self.opt_settings['loss_alpha'], c=c)
             total_obj_fcn = obj_fcn.mean()
         else:
             c = 0
