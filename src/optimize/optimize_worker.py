@@ -110,7 +110,7 @@ class Worker(QRunnable):
             shock['exp_data_trim'] = shock['exp_data'][exp_bounds,:]
     
     def optimize_coeffs(self, debug=False):
-        #debug = True  # shows error message in command window. Does not close program
+        debug = True  # shows error message in command window. Does not close program
         parent = self.parent
         pool = mp.Pool(processes=parent.max_processors,
                        initializer=initialize_parallel_worker,
@@ -168,7 +168,7 @@ class Worker(QRunnable):
                 
                 s = opt.optimize(s) # optimize!
                 
-                loss, x, shock_output = Scaled_Fit_Fun(s, optimizing=False)
+                obj_fcn, x, shock_output = Scaled_Fit_Fun(s, optimizing=False)
             
                 if nlopt.SUCCESS > 0: 
                     success = True
@@ -177,9 +177,9 @@ class Worker(QRunnable):
                     success = False
                     msg = neg_msg[nlopt.SUCCESS-1]
                 
-                # opt.last_optimum_value() is the same as optimal loss
+                # opt.last_optimum_value() is the same as optimal obj_fcn
                 res[opt_type] = {'coef_opt': self.coef_opt, 'x': x, 'shock': shock_output,
-                                 'fval': loss, 'nfev': opt.get_numevals(),
+                                 'fval': obj_fcn, 'nfev': opt.get_numevals(),
                                  'success': success, 'message': msg, 'time': timer() - timer_start}
                 
                 if options['algorithm'] is nlopt.GN_MLSL_LDS:   # if using multistart algorithm, break upon finishing loop

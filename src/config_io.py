@@ -107,9 +107,12 @@ class GUI_Config(yaml.YAML):
                             },
                          'Optimization Settings': {
                             'time uncertainty': 0.0,
-                            'loss function scale': 'Linear',
+                            'objective function type': 'Residual',
+                            'objective function scale': 'Linear',
                             'loss function alpha': -2.00,
                             'loss function c': 1.00,
+                            'Bayesian distribution type': 'Gaussian',
+                            'Bayesian uncertainty sigma': 3.0,
                             'multiprocessing': True,
                             'enabled':                  {'global': True,                             'local': True},
                             'algorithm':                {'global': 'CRS (Controlled Random Search)', 'local': 'Subplex'},
@@ -226,9 +229,12 @@ class GUI_settings:
 
         ## Set Optimization Settings ##
         parent.time_unc_box.setValue(settings['opt']['time uncertainty'])
-        parent.resid_scale_box.setCurrentIndex(parent.resid_scale_box.findText(settings['opt']['loss function scale']))
+        parent.obj_fcn_type_box.setCurrentIndex(parent.obj_fcn_type_box.findText(settings['opt']['objective function type']))
+        parent.obj_fcn_scale_box.setCurrentIndex(parent.obj_fcn_scale_box.findText(settings['opt']['objective function scale']))
         parent.loss_alpha_box.setValue(settings['opt']['loss function alpha'])
         parent.loss_c_box.setValue(settings['opt']['loss function c'])
+        parent.bayes_dist_type_box.setCurrentIndex(parent.bayes_dist_type_box.findText(settings['opt']['Bayesian distribution type']))
+        parent.bayes_unc_sigma_box.setValue(settings['opt']['Bayesian uncertainty sigma'])
         parent.multiprocessing_box.setChecked(settings['opt']['multiprocessing'])
         
         # Update Global and Local Settings
@@ -299,11 +305,14 @@ class GUI_settings:
 
         ## Set Optimization Settings ##
         settings['opt']['time uncertainty'] = parent.time_unc_box.value()
-        settings['opt']['loss function scale'] = parent.resid_scale_box.currentText()
+        settings['opt']['objective function type'] = parent.obj_fcn_type_box.currentText()
+        settings['opt']['objective function scale'] = parent.obj_fcn_scale_box.currentText()
         settings['opt']['loss function alpha'] = parent.loss_alpha_box.value()
         settings['opt']['loss function c'] = parent.loss_c_box.value()
+        settings['opt']['Bayesian distribution type'] = parent.bayes_dist_type_box.currentText()
+        settings['opt']['Bayesian uncertainty sigma'] = parent.bayes_unc_sigma_box.value()
         settings['opt']['multiprocessing'] = parent.multiprocessing_box.isChecked()
-        
+
         # Update Global and Local Settings
         for opt_type in ['global', 'local']:
             if opt_type == 'global':

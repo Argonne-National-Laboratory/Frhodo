@@ -879,12 +879,14 @@ class Optimization(QtCore.QObject):
     def __init__(self, parent): # TODO: Setting tab order needs to happen here
         super().__init__(parent)
         parent = self.parent()
-        self.settings = {'loss': {}, 'global': {}, 'local': {}}
+        self.settings = {'obj_fcn': {}, 'global': {}, 'local': {}}
         
-        for box in [parent.loss_alpha_box, parent.loss_c_box]:
-            box.valueChanged.connect(self.update_loss_settings)
-        parent.resid_scale_box.currentTextChanged.connect(self.update_loss_settings)
-        self.update_loss_settings() # initialize settings
+        for box in [parent.loss_alpha_box, parent.loss_c_box, parent.bayes_unc_sigma_box]:
+            box.valueChanged.connect(self.update_obj_fcn_settings)
+        for box in [parent.obj_fcn_type_box, parent.obj_fcn_scale_box, parent.bayes_dist_type_box]:
+            box.currentTextChanged.connect(self.update_obj_fcn_settings)
+        
+        self.update_obj_fcn_settings() # initialize settings
         
         parent.multiprocessing_box  # checkbox
         
@@ -927,12 +929,18 @@ class Optimization(QtCore.QObject):
                 self.widgets[opt_type][var_type].setStrDecimals(1)
                 layout.addWidget(self.widgets[opt_type][var_type], n, 0)
              
-    def update_loss_settings(self, event=None):
-        settings = self.settings['loss']
+    def update_obj_fcn_settings(self, event=None):
+        parent = self.parent()
+        settings = self.settings['obj_fcn']
         
-        settings['alpha'] = self.parent().loss_alpha_box.value()
-        settings['c'] = self.parent().loss_c_box.value()
-        settings['resid_scale'] = self.parent().resid_scale_box.currentText()
+        settings['type'] = parent.obj_fcn_type_box.currentText()
+        settings['scale'] = parent.obj_fcn_scale_box.currentText()
+
+        settings['alpha'] = parent.loss_alpha_box.value()
+        settings['c'] = parent.loss_c_box.value()
+
+        settings['bayes_dist_type'] = parent.bayes_dist_type_box.currentText()
+        settings['bayes_unc_sigma'] = parent.bayes_unc_sigma_box.value()
 
         self.save_settings(event)
          
