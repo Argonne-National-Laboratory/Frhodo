@@ -1,11 +1,23 @@
 import numpy as np
-import sys; sys.path.append('../../'); 
-try:
-    import CheKiPEUQ as CKPQ
-except:
-    import optimize.CheKiPEUQ_local as CKPQ #might need to put Frhodo.CheKiPEUQ_local or something like that.
-    # compare to C:\Users\fvs\Documents\GitHub\CheKiPEUQ\CheKiPEUQ\InverseProblem.py
+import sys; sys.path.append('../../'); import os
+sys.path.append(os.path.join(os.path.dirname(__file__))) #This is so that CheKiPEUQ_local can be found properly. Otherwise there are problems importing CKPQ.parameter_estimation
+
+# try:
+    # import CheKiPEUQ as CKPQ
+    # print("line 5 it is importing CheKiPEUQ!")
+# except:
+    # import os #The below lines are to allow CheKiPEUQ_local to be called regardless of user's working directory.
+    # lenOfFileName = len(os.path.basename(__file__)) #This is the name of **this** file.
+    # absPathWithoutFileName = os.path.abspath(__file__)[0:-1*lenOfFileName]
+    # sys.path.append(absPathWithoutFileName)
+    # import optimize.CheKiPEUQ_local as CKPQ #might need to put Frhodo.CheKiPEUQ_local or something like that.
+    # # compare to C:\Users\fvs\Documents\GitHub\CheKiPEUQ\CheKiPEUQ\InverseProblem.py
+    # print("line 14 it is in the except statement of importing CheKiPEUQ!")
     
+lenOfFileName = len(os.path.basename(__file__)) #This is the name of **this** file.
+absPathWithoutFileName = os.path.abspath(__file__)[0:-1*lenOfFileName]
+sys.path.append(absPathWithoutFileName)
+import optimize.CheKiPEUQ_local as CKPQ #might need to put Frhodo.CheKiPEUQ_local or something like that.
     
 try:
     import CiteSoft
@@ -24,8 +36,8 @@ software_kwargs = {"version": software_version, "author": ["Aditya Savara", "Eri
 
 ##### DISABLING CITESOFT EXPORTATION FOR NOW BECAUSE IT WAS BECOMING EXPORTED TOO MANY TIMES WITH MULTI-PROCESSING EVEN WHEN ONLY AS AN IMPORT_CITE.
 #CiteSoft.import_cite(unique_id=software_unique_id, software_name=software_name, write_immediately=True, **software_kwargs)
-#@CiteSoft.after_call_compile_consolidated_log()
-#@CiteSoft.module_call_cite(unique_id=software_unique_id, software_name=software_name, **software_kwargs)
+#decorator CiteSoft.after_call_compile_consolidated_log()
+#decorator CiteSoft.module_call_cite(unique_id=software_unique_id, software_name=software_name, **software_kwargs)
 def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess = [], pars_lower_bnds=[], pars_upper_bnds =[],observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=[], pars_uncertainty_distribution='gaussian', sigma_multiple = 3.0):
     #observed_data is an array of values of observed data (can be nested if there is more than one observable)
     #pars_lower_bnds and pars_upper_bnds are the bounds of the parameters ('coefficents') in absolute values.
@@ -35,8 +47,9 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
     #sigma_multiple is how many sigma the bounds are equal to (relative to mean).
     try:
         import CheKiPEUQ.UserInput as UserInput
+        print("line 44, somehow imported CheKiPEUQ UserInput!!!")
     except:
-        import CheKiPEUQ_local.UserInput as UserInput
+        import optimize.CheKiPEUQ_local.UserInput as UserInput
     #TODO: put a "clear UserInput" type call here to UnitTesterSG_local
     UserInput.responses['responses_abscissa'] = []
     UserInput.responses['responses_observed'] = np.array(observed_data).T
@@ -57,6 +70,7 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
     UserInput.model['InputParameterPriorValues_upperBounds'] = pars_upper_bnds
     UserInput.model['InputParameterPriorValues_lowerBounds'] = pars_lower_bnds
     UserInput.model['simulateByInputParametersOnlyFunction'] = simulation_function
+    print("line 61", CKPQ.frog)
     PE_object = CKPQ.parameter_estimation(UserInput)
     return PE_object
 
