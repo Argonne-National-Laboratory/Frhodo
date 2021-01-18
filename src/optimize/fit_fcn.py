@@ -1,4 +1,5 @@
 # This file is part of Frhodo. Copyright © 2020, UChicago Argonne, LLC
+# This file is part of Frhodo. Copyright © 2020, UChicago Argonne, LLC
 # and licensed under BSD-3-Clause. See License.txt in the top-level 
 # directory for license and copyright information.
 
@@ -11,6 +12,9 @@ from copy import deepcopy
 
 import mech_fcns
 from optimize.fit_coeffs import fit_coeffs
+
+####THE BELOW LINE IS FOR BAYESIAN PARAMETER ESTIMATION DEVELOPMENT AND SHOULD BE REMOVED LATER####
+forceBayesian = True
 
 mpMech = {}
 
@@ -124,6 +128,8 @@ def update_mech_coef_opt(mech, coef_opt, x):
   
 #below was formerly calculate_residuals  
 def calculate_objective_function(args_list, objective_function_type='residual'):   
+    if forceBayesian == True: objective_function_type = 'Bayesian'
+
     def calc_exp_bounds(t_sim, t_exp):
         t_bounds = [max([t_sim[0], t_exp[0]])]       # Largest initial time in SIM and Exp
         t_bounds.append(min([t_sim[-1], t_exp[-1]])) # Smallest final time in SIM and Exp
@@ -132,6 +138,8 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
         
         return exp_bounds
     
+    #the below function has implied arguments of shock (from args_list) and also 
+    #these for the case of bayesian objective_function_type: varying_rate_vals_indices, varying_rate_vals_initial_guess, varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds
     def time_adjust_func(t_offset, t_adjust, t_sim, obs_sim, t_exp, obs_exp, weights, 
                          loss_alpha=2, loss_c=1, scale='Linear', DoF=1, verbose=False, objective_function_type='residual'):
 
@@ -146,6 +154,8 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
         
         if scale == 'Linear':
             resid = np.subtract(obs_exp, obs_sim_interp)
+            if objective_function_type.lower() == 'bayesian':
+                shock['last_obs_sim_interp'] = obs_sim_interp
         elif scale == 'Log':
             ind = np.argwhere(((obs_exp!=0.0)&(obs_sim_interp!=0.0)))
             weights = weights[ind].flatten()
@@ -154,6 +164,13 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             
         #There are two possible objective_function_types: 'residual' and 'Bayesian'.
         if objective_function_type.lower() == 'residual':
+            #TODO: Ashi is not sure if some kind of trimming is happening to the experimental data in log scale.
+            #For log scale, we would also need to change the PE_object creation to take in the log_scale data.
+            if objective_function_type.lower() == 'bayesian':
+                shock['last_obs_sim_interp'] = obs_sim_interp
+            
+        #There are two possible objective_function_types: 'residual' and 'Bayesian'.
+        if objective_function_type.lower() == 'residual' or objective_function_type.lower() == 'bayesian': #FIXME: currently we go into this code for Bayesian also, but that is just to satisfy the QQ etc.
             resid_outlier = outlier(resid, a=loss_alpha, c=loss_c, weights=weights)
             loss = generalized_loss_fcn(resid, a=loss_alpha, c=resid_outlier)
             loss_sqr = loss**2
@@ -171,14 +188,16 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
                 output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
                           'obj_fcn': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
             else:
-<<<<<<< Updated upstream
                 output = objective_function_value #normal case.
         elif objective_function_type.lower() == 'bayesian':
             objective_function_value = log_posterior_density
             #TODO: call CheKiPEUQ from here.
             if verbose: 
                 output = objective_function_value #to be made a dictionary.
-=======
+                print("line 183, about to fill output with the residual objective_function_value", objective_function_value)
+                output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
+                          'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
+            else:
                 print("line 189, about to fill output with the residual objective_function_value", objective_function_value)
                 output = objective_function_value #normal case for residuals based optimization.
         
@@ -240,9 +259,9 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
                 print("line 223, about to fill output with the Bayesian objective_function_value", objective_function_value)
                 output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
                           'obj_fcn': objective_function_value, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
->>>>>>> Stashed changes
             else:
                 output = objective_function_value #normal case.
+
         return output
     
     def calc_density(x, data, dim=1):
@@ -260,9 +279,20 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
         x[x==0] = 1                       # if zero, make OoM 0
         return np.floor(np.log10(np.abs(x)))
     
+    #var is a dictionary of Connected Variables: {'t_unit_conv': 1e-06, 'name': 'Incident Shock Reactor', 'solve_energy': True, 'frozen_comp': False, 'ode_solver': 'BDF', 'ode_rtol': 1e-06, 'ode_atol': 1e-08, 't_end': 1.2e-05, 'sim_interp_factor': 1, 't_unc': (-0.0, 0.0), 'resid_scale': 'Linear', 'loss_alpha': -2.0, 'loss_c': 1.0}
+    
+    #coef_opt is a list of dictionaries containing reaction parameters to optimize (but not their bounds):  [{'rxnIdx': 2, 'coefIdx': 0, 'coefName': 'activation_energy'}, {'rxnIdx': 2, 'coefIdx': 1, 'coefName': 'pre_exponential_factor'}, {'rxnIdx': 2, 'coefIdx': 2, 'coefName': 'temperature_exponent'}] Note that the rxnIdx has array indexing, so rxnIdx of 2 is actually "R3" in the example reaction.
+    
+    #x is a small list of the coefficients which are being allowed to vary: [0.         4.16233447 3.04590318]
+    
+    #shock is a HUGE dictionary, like a global namespace. It includes all of the species % ratios, the rate_vals, the weightings, timeoffset, and many other things.  The rate boundaries are in absolute values in rate_bnds. The experimental dat is in exp_data, and the weights are in weights.
     var, coef_opt, x, shock = args_list
     mech = mpMech['obj']
     
+    # print("line 202", var)
+    # print("line 203", coef_opt)
+    print("line 204", x)
+    # print("line 205", shock);    sys.exit()
     # Optimization Begins, update mechanism
     update_mech_coef_opt(mech, coef_opt, x)
 
@@ -276,35 +306,49 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
         SIM_kwargs['solve_energy'] = var['solve_energy']
         SIM_kwargs['frozen_comp'] = var['frozen_comp']
     
+    #Below, SIM is a simulation result, and includes obs_sim
     SIM, verbose = mech.run(var['name'], var['t_end'], T_reac, P_reac, mix, **SIM_kwargs)    
-    ind_var, obs = SIM.independent_var[:,None], SIM.observable[:,None]
+    ind_var, obs_sim = SIM.independent_var[:,None], SIM.observable[:,None]
     
     weights = shock['weights_trim']
     obs_exp = shock['exp_data_trim']
     
+    #TO CONSIDER: the CheKiPEUQ_PE_object creation can be created earlier (here or higher) if obs_exp would be 'constant' in size from here.
+    #The whole block of code for CheKiPEUQ_PE_object creation has been moved into time_adjust_func because Frhodo seems to do one concentration at a time and to change the array size while doing so.
+    #If we are doing a Bayesian parameter estimation, we need to create CheKiPEUQ_PE_object. This has to come between the above functions because we need to feed in the simulation_function, and it needs to come above the 'minimize' function that is below.
+    
+    if objective_function_type.lower() == 'bayesian':        
+        import optimize.CheKiPEUQ_from_Frhodo    
+        #Step 1 of Bayesian:  Prepare any variables that need to be passed into time_adjust_func.
+        if 'original_rate_val' not in shock: #check if this is the first time being called, and store rate_vals and create PE_object if it is.
+            shock['original_rate_val'] = deepcopy(shock['rate_val']) #TODO: Check if this is the correct place to make original_rate_val
+            shock['newOptimization'] = True
+            #TODO: need to make sure we get the **original** rate_vals and bounds and keep them as the prior.
+        varying_rate_vals_indices, varying_rate_vals_initial_guess, varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds = optimize.CheKiPEUQ_from_Frhodo.get_varying_rate_vals_and_bnds(shock['original_rate_val'],shock['rate_bnds'])
+        print("line 283, CREATING varying_rate_vals_initial_guess ", varying_rate_vals_initial_guess)
+            #FIXME: #TODO: Need to add an "or" statement or flag to allow below to execute when somebody has changed their initial guesses intentionally or are doing a new optimization.
+        # if ('newOptimization' in shock) and (shock['newOptimization'] == True):
+    
     if not np.any(var['t_unc']):
         t_unc = 0
-    else:
+    else:        
         t_unc_OoM = np.mean(OoM(var['t_unc']))  # Do at higher level? (computationally efficient)
         # calculate time adjust with mse (loss_alpha = 2, loss_c =1)
+        #comparing to time_adjust_func, arguments below are...: t_offset=shock['time_offset'], t_adjust=t_adjust*10**t_unc_OoM,
+        #            t_sim=ind_var, obs_sim=obs_sim, t_exp=obs_exp[:,0], obs_exp=obs_exp[:,1], weights=weights
         time_adj_decorator = lambda t_adjust: time_adjust_func(shock['time_offset'], t_adjust*10**t_unc_OoM, 
-<<<<<<< Updated upstream
-                ind_var, obs, obs_exp[:,0], obs_exp[:,1], weights, scale=var['resid_scale'], 
-=======
                 ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], weights, scale=var['scale'], 
->>>>>>> Stashed changes
                 DoF=len(coef_opt), objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
         res = minimize_scalar(time_adj_decorator, bounds=var['t_unc']/10**t_unc_OoM, method='bounded')
-        t_unc = res.x*10**t_unc_OoM
+        t_unc = res.x*10**t_unc_OoM    
     
-    output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs, obs_exp[:,0], obs_exp[:,1], 
+    output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], 
                               weights, loss_alpha=var['loss_alpha'], loss_c=var['loss_c'], 
-                              scale=var['scale'], DoF=len(coef_opt), verbose=True, objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
-                                  
+                              scale=var['scale'], DoF=len(coef_opt), verbose=True, objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'                                
     
     output['shock'] = shock
     output['independent_var'] = ind_var
-    output['observable'] = obs
+    output['observable'] = obs_sim
 
     plot_stats = True
     if plot_stats:
@@ -365,7 +409,7 @@ class Fit_Fun:
             self.signals.log.emit('\nOptimization aborted')
             return
         
-        # Convert to mech values
+        # Convert to mech values, by putting in rate constants.
         x = self.fit_all_coeffs(np.exp(s*self.x0))
         if x is None: 
             return np.inf
@@ -462,5 +506,5 @@ class Fit_Fun:
                 coeffs = np.append(coeffs, coeffs_append)
             
             i += len(T)
-
+        #The coeffs are log(A), n, Ea
         return coeffs

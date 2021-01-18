@@ -1,0 +1,27 @@
+General Notes: 
+1) I was mistaken about only a numpy dependence: we need scipy as well. But that is also standard for Anaconda so should not be hard to add.
+2) IMPORTANT: There is a flag at top top of fit_fcn.py to forceBayesian = True until the GUI has it. FOR NOW, SET THIS TO FALSE TO TURN BAYESIAN OFF, AND TO TRUE IF YOU WANT BAYESIAN ON.
+3) The capturing of error messages and printing inside the log tab is useful, but sometimes makes it hard to trace which line an error is coming from, because the line number seems to be printed for only some kinds of errors.
+
+Bayesian Notes: I have put comments labeling the below steps in the code.  To simplify being able to follow the code, I have also made a variable named Bayesian_dict. Currently, the algorithm has one step that occurs outside of time_adjust_func even before calling time_adjust_func.
+
+#Step 1 of Bayesian:  Prepare any variables that need to be passed into time_adjust_func.
+#Step 2 of Bayesian:  populate Bayesian_dict with any variables and uncertainties needed.
+#Step 3 of Bayesian:  create a CheKiPEUQ_PE_Object (this is a class object)
+#Step 4 of Bayesian:  call a function to get the posterior density which will be used as the objective function.
+#Step 5 of Bayesian:  return the objective function and any other metrics desired.
+
+#ATTENTION: Currently the optimization statistics tabs still show the residuals outputs. I had to make it this way becuse the **final** output after minimization currently requires the verbose version of time_adjust_func. The verbose version of time_adjust_func does not currently work for the Bayesian case. So we are currently using the 'residual' version even after a minimization on the Bayesian case.  This is probably okay. You currently mainly use the Density Plot to see if there are bad experiments and if the fit is good, so that objective can still be fulfilled with this strategy.
+
+#ATTENTION: The Bayesian objective function is currently negative. This is completely normal. It can be anywhere from +inf to -inf, but has been set so that minimizing it finds the optimum. So don't worry about whether it is positive or negative! Just worry about whether you see it going down during optimization!
+
+#ATTENTION: for Step 1 of Bayesian we need to check if the initial guess is really being retained with the shock or is being changed each time.  need to make rate_val_original or something like that.
+
+
+#FIXME 1: The global optimization doesn't take the best objective function found!?? It seems to take the last one at the end and do a local optimization from there? 
+#FIXME 2: Right now, for verbose, the 'output' dictionary has a variable called 'loss'. I am putting the Bayesian objective function in that variable, but I did not feel comfortable changing that variable name away from loss. I do think you should either change it **or** add a new variable called objective_function. You can just pass back both.
+
+
+NEXT STEPS AFTER THE ABOVE ITEMS ARE FIXED.
+
+#ATTENTION: Right now, the Bayesian parameter estimation is taking in the rate_val parameters and their bounds.  It is actually even better if we feed in the "logA" "n" and "Ea" values and their bounds.  I suggest that we fix the above issues first, and then do that after.  However, we should probably discuss what happens in fit_coeffs so I can implement the Bayesian part in the most logical way.
