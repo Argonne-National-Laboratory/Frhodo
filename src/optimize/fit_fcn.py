@@ -1,5 +1,4 @@
 # This file is part of Frhodo. Copyright © 2020, UChicago Argonne, LLC
-# This file is part of Frhodo. Copyright © 2020, UChicago Argonne, LLC
 # and licensed under BSD-3-Clause. See License.txt in the top-level 
 # directory for license and copyright information.
 
@@ -129,7 +128,6 @@ def update_mech_coef_opt(mech, coef_opt, x):
 #below was formerly calculate_residuals  
 def calculate_objective_function(args_list, objective_function_type='residual'):   
     if forceBayesian == True: objective_function_type = 'Bayesian'
-
     def calc_exp_bounds(t_sim, t_exp):
         t_bounds = [max([t_sim[0], t_exp[0]])]       # Largest initial time in SIM and Exp
         t_bounds.append(min([t_sim[-1], t_exp[-1]])) # Smallest final time in SIM and Exp
@@ -161,9 +159,6 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             weights = weights[ind].flatten()
             m = np.divide(obs_exp[ind], obs_sim_interp[ind])
             resid = np.log10(np.abs(m)).flatten()
-            
-        #There are two possible objective_function_types: 'residual' and 'Bayesian'.
-        if objective_function_type.lower() == 'residual':
             #TODO: Ashi is not sure if some kind of trimming is happening to the experimental data in log scale.
             #For log scale, we would also need to change the PE_object creation to take in the log_scale data.
             if objective_function_type.lower() == 'bayesian':
@@ -185,18 +180,9 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
             loss_scalar = np.average(std_resid, weights=weights)
             objective_function_value = loss_scalar
             if verbose: 
-                output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
-                          'obj_fcn': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
-            else:
-                output = objective_function_value #normal case.
-        elif objective_function_type.lower() == 'bayesian':
-            objective_function_value = log_posterior_density
-            #TODO: call CheKiPEUQ from here.
-            if verbose: 
-                output = objective_function_value #to be made a dictionary.
                 print("line 183, about to fill output with the residual objective_function_value", objective_function_value)
                 output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
-                          'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
+                          'obj_fcn': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
             else:
                 print("line 189, about to fill output with the residual objective_function_value", objective_function_value)
                 output = objective_function_value #normal case for residuals based optimization.
@@ -260,8 +246,8 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
                 output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
                           'obj_fcn': objective_function_value, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
             else:
-                output = objective_function_value #normal case.
-
+                print("line 225, about to fill output with the Bayesian objective_function_value", objective_function_value)
+                output = objective_function_value #normal case for Bayesian based optimization.
         return output
     
     def calc_density(x, data, dim=1):
@@ -334,6 +320,7 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     else:        
         t_unc_OoM = np.mean(OoM(var['t_unc']))  # Do at higher level? (computationally efficient)
         # calculate time adjust with mse (loss_alpha = 2, loss_c =1)
+        
         #comparing to time_adjust_func, arguments below are...: t_offset=shock['time_offset'], t_adjust=t_adjust*10**t_unc_OoM,
         #            t_sim=ind_var, obs_sim=obs_sim, t_exp=obs_exp[:,0], obs_exp=obs_exp[:,1], weights=weights
         time_adj_decorator = lambda t_adjust: time_adjust_func(shock['time_offset'], t_adjust*10**t_unc_OoM, 
@@ -344,7 +331,8 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
     
     output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], 
                               weights, loss_alpha=var['loss_alpha'], loss_c=var['loss_c'], 
-                              scale=var['scale'], DoF=len(coef_opt), verbose=True, objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'                                
+                              scale=var['scale'], DoF=len(coef_opt), verbose=True, objective_function_type=objective_function_type) #objective_function_type is 'residual' or 'Bayesian'
+                                  
     
     output['shock'] = shock
     output['independent_var'] = ind_var
@@ -352,12 +340,9 @@ def calculate_objective_function(args_list, objective_function_type='residual'):
 
     plot_stats = True
     if plot_stats:
-        if objective_function_type== 'residual':
-            x = np.linspace(output['resid'].min(), output['resid'].max(), 300)
-            density = calc_density(x, output['resid'], dim=1)   #kernel density estimation
-            output['KDE'] = np.column_stack((x, density))
-        if objective_function_type== 'Bayesian':
-            pass #To be added.
+        x = np.linspace(output['resid'].min(), output['resid'].max(), 300)
+        density = calc_density(x, output['resid'], dim=1)   #kernel density estimation
+        output['KDE'] = np.column_stack((x, density))
 
     return output
 
