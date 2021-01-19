@@ -62,7 +62,7 @@
         <enum>QTabWidget::Triangular</enum>
        </property>
        <property name="currentIndex">
-        <number>2</number>
+        <number>0</number>
        </property>
        <widget class="QWidget" name="directory_tab">
         <attribute name="title">
@@ -1932,22 +1932,6 @@ p, li { white-space: pre-wrap; }
          <string>Optimization</string>
         </attribute>
         <layout class="QGridLayout" name="gridLayout_58">
-         <item row="1" column="0">
-          <spacer name="verticalSpacer_7">
-           <property name="orientation">
-            <enum>Qt::Vertical</enum>
-           </property>
-           <property name="sizeType">
-            <enum>QSizePolicy::Expanding</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>20</width>
-             <height>5</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
          <item row="0" column="0">
           <widget class="QFrame" name="frame_29">
            <property name="sizePolicy">
@@ -1987,505 +1971,6 @@ p, li { white-space: pre-wrap; }
             <property name="bottomMargin">
              <number>0</number>
             </property>
-            <item row="2" column="0">
-             <widget class="QStackedWidget" name="weight_unc_parameters_stacked_widget">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="currentIndex">
-               <number>0</number>
-              </property>
-              <widget class="QWidget" name="WeightFunctionPage">
-               <property name="sizePolicy">
-                <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
-                 <horstretch>0</horstretch>
-                 <verstretch>0</verstretch>
-                </sizepolicy>
-               </property>
-               <layout class="QGridLayout" name="gridLayout_53">
-                <property name="leftMargin">
-                 <number>0</number>
-                </property>
-                <property name="topMargin">
-                 <number>0</number>
-                </property>
-                <property name="rightMargin">
-                 <number>0</number>
-                </property>
-                <property name="bottomMargin">
-                 <number>0</number>
-                </property>
-                <item row="0" column="0">
-                 <widget class="QGroupBox" name="groupBox_2">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="toolTip">
-                   <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Logistic Function&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                  </property>
-                  <property name="title">
-                   <string>Weight Function</string>
-                  </property>
-                  <layout class="QGridLayout" name="gridLayout_39">
-                   <item row="0" column="0" colspan="2">
-                    <widget class="QTableWidget" name="weight_fcn_table">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
-                       <horstretch>0</horstretch>
-                       <verstretch>0</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="maximumSize">
-                      <size>
-                       <width>16777215</width>
-                       <height>114</height>
-                      </size>
-                     </property>
-                     <property name="toolTip">
-                      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Logistic function&lt;/p&gt;&lt;p&gt;Growth Rate&lt;span style=&quot; vertical-align:super;&quot;&gt;-1&lt;/span&gt; [μs&lt;span style=&quot; vertical-align:super;&quot;&gt;-1&lt;/span&gt;]&lt;/p&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;0&lt;/span&gt; Shift [μs]&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                     </property>
-                     <property name="selectionMode">
-                      <enum>QAbstractItemView::NoSelection</enum>
-                     </property>
-                     <attribute name="horizontalHeaderDefaultSectionSize">
-                      <number>30</number>
-                     </attribute>
-                     <attribute name="horizontalHeaderMinimumSectionSize">
-                      <number>20</number>
-                     </attribute>
-                     <attribute name="horizontalHeaderStretchLastSection">
-                      <bool>true</bool>
-                     </attribute>
-                     <attribute name="verticalHeaderDefaultSectionSize">
-                      <number>22</number>
-                     </attribute>
-                     <attribute name="verticalHeaderMinimumSectionSize">
-                      <number>22</number>
-                     </attribute>
-                     <row>
-                      <property name="text">
-                       <string>Weight Max</string>
-                      </property>
-                     </row>
-                     <row>
-                      <property name="text">
-                       <string>Weight Min</string>
-                      </property>
-                     </row>
-                     <row>
-                      <property name="text">
-                       <string>Time Location</string>
-                      </property>
-                     </row>
-                     <row>
-                      <property name="text">
-                       <string>Inv. Growth Rate</string>
-                      </property>
-                     </row>
-                     <column>
-                      <property name="text">
-                       <string>Start</string>
-                      </property>
-                     </column>
-                     <column>
-                      <property name="text">
-                       <string>End</string>
-                      </property>
-                     </column>
-                    </widget>
-                   </item>
-                  </layout>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-              <widget class="QWidget" name="UncertaintyFunctionPage">
-               <layout class="QGridLayout" name="gridLayout_54">
-                <property name="leftMargin">
-                 <number>0</number>
-                </property>
-                <property name="topMargin">
-                 <number>0</number>
-                </property>
-                <property name="rightMargin">
-                 <number>0</number>
-                </property>
-                <property name="bottomMargin">
-                 <number>0</number>
-                </property>
-                <item row="0" column="0">
-                 <widget class="QGroupBox" name="groupBox_4">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="title">
-                   <string>Uncertainty Function</string>
-                  </property>
-                  <layout class="QGridLayout" name="gridLayout_57">
-                   <item row="0" column="0">
-                    <widget class="QTableWidget" name="unc_fcn_table">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
-                       <horstretch>0</horstretch>
-                       <verstretch>0</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="maximumSize">
-                      <size>
-                       <width>16777215</width>
-                       <height>135</height>
-                      </size>
-                     </property>
-                     <property name="selectionMode">
-                      <enum>QAbstractItemView::NoSelection</enum>
-                     </property>
-                     <attribute name="horizontalHeaderDefaultSectionSize">
-                      <number>30</number>
-                     </attribute>
-                     <attribute name="horizontalHeaderMinimumSectionSize">
-                      <number>20</number>
-                     </attribute>
-                     <attribute name="horizontalHeaderStretchLastSection">
-                      <bool>true</bool>
-                     </attribute>
-                     <attribute name="verticalHeaderDefaultSectionSize">
-                      <number>22</number>
-                     </attribute>
-                     <attribute name="verticalHeaderMinimumSectionSize">
-                      <number>22</number>
-                     </attribute>
-                     <row>
-                      <property name="text">
-                       <string>Uncertainty Max</string>
-                      </property>
-                     </row>
-                     <row>
-                      <property name="text">
-                       <string>Uncertainty Min </string>
-                      </property>
-                     </row>
-                     <row>
-                      <property name="text">
-                       <string>Time Location</string>
-                      </property>
-                     </row>
-                     <row>
-                      <property name="text">
-                       <string>Inv. Growth Rate</string>
-                      </property>
-                     </row>
-                     <row>
-                      <property name="text">
-                       <string>Cutoff Locations</string>
-                      </property>
-                     </row>
-                     <column>
-                      <property name="text">
-                       <string>Start</string>
-                      </property>
-                     </column>
-                     <column>
-                      <property name="text">
-                       <string>End</string>
-                      </property>
-                     </column>
-                    </widget>
-                   </item>
-                  </layout>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </widget>
-            </item>
-            <item row="3" column="0">
-             <widget class="QGroupBox" name="groupBox">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="MinimumExpanding" vsizetype="Minimum">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="title">
-               <string>Objective Function</string>
-              </property>
-              <property name="flat">
-               <bool>false</bool>
-              </property>
-              <property name="checkable">
-               <bool>false</bool>
-              </property>
-              <layout class="QGridLayout" name="gridLayout_38">
-               <property name="verticalSpacing">
-                <number>9</number>
-               </property>
-               <item row="3" column="0" colspan="2">
-                <widget class="QTabWidget" name="obj_fcn_tab_widget">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="tabShape">
-                  <enum>QTabWidget::Triangular</enum>
-                 </property>
-                 <property name="currentIndex">
-                  <number>0</number>
-                 </property>
-                 <widget class="QWidget" name="loss_fcn_tab">
-                  <attribute name="title">
-                   <string>Loss Function</string>
-                  </attribute>
-                  <layout class="QGridLayout" name="gridLayout_55">
-                   <item row="0" column="0">
-                    <widget class="QLabel" name="label_29">
-                     <property name="toolTip">
-                      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;right&quot;&gt;Less sensitive to outliers as alpha decreases&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;L2 loss (Mean Squared Error) = 2&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;Charbonnier (Huber-like) loss = 1&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;Cauchy loss = 0&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;Geman-McClure loss = −2&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;Welsch loss = −∞&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                     </property>
-                     <property name="text">
-                      <string>alpha (Shape Parameter)</string>
-                     </property>
-                     <property name="textFormat">
-                      <enum>Qt::RichText</enum>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="0" column="1">
-                    <spacer name="horizontalSpacer">
-                     <property name="orientation">
-                      <enum>Qt::Horizontal</enum>
-                     </property>
-                     <property name="sizeHint" stdset="0">
-                      <size>
-                       <width>40</width>
-                       <height>20</height>
-                      </size>
-                     </property>
-                    </spacer>
-                   </item>
-                   <item row="0" column="2">
-                    <widget class="QDoubleSpinBox" name="loss_alpha_box">
-                     <property name="accelerated">
-                      <bool>true</bool>
-                     </property>
-                     <property name="correctionMode">
-                      <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
-                     </property>
-                     <property name="decimals">
-                      <number>2</number>
-                     </property>
-                     <property name="minimum">
-                      <double>-1000.000000000000000</double>
-                     </property>
-                     <property name="maximum">
-                      <double>2.000000000000000</double>
-                     </property>
-                     <property name="value">
-                      <double>-2.000000000000000</double>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="1" column="0">
-                    <widget class="QLabel" name="label_31">
-                     <property name="toolTip">
-                      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Decreasing reduces effect of outliers&lt;/p&gt;&lt;p&gt;An additional multiplier to internal scaling &lt;/p&gt;&lt;p&gt;Internal scaling based on 1.5 IQR rule&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                     </property>
-                     <property name="text">
-                      <string>c (Scale Parameter)</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="1" column="2">
-                    <widget class="QDoubleSpinBox" name="loss_c_box">
-                     <property name="accelerated">
-                      <bool>true</bool>
-                     </property>
-                     <property name="correctionMode">
-                      <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
-                     </property>
-                     <property name="minimum">
-                      <double>0.010000000000000</double>
-                     </property>
-                     <property name="maximum">
-                      <double>1000.000000000000000</double>
-                     </property>
-                     <property name="singleStep">
-                      <double>0.100000000000000</double>
-                     </property>
-                     <property name="value">
-                      <double>1.000000000000000</double>
-                     </property>
-                    </widget>
-                   </item>
-                  </layout>
-                 </widget>
-                 <widget class="QWidget" name="Bayesian_tab">
-                  <attribute name="title">
-                   <string>Bayesian</string>
-                  </attribute>
-                  <layout class="QGridLayout" name="gridLayout_56">
-                   <item row="0" column="0">
-                    <widget class="QLabel" name="label_9">
-                     <property name="text">
-                      <string>Distribution Type</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="1" column="0">
-                    <widget class="QLabel" name="label_10">
-                     <property name="toolTip">
-                      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;How many Sigma the parameter uncertainty represents&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                     </property>
-                     <property name="text">
-                      <string>Parameter Uncertainty Sigma</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="1" column="2">
-                    <widget class="QDoubleSpinBox" name="bayes_unc_sigma_box">
-                     <property name="decimals">
-                      <number>1</number>
-                     </property>
-                     <property name="minimum">
-                      <double>0.000000000000000</double>
-                     </property>
-                     <property name="maximum">
-                      <double>10.000000000000000</double>
-                     </property>
-                     <property name="value">
-                      <double>3.000000000000000</double>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="0" column="2">
-                    <widget class="QComboBox" name="bayes_dist_type_box">
-                     <item>
-                      <property name="text">
-                       <string>Gaussian</string>
-                      </property>
-                     </item>
-                     <item>
-                      <property name="text">
-                       <string>Uniform</string>
-                      </property>
-                     </item>
-                    </widget>
-                   </item>
-                   <item row="0" column="1">
-                    <spacer name="horizontalSpacer_34">
-                     <property name="orientation">
-                      <enum>Qt::Horizontal</enum>
-                     </property>
-                     <property name="sizeType">
-                      <enum>QSizePolicy::MinimumExpanding</enum>
-                     </property>
-                     <property name="sizeHint" stdset="0">
-                      <size>
-                       <width>20</width>
-                       <height>20</height>
-                      </size>
-                     </property>
-                    </spacer>
-                   </item>
-                  </layout>
-                 </widget>
-                </widget>
-               </item>
-               <item row="0" column="0" colspan="2">
-                <widget class="QFrame" name="frame_9">
-                 <property name="frameShape">
-                  <enum>QFrame::StyledPanel</enum>
-                 </property>
-                 <property name="frameShadow">
-                  <enum>QFrame::Raised</enum>
-                 </property>
-                 <layout class="QGridLayout" name="gridLayout_13">
-                  <property name="leftMargin">
-                   <number>0</number>
-                  </property>
-                  <property name="topMargin">
-                   <number>0</number>
-                  </property>
-                  <property name="rightMargin">
-                   <number>0</number>
-                  </property>
-                  <property name="bottomMargin">
-                   <number>0</number>
-                  </property>
-                  <property name="horizontalSpacing">
-                   <number>6</number>
-                  </property>
-                  <item row="0" column="2">
-                   <spacer name="horizontalSpacer_35">
-                    <property name="orientation">
-                     <enum>Qt::Horizontal</enum>
-                    </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>40</width>
-                      <height>20</height>
-                     </size>
-                    </property>
-                   </spacer>
-                  </item>
-                  <item row="0" column="0">
-                   <widget class="QLabel" name="label_6">
-                    <property name="text">
-                     <string>Type:</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="3">
-                   <widget class="QLabel" name="label_3">
-                    <property name="text">
-                     <string>Scale:</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="4">
-                   <widget class="QComboBox" name="obj_fcn_scale_box">
-                    <item>
-                     <property name="text">
-                      <string>Linear</string>
-                     </property>
-                    </item>
-                    <item>
-                     <property name="text">
-                      <string>Log</string>
-                     </property>
-                    </item>
-                   </widget>
-                  </item>
-                  <item row="0" column="1">
-                   <widget class="QComboBox" name="obj_fcn_type_box">
-                    <item>
-                     <property name="text">
-                      <string>Residual</string>
-                     </property>
-                    </item>
-                    <item>
-                     <property name="text">
-                      <string>Bayesian</string>
-                     </property>
-                    </item>
-                   </widget>
-                  </item>
-                 </layout>
-                </widget>
-               </item>
-              </layout>
-             </widget>
-            </item>
             <item row="0" column="0">
              <widget class="QFrame" name="frame_13">
               <property name="enabled">
@@ -2563,502 +2048,1013 @@ p, li { white-space: pre-wrap; }
              </widget>
             </item>
             <item row="1" column="0">
-             <widget class="QGroupBox" name="groupBox_9">
+             <widget class="QGroupBox" name="groupBox_5">
               <property name="title">
-               <string>Time</string>
+               <string>Objective Function Selection</string>
               </property>
-              <layout class="QGridLayout" name="gridLayout_15">
-               <item row="0" column="1">
-                <spacer name="horizontalSpacer_21">
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-               <item row="0" column="2">
-                <widget class="QDoubleSpinBox" name="time_unc_box">
-                 <property name="enabled">
-                  <bool>true</bool>
-                 </property>
-                 <property name="accelerated">
-                  <bool>true</bool>
-                 </property>
-                 <property name="keyboardTracking">
-                  <bool>false</bool>
-                 </property>
-                 <property name="decimals">
-                  <number>3</number>
-                 </property>
-                 <property name="maximum">
-                  <double>100.000000000000000</double>
-                 </property>
-                 <property name="singleStep">
-                  <double>0.010000000000000</double>
-                 </property>
-                 <property name="value">
-                  <double>0.000000000000000</double>
-                 </property>
-                </widget>
-               </item>
+              <layout class="QGridLayout" name="gridLayout_59">
                <item row="0" column="0">
-                <widget class="QLabel" name="label">
-                 <property name="text">
-                  <string>Time Uncertainty [μs]</string>
+                <widget class="QFrame" name="frame_9">
+                 <property name="frameShape">
+                  <enum>QFrame::StyledPanel</enum>
                  </property>
-                </widget>
-               </item>
-               <item row="1" column="2">
-                <widget class="QDoubleSpinBox" name="time_offset_twin_box">
-                 <property name="accelerated">
-                  <bool>true</bool>
+                 <property name="frameShadow">
+                  <enum>QFrame::Raised</enum>
                  </property>
-                 <property name="correctionMode">
-                  <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
-                 </property>
-                 <property name="keyboardTracking">
-                  <bool>false</bool>
-                 </property>
-                 <property name="decimals">
-                  <number>3</number>
-                 </property>
-                 <property name="minimum">
-                  <double>-100.000000000000000</double>
-                 </property>
-                 <property name="maximum">
-                  <double>100.000000000000000</double>
-                 </property>
-                 <property name="singleStep">
-                  <double>0.005000000000000</double>
-                 </property>
-                </widget>
-               </item>
-               <item row="1" column="0">
-                <widget class="QLabel" name="label_12">
-                 <property name="toolTip">
-                  <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Can be used for incubation time&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                 </property>
-                 <property name="text">
-                  <string>Time Offset [μs]</string>
-                 </property>
+                 <layout class="QGridLayout" name="gridLayout_13">
+                  <property name="leftMargin">
+                   <number>0</number>
+                  </property>
+                  <property name="topMargin">
+                   <number>0</number>
+                  </property>
+                  <property name="rightMargin">
+                   <number>0</number>
+                  </property>
+                  <property name="bottomMargin">
+                   <number>0</number>
+                  </property>
+                  <property name="horizontalSpacing">
+                   <number>6</number>
+                  </property>
+                  <item row="0" column="1">
+                   <widget class="QComboBox" name="obj_fcn_type_box">
+                    <item>
+                     <property name="text">
+                      <string>Residual</string>
+                     </property>
+                    </item>
+                    <item>
+                     <property name="text">
+                      <string>Bayesian</string>
+                     </property>
+                    </item>
+                   </widget>
+                  </item>
+                  <item row="0" column="2">
+                   <spacer name="horizontalSpacer_35">
+                    <property name="orientation">
+                     <enum>Qt::Horizontal</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                     <size>
+                      <width>40</width>
+                      <height>20</height>
+                     </size>
+                    </property>
+                   </spacer>
+                  </item>
+                  <item row="0" column="0">
+                   <widget class="QLabel" name="label_6">
+                    <property name="text">
+                     <string>Type:</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="3">
+                   <widget class="QLabel" name="label_3">
+                    <property name="text">
+                     <string>Scale:</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="4">
+                   <widget class="QComboBox" name="obj_fcn_scale_box">
+                    <item>
+                     <property name="text">
+                      <string>Linear</string>
+                     </property>
+                    </item>
+                    <item>
+                     <property name="text">
+                      <string>Log</string>
+                     </property>
+                    </item>
+                   </widget>
+                  </item>
+                 </layout>
                 </widget>
                </item>
               </layout>
              </widget>
             </item>
-            <item row="4" column="0">
-             <widget class="QGroupBox" name="groupBox_6">
-              <property name="enabled">
-               <bool>true</bool>
+            <item row="3" column="0">
+             <widget class="QTabWidget" name="tabWidget_2">
+              <property name="tabShape">
+               <enum>QTabWidget::Triangular</enum>
               </property>
-              <property name="title">
-               <string>Optimization</string>
+              <property name="currentIndex">
+               <number>0</number>
               </property>
-              <layout class="QGridLayout" name="gridLayout_41">
-               <item row="4" column="0">
-                <spacer name="verticalSpacer_5">
-                 <property name="orientation">
-                  <enum>Qt::Vertical</enum>
-                 </property>
-                 <property name="sizeType">
-                  <enum>QSizePolicy::Fixed</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>20</width>
-                   <height>5</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-               <item row="0" column="0">
-                <widget class="QCheckBox" name="multiprocessing_box">
-                 <property name="text">
-                  <string>Multiprocessing</string>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                </widget>
-               </item>
-               <item row="1" column="0" rowspan="2" colspan="2">
-                <widget class="QToolBox" name="opt_toolbox">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="minimumSize">
-                  <size>
-                   <width>0</width>
-                   <height>168</height>
-                  </size>
-                 </property>
-                 <property name="autoFillBackground">
-                  <bool>true</bool>
-                 </property>
-                 <property name="currentIndex">
-                  <number>0</number>
-                 </property>
-                 <property name="tabSpacing">
-                  <number>4</number>
-                 </property>
-                 <widget class="QWidget" name="global_opt_page">
+              <widget class="QWidget" name="tab_4">
+               <attribute name="title">
+                <string>Experiment Settings</string>
+               </attribute>
+               <layout class="QGridLayout" name="gridLayout_62">
+                <item row="1" column="0">
+                 <widget class="QStackedWidget" name="weight_unc_parameters_stacked_widget">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="currentIndex">
+                   <number>0</number>
+                  </property>
+                  <widget class="QWidget" name="WeightFunctionPage">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                   </property>
+                   <layout class="QGridLayout" name="gridLayout_53">
+                    <property name="leftMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="rightMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>0</number>
+                    </property>
+                    <item row="0" column="0">
+                     <widget class="QGroupBox" name="groupBox_2">
+                      <property name="sizePolicy">
+                       <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+                        <horstretch>0</horstretch>
+                        <verstretch>0</verstretch>
+                       </sizepolicy>
+                      </property>
+                      <property name="toolTip">
+                       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Logistic Function&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                      </property>
+                      <property name="title">
+                       <string>Weight Function</string>
+                      </property>
+                      <layout class="QGridLayout" name="gridLayout_39">
+                       <item row="0" column="0" colspan="2">
+                        <widget class="QTableWidget" name="weight_fcn_table">
+                         <property name="sizePolicy">
+                          <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
+                           <horstretch>0</horstretch>
+                           <verstretch>0</verstretch>
+                          </sizepolicy>
+                         </property>
+                         <property name="maximumSize">
+                          <size>
+                           <width>16777215</width>
+                           <height>114</height>
+                          </size>
+                         </property>
+                         <property name="toolTip">
+                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Logistic function&lt;/p&gt;&lt;p&gt;Growth Rate&lt;span style=&quot; vertical-align:super;&quot;&gt;-1&lt;/span&gt; [μs&lt;span style=&quot; vertical-align:super;&quot;&gt;-1&lt;/span&gt;]&lt;/p&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;0&lt;/span&gt; Shift [μs]&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                         </property>
+                         <property name="selectionMode">
+                          <enum>QAbstractItemView::NoSelection</enum>
+                         </property>
+                         <attribute name="horizontalHeaderDefaultSectionSize">
+                          <number>30</number>
+                         </attribute>
+                         <attribute name="horizontalHeaderMinimumSectionSize">
+                          <number>20</number>
+                         </attribute>
+                         <attribute name="horizontalHeaderStretchLastSection">
+                          <bool>true</bool>
+                         </attribute>
+                         <attribute name="verticalHeaderDefaultSectionSize">
+                          <number>22</number>
+                         </attribute>
+                         <attribute name="verticalHeaderMinimumSectionSize">
+                          <number>22</number>
+                         </attribute>
+                         <row>
+                          <property name="text">
+                           <string>Weight Max</string>
+                          </property>
+                         </row>
+                         <row>
+                          <property name="text">
+                           <string>Weight Min</string>
+                          </property>
+                         </row>
+                         <row>
+                          <property name="text">
+                           <string>Time Location</string>
+                          </property>
+                         </row>
+                         <row>
+                          <property name="text">
+                           <string>Inv. Growth Rate</string>
+                          </property>
+                         </row>
+                         <column>
+                          <property name="text">
+                           <string>Start</string>
+                          </property>
+                         </column>
+                         <column>
+                          <property name="text">
+                           <string>End</string>
+                          </property>
+                         </column>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                   </layout>
+                  </widget>
+                  <widget class="QWidget" name="UncertaintyFunctionPage">
+                   <layout class="QGridLayout" name="gridLayout_54">
+                    <property name="leftMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="rightMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>0</number>
+                    </property>
+                    <item row="0" column="0">
+                     <widget class="QGroupBox" name="groupBox_4">
+                      <property name="sizePolicy">
+                       <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+                        <horstretch>0</horstretch>
+                        <verstretch>0</verstretch>
+                       </sizepolicy>
+                      </property>
+                      <property name="title">
+                       <string>Uncertainty Function</string>
+                      </property>
+                      <layout class="QGridLayout" name="gridLayout_57">
+                       <item row="0" column="0">
+                        <widget class="QTableWidget" name="unc_fcn_table">
+                         <property name="sizePolicy">
+                          <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
+                           <horstretch>0</horstretch>
+                           <verstretch>0</verstretch>
+                          </sizepolicy>
+                         </property>
+                         <property name="maximumSize">
+                          <size>
+                           <width>16777215</width>
+                           <height>135</height>
+                          </size>
+                         </property>
+                         <property name="selectionMode">
+                          <enum>QAbstractItemView::NoSelection</enum>
+                         </property>
+                         <attribute name="horizontalHeaderDefaultSectionSize">
+                          <number>30</number>
+                         </attribute>
+                         <attribute name="horizontalHeaderMinimumSectionSize">
+                          <number>20</number>
+                         </attribute>
+                         <attribute name="horizontalHeaderStretchLastSection">
+                          <bool>true</bool>
+                         </attribute>
+                         <attribute name="verticalHeaderDefaultSectionSize">
+                          <number>22</number>
+                         </attribute>
+                         <attribute name="verticalHeaderMinimumSectionSize">
+                          <number>22</number>
+                         </attribute>
+                         <row>
+                          <property name="text">
+                           <string>Uncertainty Max</string>
+                          </property>
+                         </row>
+                         <row>
+                          <property name="text">
+                           <string>Uncertainty Min </string>
+                          </property>
+                         </row>
+                         <row>
+                          <property name="text">
+                           <string>Time Location</string>
+                          </property>
+                         </row>
+                         <row>
+                          <property name="text">
+                           <string>Inv. Growth Rate</string>
+                          </property>
+                         </row>
+                         <row>
+                          <property name="text">
+                           <string>Cutoff Locations</string>
+                          </property>
+                         </row>
+                         <column>
+                          <property name="text">
+                           <string>Start</string>
+                          </property>
+                         </column>
+                         <column>
+                          <property name="text">
+                           <string>End</string>
+                          </property>
+                         </column>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                   </layout>
+                  </widget>
+                 </widget>
+                </item>
+                <item row="0" column="0">
+                 <widget class="QGroupBox" name="groupBox_9">
+                  <property name="title">
+                   <string>Time</string>
+                  </property>
+                  <layout class="QGridLayout" name="gridLayout_15">
+                   <item row="0" column="2">
+                    <widget class="QDoubleSpinBox" name="time_unc_box">
+                     <property name="enabled">
+                      <bool>true</bool>
+                     </property>
+                     <property name="accelerated">
+                      <bool>true</bool>
+                     </property>
+                     <property name="keyboardTracking">
+                      <bool>false</bool>
+                     </property>
+                     <property name="decimals">
+                      <number>3</number>
+                     </property>
+                     <property name="maximum">
+                      <double>100.000000000000000</double>
+                     </property>
+                     <property name="singleStep">
+                      <double>0.010000000000000</double>
+                     </property>
+                     <property name="value">
+                      <double>0.000000000000000</double>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="2">
+                    <widget class="QDoubleSpinBox" name="time_offset_twin_box">
+                     <property name="accelerated">
+                      <bool>true</bool>
+                     </property>
+                     <property name="correctionMode">
+                      <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+                     </property>
+                     <property name="keyboardTracking">
+                      <bool>false</bool>
+                     </property>
+                     <property name="decimals">
+                      <number>3</number>
+                     </property>
+                     <property name="minimum">
+                      <double>-100.000000000000000</double>
+                     </property>
+                     <property name="maximum">
+                      <double>100.000000000000000</double>
+                     </property>
+                     <property name="singleStep">
+                      <double>0.005000000000000</double>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="0">
+                    <widget class="QLabel" name="label_12">
+                     <property name="toolTip">
+                      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Can be used for incubation time&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                     </property>
+                     <property name="text">
+                      <string>Time Offset [μs]</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="0" column="1">
+                    <spacer name="horizontalSpacer_21">
+                     <property name="orientation">
+                      <enum>Qt::Horizontal</enum>
+                     </property>
+                     <property name="sizeHint" stdset="0">
+                      <size>
+                       <width>40</width>
+                       <height>20</height>
+                      </size>
+                     </property>
+                    </spacer>
+                   </item>
+                   <item row="0" column="0">
+                    <widget class="QLabel" name="label">
+                     <property name="text">
+                      <string>Time Uncertainty [μs]</string>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </widget>
+                </item>
+                <item row="2" column="0">
+                 <spacer name="verticalSpacer_3">
+                  <property name="orientation">
+                   <enum>Qt::Vertical</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>20</width>
+                    <height>40</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </widget>
+              <widget class="QWidget" name="tab_5">
+               <attribute name="title">
+                <string>Optimization Settings</string>
+               </attribute>
+               <layout class="QGridLayout" name="gridLayout_63">
+                <item row="0" column="0">
+                 <widget class="QGroupBox" name="groupBox">
+                  <property name="title">
+                   <string>Objective Function</string>
+                  </property>
+                  <property name="flat">
+                   <bool>false</bool>
+                  </property>
+                  <property name="checkable">
+                   <bool>false</bool>
+                  </property>
+                  <layout class="QGridLayout" name="gridLayout_38">
+                   <property name="verticalSpacing">
+                    <number>9</number>
+                   </property>
+                   <item row="1" column="0" colspan="2">
+                    <widget class="QTabWidget" name="obj_fcn_tab_widget">
+                     <property name="tabShape">
+                      <enum>QTabWidget::Triangular</enum>
+                     </property>
+                     <property name="currentIndex">
+                      <number>0</number>
+                     </property>
+                     <widget class="QWidget" name="loss_fcn_tab">
+                      <attribute name="title">
+                       <string>Loss Function</string>
+                      </attribute>
+                      <layout class="QGridLayout" name="gridLayout_55">
+                       <item row="1" column="0">
+                        <widget class="QLabel" name="label_31">
+                         <property name="toolTip">
+                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Decreasing reduces effect of outliers&lt;/p&gt;&lt;p&gt;An additional multiplier to internal scaling &lt;/p&gt;&lt;p&gt;Internal scaling based on 1.5 IQR rule&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                         </property>
+                         <property name="text">
+                          <string>c (Scale Parameter)</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item row="1" column="2">
+                        <widget class="QDoubleSpinBox" name="loss_c_box">
+                         <property name="accelerated">
+                          <bool>true</bool>
+                         </property>
+                         <property name="correctionMode">
+                          <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+                         </property>
+                         <property name="minimum">
+                          <double>0.010000000000000</double>
+                         </property>
+                         <property name="maximum">
+                          <double>1000.000000000000000</double>
+                         </property>
+                         <property name="singleStep">
+                          <double>0.100000000000000</double>
+                         </property>
+                         <property name="value">
+                          <double>1.000000000000000</double>
+                         </property>
+                        </widget>
+                       </item>
+                       <item row="0" column="0">
+                        <widget class="QLabel" name="label_29">
+                         <property name="toolTip">
+                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;right&quot;&gt;Less sensitive to outliers as alpha decreases&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;L2 loss (Mean Squared Error) = 2&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;Charbonnier (Huber-like) loss = 1&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;Cauchy loss = 0&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;Geman-McClure loss = −2&lt;/p&gt;&lt;p align=&quot;right&quot;&gt;Welsch loss = −∞&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                         </property>
+                         <property name="text">
+                          <string>alpha (Shape Parameter)</string>
+                         </property>
+                         <property name="textFormat">
+                          <enum>Qt::RichText</enum>
+                         </property>
+                        </widget>
+                       </item>
+                       <item row="0" column="1">
+                        <spacer name="horizontalSpacer">
+                         <property name="orientation">
+                          <enum>Qt::Horizontal</enum>
+                         </property>
+                         <property name="sizeHint" stdset="0">
+                          <size>
+                           <width>40</width>
+                           <height>20</height>
+                          </size>
+                         </property>
+                        </spacer>
+                       </item>
+                       <item row="0" column="2">
+                        <widget class="QDoubleSpinBox" name="loss_alpha_box">
+                         <property name="accelerated">
+                          <bool>true</bool>
+                         </property>
+                         <property name="correctionMode">
+                          <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+                         </property>
+                         <property name="decimals">
+                          <number>2</number>
+                         </property>
+                         <property name="minimum">
+                          <double>-1000.000000000000000</double>
+                         </property>
+                         <property name="maximum">
+                          <double>2.000000000000000</double>
+                         </property>
+                         <property name="value">
+                          <double>-2.000000000000000</double>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
+                     <widget class="QWidget" name="Bayesian_tab">
+                      <attribute name="title">
+                       <string>Bayesian</string>
+                      </attribute>
+                      <layout class="QGridLayout" name="gridLayout_56">
+                       <item row="0" column="0">
+                        <widget class="QLabel" name="label_9">
+                         <property name="text">
+                          <string>Distribution Type</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item row="1" column="0">
+                        <widget class="QLabel" name="label_10">
+                         <property name="toolTip">
+                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;How many Sigma the parameter uncertainty represents&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                         </property>
+                         <property name="text">
+                          <string>Parameter Uncertainty Sigma</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item row="1" column="2">
+                        <widget class="QDoubleSpinBox" name="bayes_unc_sigma_box">
+                         <property name="decimals">
+                          <number>1</number>
+                         </property>
+                         <property name="minimum">
+                          <double>0.000000000000000</double>
+                         </property>
+                         <property name="maximum">
+                          <double>10.000000000000000</double>
+                         </property>
+                         <property name="value">
+                          <double>3.000000000000000</double>
+                         </property>
+                        </widget>
+                       </item>
+                       <item row="0" column="2">
+                        <widget class="QComboBox" name="bayes_dist_type_box">
+                         <item>
+                          <property name="text">
+                           <string>Gaussian</string>
+                          </property>
+                         </item>
+                         <item>
+                          <property name="text">
+                           <string>Uniform</string>
+                          </property>
+                         </item>
+                        </widget>
+                       </item>
+                       <item row="0" column="1">
+                        <spacer name="horizontalSpacer_34">
+                         <property name="orientation">
+                          <enum>Qt::Horizontal</enum>
+                         </property>
+                         <property name="sizeType">
+                          <enum>QSizePolicy::MinimumExpanding</enum>
+                         </property>
+                         <property name="sizeHint" stdset="0">
+                          <size>
+                           <width>0</width>
+                           <height>20</height>
+                          </size>
+                         </property>
+                        </spacer>
+                       </item>
+                      </layout>
+                     </widget>
+                    </widget>
+                   </item>
+                  </layout>
+                 </widget>
+                </item>
+                <item row="1" column="0">
+                 <widget class="QGroupBox" name="groupBox_6">
                   <property name="enabled">
                    <bool>true</bool>
                   </property>
-                  <property name="geometry">
-                   <rect>
-                    <x>0</x>
-                    <y>0</y>
-                    <width>276</width>
-                    <height>118</height>
-                   </rect>
+                  <property name="title">
+                   <string>Optimization</string>
                   </property>
-                  <attribute name="label">
-                   <string>Global Optimization</string>
-                  </attribute>
-                  <layout class="QGridLayout" name="gridLayout_42">
-                   <item row="1" column="0" colspan="3">
-                    <widget class="QFrame" name="frame_18">
-                     <property name="frameShape">
-                      <enum>QFrame::StyledPanel</enum>
-                     </property>
-                     <property name="frameShadow">
-                      <enum>QFrame::Raised</enum>
-                     </property>
-                     <layout class="QGridLayout" name="gridLayout_45">
-                      <property name="leftMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="topMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="rightMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="bottomMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="horizontalSpacing">
-                       <number>6</number>
-                      </property>
-                      <item row="0" column="1">
-                       <widget class="QComboBox" name="global_opt_choice_box">
-                        <property name="sizePolicy">
-                         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                          <horstretch>0</horstretch>
-                          <verstretch>0</verstretch>
-                         </sizepolicy>
-                        </property>
-                        <property name="toolTip">
-                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;ISRES: Improved Stochastic Ranking Evolution Strategy&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                        </property>
-                        <property name="currentIndex">
-                         <number>0</number>
-                        </property>
-                        <item>
-                         <property name="text">
-                          <string>DIRECT</string>
-                         </property>
-                        </item>
-                        <item>
-                         <property name="text">
-                          <string>DIRECT-L</string>
-                         </property>
-                        </item>
-                        <item>
-                         <property name="text">
-                          <string>CRS (Controlled Random Search)</string>
-                         </property>
-                        </item>
-                        <item>
-                         <property name="text">
-                          <string>Evolutionary</string>
-                         </property>
-                        </item>
-                        <item>
-                         <property name="text">
-                          <string>MLSL (Multi-Level Single-Linkage)</string>
-                         </property>
-                        </item>
-                        <item>
-                         <property name="text">
-                          <string>ISRES</string>
-                         </property>
-                        </item>
-                       </widget>
-                      </item>
-                      <item row="0" column="0">
-                       <widget class="QCheckBox" name="global_opt_enable_box">
-                        <property name="sizePolicy">
-                         <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-                          <horstretch>0</horstretch>
-                          <verstretch>0</verstretch>
-                         </sizepolicy>
-                        </property>
-                        <property name="text">
-                         <string/>
-                        </property>
-                        <property name="checked">
-                         <bool>true</bool>
-                        </property>
-                       </widget>
-                      </item>
-                     </layout>
-                    </widget>
-                   </item>
-                   <item row="3" column="0">
-                    <widget class="QLabel" name="global_text_2">
+                  <layout class="QGridLayout" name="gridLayout_41">
+                   <item row="0" column="0">
+                    <widget class="QCheckBox" name="multiprocessing_box">
                      <property name="text">
-                      <string>Relative Tolerance: x</string>
+                      <string>Multiprocessing</string>
+                     </property>
+                     <property name="checked">
+                      <bool>true</bool>
                      </property>
                     </widget>
                    </item>
-                   <item row="2" column="0">
-                    <widget class="QLabel" name="global_text_1">
-                     <property name="text">
-                      <string>Initial Step</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="2" column="1">
-                    <spacer name="horizontalSpacer_22">
-                     <property name="orientation">
-                      <enum>Qt::Horizontal</enum>
-                     </property>
-                     <property name="sizeHint" stdset="0">
-                      <size>
-                       <width>40</width>
-                       <height>20</height>
-                      </size>
-                     </property>
-                    </spacer>
-                   </item>
-                   <item row="4" column="0">
-                    <widget class="QLabel" name="global_text_3">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                       <horstretch>0</horstretch>
-                       <verstretch>0</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="text">
-                      <string>Relative Tolerance: obj fcn</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="2" column="2" rowspan="3">
-                    <widget class="QFrame" name="frame_21">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
-                       <horstretch>0</horstretch>
-                       <verstretch>0</verstretch>
-                      </sizepolicy>
-                     </property>
+                   <item row="1" column="0" rowspan="2" colspan="2">
+                    <widget class="QToolBox" name="opt_toolbox">
                      <property name="minimumSize">
                       <size>
-                       <width>15</width>
-                       <height>0</height>
+                       <width>0</width>
+                       <height>168</height>
                       </size>
                      </property>
-                     <property name="frameShape">
-                      <enum>QFrame::NoFrame</enum>
+                     <property name="autoFillBackground">
+                      <bool>true</bool>
                      </property>
-                     <property name="frameShadow">
-                      <enum>QFrame::Plain</enum>
-                     </property>
-                     <property name="lineWidth">
+                     <property name="currentIndex">
                       <number>0</number>
                      </property>
-                     <layout class="QGridLayout" name="global_opt_layout">
-                      <property name="leftMargin">
-                       <number>0</number>
+                     <property name="tabSpacing">
+                      <number>4</number>
+                     </property>
+                     <widget class="QWidget" name="global_opt_page">
+                      <property name="enabled">
+                       <bool>true</bool>
                       </property>
-                      <property name="topMargin">
-                       <number>0</number>
+                      <property name="geometry">
+                       <rect>
+                        <x>0</x>
+                        <y>0</y>
+                        <width>252</width>
+                        <height>118</height>
+                       </rect>
                       </property>
-                      <property name="rightMargin">
-                       <number>0</number>
+                      <attribute name="label">
+                       <string>Global Optimization</string>
+                      </attribute>
+                      <layout class="QGridLayout" name="gridLayout_42">
+                       <item row="1" column="0" colspan="3">
+                        <widget class="QFrame" name="frame_18">
+                         <property name="frameShape">
+                          <enum>QFrame::StyledPanel</enum>
+                         </property>
+                         <property name="frameShadow">
+                          <enum>QFrame::Raised</enum>
+                         </property>
+                         <layout class="QGridLayout" name="gridLayout_45">
+                          <property name="leftMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="topMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="rightMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="bottomMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="horizontalSpacing">
+                           <number>6</number>
+                          </property>
+                          <item row="0" column="1">
+                           <widget class="QComboBox" name="global_opt_choice_box">
+                            <property name="sizePolicy">
+                             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                             </sizepolicy>
+                            </property>
+                            <property name="toolTip">
+                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;ISRES: Improved Stochastic Ranking Evolution Strategy&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                            </property>
+                            <property name="currentIndex">
+                             <number>0</number>
+                            </property>
+                            <item>
+                             <property name="text">
+                              <string>DIRECT</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>DIRECT-L</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>CRS (Controlled Random Search)</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>Evolutionary</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>MLSL (Multi-Level Single-Linkage)</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>ISRES</string>
+                             </property>
+                            </item>
+                           </widget>
+                          </item>
+                          <item row="0" column="0">
+                           <widget class="QCheckBox" name="global_opt_enable_box">
+                            <property name="sizePolicy">
+                             <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                             </sizepolicy>
+                            </property>
+                            <property name="text">
+                             <string/>
+                            </property>
+                            <property name="checked">
+                             <bool>true</bool>
+                            </property>
+                           </widget>
+                          </item>
+                         </layout>
+                        </widget>
+                       </item>
+                       <item row="3" column="0">
+                        <widget class="QLabel" name="global_text_2">
+                         <property name="text">
+                          <string>Relative Tolerance: x</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item row="2" column="0">
+                        <widget class="QLabel" name="global_text_1">
+                         <property name="text">
+                          <string>Initial Step</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item row="2" column="1">
+                        <spacer name="horizontalSpacer_22">
+                         <property name="orientation">
+                          <enum>Qt::Horizontal</enum>
+                         </property>
+                         <property name="sizeHint" stdset="0">
+                          <size>
+                           <width>40</width>
+                           <height>20</height>
+                          </size>
+                         </property>
+                        </spacer>
+                       </item>
+                       <item row="4" column="0">
+                        <widget class="QLabel" name="global_text_3">
+                         <property name="sizePolicy">
+                          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                           <horstretch>0</horstretch>
+                           <verstretch>0</verstretch>
+                          </sizepolicy>
+                         </property>
+                         <property name="text">
+                          <string>Relative Tolerance: obj fcn</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item row="2" column="2" rowspan="3">
+                        <widget class="QFrame" name="frame_21">
+                         <property name="sizePolicy">
+                          <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+                           <horstretch>0</horstretch>
+                           <verstretch>0</verstretch>
+                          </sizepolicy>
+                         </property>
+                         <property name="minimumSize">
+                          <size>
+                           <width>15</width>
+                           <height>0</height>
+                          </size>
+                         </property>
+                         <property name="frameShape">
+                          <enum>QFrame::NoFrame</enum>
+                         </property>
+                         <property name="frameShadow">
+                          <enum>QFrame::Plain</enum>
+                         </property>
+                         <property name="lineWidth">
+                          <number>0</number>
+                         </property>
+                         <layout class="QGridLayout" name="global_opt_layout">
+                          <property name="leftMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="topMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="rightMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="bottomMargin">
+                           <number>0</number>
+                          </property>
+                         </layout>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
+                     <widget class="QWidget" name="page_2">
+                      <property name="geometry">
+                       <rect>
+                        <x>0</x>
+                        <y>0</y>
+                        <width>174</width>
+                        <height>104</height>
+                       </rect>
                       </property>
-                      <property name="bottomMargin">
-                       <number>0</number>
-                      </property>
-                     </layout>
+                      <attribute name="label">
+                       <string>Local Optimization</string>
+                      </attribute>
+                      <layout class="QGridLayout" name="gridLayout_47">
+                       <item row="1" column="0">
+                        <widget class="QLabel" name="local_text_1">
+                         <property name="text">
+                          <string>Initial Step</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item row="1" column="1">
+                        <spacer name="horizontalSpacer_23">
+                         <property name="orientation">
+                          <enum>Qt::Horizontal</enum>
+                         </property>
+                         <property name="sizeHint" stdset="0">
+                          <size>
+                           <width>40</width>
+                           <height>20</height>
+                          </size>
+                         </property>
+                        </spacer>
+                       </item>
+                       <item row="2" column="0">
+                        <widget class="QLabel" name="local_text_2">
+                         <property name="text">
+                          <string>Relative Tolerance: x</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item row="3" column="0">
+                        <widget class="QLabel" name="local_text_3">
+                         <property name="text">
+                          <string>Relative Tolerance: obj fcn</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item row="1" column="2" rowspan="3">
+                        <widget class="QFrame" name="frame_22">
+                         <property name="sizePolicy">
+                          <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+                           <horstretch>0</horstretch>
+                           <verstretch>0</verstretch>
+                          </sizepolicy>
+                         </property>
+                         <property name="minimumSize">
+                          <size>
+                           <width>15</width>
+                           <height>0</height>
+                          </size>
+                         </property>
+                         <property name="frameShape">
+                          <enum>QFrame::NoFrame</enum>
+                         </property>
+                         <property name="frameShadow">
+                          <enum>QFrame::Plain</enum>
+                         </property>
+                         <property name="lineWidth">
+                          <number>0</number>
+                         </property>
+                         <layout class="QGridLayout" name="local_opt_layout">
+                          <property name="leftMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="topMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="rightMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="bottomMargin">
+                           <number>0</number>
+                          </property>
+                         </layout>
+                        </widget>
+                       </item>
+                       <item row="0" column="0" colspan="3">
+                        <widget class="QFrame" name="frame_20">
+                         <property name="frameShape">
+                          <enum>QFrame::StyledPanel</enum>
+                         </property>
+                         <property name="frameShadow">
+                          <enum>QFrame::Raised</enum>
+                         </property>
+                         <layout class="QGridLayout" name="gridLayout_46">
+                          <property name="leftMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="topMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="rightMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="bottomMargin">
+                           <number>0</number>
+                          </property>
+                          <item row="0" column="1">
+                           <widget class="QComboBox" name="local_opt_choice_box">
+                            <property name="sizePolicy">
+                             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                             </sizepolicy>
+                            </property>
+                            <property name="currentIndex">
+                             <number>0</number>
+                            </property>
+                            <item>
+                             <property name="text">
+                              <string>Subplex</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>COBYLA</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>BOBYQA</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>Nelder-Mead Simplex</string>
+                             </property>
+                            </item>
+                           </widget>
+                          </item>
+                          <item row="0" column="0">
+                           <widget class="QCheckBox" name="local_opt_enable_box">
+                            <property name="sizePolicy">
+                             <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                             </sizepolicy>
+                            </property>
+                            <property name="text">
+                             <string/>
+                            </property>
+                            <property name="checked">
+                             <bool>true</bool>
+                            </property>
+                           </widget>
+                          </item>
+                         </layout>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
                     </widget>
                    </item>
                   </layout>
                  </widget>
-                 <widget class="QWidget" name="page_2">
-                  <property name="geometry">
-                   <rect>
-                    <x>0</x>
-                    <y>0</y>
-                    <width>174</width>
-                    <height>104</height>
-                   </rect>
-                  </property>
-                  <attribute name="label">
-                   <string>Local Optimization</string>
-                  </attribute>
-                  <layout class="QGridLayout" name="gridLayout_47">
-                   <item row="1" column="0">
-                    <widget class="QLabel" name="local_text_1">
-                     <property name="text">
-                      <string>Initial Step</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="1" column="1">
-                    <spacer name="horizontalSpacer_23">
-                     <property name="orientation">
-                      <enum>Qt::Horizontal</enum>
-                     </property>
-                     <property name="sizeHint" stdset="0">
-                      <size>
-                       <width>40</width>
-                       <height>20</height>
-                      </size>
-                     </property>
-                    </spacer>
-                   </item>
-                   <item row="2" column="0">
-                    <widget class="QLabel" name="local_text_2">
-                     <property name="text">
-                      <string>Relative Tolerance: x</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="3" column="0">
-                    <widget class="QLabel" name="local_text_3">
-                     <property name="text">
-                      <string>Relative Tolerance: obj fcn</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="1" column="2" rowspan="3">
-                    <widget class="QFrame" name="frame_22">
-                     <property name="sizePolicy">
-                      <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
-                       <horstretch>0</horstretch>
-                       <verstretch>0</verstretch>
-                      </sizepolicy>
-                     </property>
-                     <property name="minimumSize">
-                      <size>
-                       <width>15</width>
-                       <height>0</height>
-                      </size>
-                     </property>
-                     <property name="frameShape">
-                      <enum>QFrame::NoFrame</enum>
-                     </property>
-                     <property name="frameShadow">
-                      <enum>QFrame::Plain</enum>
-                     </property>
-                     <property name="lineWidth">
-                      <number>0</number>
-                     </property>
-                     <layout class="QGridLayout" name="local_opt_layout">
-                      <property name="leftMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="topMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="rightMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="bottomMargin">
-                       <number>0</number>
-                      </property>
-                     </layout>
-                    </widget>
-                   </item>
-                   <item row="0" column="0" colspan="3">
-                    <widget class="QFrame" name="frame_20">
-                     <property name="frameShape">
-                      <enum>QFrame::StyledPanel</enum>
-                     </property>
-                     <property name="frameShadow">
-                      <enum>QFrame::Raised</enum>
-                     </property>
-                     <layout class="QGridLayout" name="gridLayout_46">
-                      <property name="leftMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="topMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="rightMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="bottomMargin">
-                       <number>0</number>
-                      </property>
-                      <item row="0" column="1">
-                       <widget class="QComboBox" name="local_opt_choice_box">
-                        <property name="sizePolicy">
-                         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                          <horstretch>0</horstretch>
-                          <verstretch>0</verstretch>
-                         </sizepolicy>
-                        </property>
-                        <property name="currentIndex">
-                         <number>0</number>
-                        </property>
-                        <item>
-                         <property name="text">
-                          <string>Subplex</string>
-                         </property>
-                        </item>
-                        <item>
-                         <property name="text">
-                          <string>COBYLA</string>
-                         </property>
-                        </item>
-                        <item>
-                         <property name="text">
-                          <string>BOBYQA</string>
-                         </property>
-                        </item>
-                        <item>
-                         <property name="text">
-                          <string>Nelder-Mead Simplex</string>
-                         </property>
-                        </item>
-                       </widget>
-                      </item>
-                      <item row="0" column="0">
-                       <widget class="QCheckBox" name="local_opt_enable_box">
-                        <property name="sizePolicy">
-                         <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-                          <horstretch>0</horstretch>
-                          <verstretch>0</verstretch>
-                         </sizepolicy>
-                        </property>
-                        <property name="text">
-                         <string/>
-                        </property>
-                        <property name="checked">
-                         <bool>true</bool>
-                        </property>
-                       </widget>
-                      </item>
-                     </layout>
-                    </widget>
-                   </item>
-                  </layout>
-                 </widget>
-                </widget>
-               </item>
-              </layout>
+                </item>
+               </layout>
+              </widget>
              </widget>
             </item>
            </layout>
@@ -3076,6 +3072,22 @@ p, li { white-space: pre-wrap; }
             <size>
              <width>40</width>
              <height>0</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="2" column="0">
+          <spacer name="verticalSpacer_7">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeType">
+            <enum>QSizePolicy::Expanding</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>5</height>
             </size>
            </property>
           </spacer>
