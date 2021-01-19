@@ -120,8 +120,8 @@ class Worker(QRunnable):
         self.trim_shocks()  # trim shock data from zero weighted data
         
         input_dict = {'parent': parent, 'pool': pool, 'shocks2run': self.shocks2run,
-                      'coef_opt': self.coef_opt, 'rxn_coef_opt': self.rxn_coef_opt, 
-                      'x0': self.x0, 'mech': self.mech, 
+                      'coef_opt': self.coef_opt, 'rxn_coef_opt': self.rxn_coef_opt,
+                      'x0': self.x0, 'bounds': self.bnds, 'mech': self.mech, 
                       'multiprocessing': parent.multiprocessing, 
                       'signals': self.signals}
            

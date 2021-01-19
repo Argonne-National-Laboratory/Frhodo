@@ -93,9 +93,9 @@ def outlier(res, a=2, c=1, weights=[], max_iter=25, percentile=0.25):
 
     return c*res_outlier
     
-def generalized_loss_fcn(res, a=2, c=1):    # defaults to L2 loss
+def generalized_loss_fcn(x, a=2, c=1):    # defaults to L2 loss
     c_2 = c**2
-    x_c_2 = res**2/c_2
+    x_c_2 = x**2/c_2
     if a == 1:          # generalized function reproduces
         loss = (x_c_2 + 1)**(1/2) - 1
     if a == 2:
@@ -122,20 +122,18 @@ def update_mech_coef_opt(mech, coef_opt, x):
     if mech_changed:
         mech.modify_reactions(mech.coeffs)  # Update mechanism with new coefficients
   
-def calculate_residuals(args_list):   
-                                                                                   
-    def calc_exp_bounds(t_sim, t_exp):
-        t_bounds = [max([t_sim[0], t_exp[0]])]       # Largest initial time in SIM and Exp
-        t_bounds.append(min([t_sim[-1], t_exp[-1]])) # Smallest final time in SIM and Exp
-        # Values within t_bounds
-        exp_bounds = np.where(np.logical_and((t_exp >= t_bounds[0]),(t_exp <= t_bounds[1])))[0]
-        
-        return exp_bounds
-    
-                                                                                 
-                                                                                                                                                                                   
+def calculate_residuals(args_list):                                                                                                                                                                 
     def time_adjust_func(t_offset, t_adjust, t_sim, obs_sim, t_exp, obs_exp, weights, 
-                         loss_alpha=2, loss_c=1, scale='Linear', DoF=1, verbose=False):
+                         loss_alpha=2, loss_c=1, scale='Linear', DoF=1, opt_type='Residual', 
+                         verbose=False):
+
+        def calc_exp_bounds(t_sim, t_exp):
+            t_bounds = [max([t_sim[0], t_exp[0]])]       # Largest initial time in SIM and Exp
+            t_bounds.append(min([t_sim[-1], t_exp[-1]])) # Smallest final time in SIM and Exp
+            # Values within t_bounds
+            exp_bounds = np.where(np.logical_and((t_exp >= t_bounds[0]),(t_exp <= t_bounds[1])))[0]
+        
+            return exp_bounds
 
         t_sim_shifted = t_sim + t_offset + t_adjust
 
@@ -147,9 +145,8 @@ def calculate_residuals(args_list):
         obs_sim_interp = f_interp(t_exp)
         
         if scale == 'Linear':
-            resid = np.subtract(obs_exp, obs_sim_interp)
-                                                             
-                                                             
+            resid = np.subtract(obs_exp, obs_sim_interp)                                                     
+                                                    
         elif scale == 'Log':
             ind = np.argwhere(((obs_exp!=0.0)&(obs_sim_interp!=0.0)))
             weights = weights[ind].flatten()
@@ -172,7 +169,13 @@ def calculate_residuals(args_list):
                                                   
         if verbose:                                                                                                           
             output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
-                      'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
+                      'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp,
+                      'obs_exp': obs_exp}
+
+            if opt_type == 'Bayesian': # need to calculate aggregate weights to reduce outliers in bayesian
+                loss_weights = loss/generalized_loss_fcn(resid) # comparison is between selected loss fcn and SSE (L2 loss)
+                output['aggregate_weights'] = weights*loss_weights
+
             return output
                                                                                                                             
         else:   # needs to return single value for optimization
@@ -219,21 +222,19 @@ def calculate_residuals(args_list):
     if not np.any(var['t_unc']):
         t_unc = 0
     else:
-        t_unc_OoM = np.mean(OoM(var['t_unc']))  # Do at higher level? (computationally efficient)
-        # calculate time adjust with mse (loss_alpha = 2, loss_c =1)
-        
-                                                                                                                               
-                                                                                                              
+        t_unc_OoM = np.mean(OoM(var['t_unc']))  # Do at higher level in code? (computationally efficient)
+        # calculate time adjust with mse (loss_alpha = 2, loss_c =1)                                                                         
         time_adj_decorator = lambda t_adjust: time_adjust_func(shock['time_offset'], t_adjust*10**t_unc_OoM, 
                 ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], weights, scale=var['scale'], 
-                DoF=len(coef_opt))
+                DoF=len(coef_opt), opt_type=var['obj_fcn_type'])
         
         res = minimize_scalar(time_adj_decorator, bounds=var['t_unc']/10**t_unc_OoM, method='bounded')
         t_unc = res.x*10**t_unc_OoM
     
     output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], 
                               weights, loss_alpha=var['loss_alpha'], loss_c=var['loss_c'], 
-                              scale=var['scale'], DoF=len(coef_opt), verbose=True)  
+                              scale=var['scale'], DoF=len(coef_opt), opt_type=var['obj_fcn_type'], 
+                              verbose=True)  
 
     output['shock'] = shock
     output['independent_var'] = ind_var
@@ -282,9 +283,17 @@ class Fit_Fun:
         
         self.i = 0        
         self.__abort = False
+
+        if self.opt_settings['obj_fcn_type'] == 'Bayesian': # initialize Bayesian_dictionary if Bayesian selected
+            self.Bayesian_dict = {}
+            # T. Sikes note: optimization is performed on log(rate coefficients), not sure if this is ok or should be np.exp(pars)
+            self.Bayesian_dict['pars_initial_guess'] = self.x0
+            #A. Savara recommends 'uniform' for rate constants and 'gaussian' for things like "log(A)" and "Ea"
+            self.Bayesian_dict['pars_uncertainty_distribution'] = self.opt_settings['bayes_dist_type']
+            self.Bayesian_dict['pars_lower_bnds'] = input_dict['bounds']['lower']
+            self.Bayesian_dict['pars_upper_bnds'] = input_dict['bounds']['upper']
     
-    def __call__(self, s, optimizing=True):
-                                                                               
+    def __call__(self, s, optimizing=True):                                                                    
         def append_output(output_dict, calc_resid_output):
             for key in calc_resid_output:
                 if key not in output_dict:
@@ -313,8 +322,7 @@ class Fit_Fun:
         
         display_ind_var = None
         display_observable = None
-        
-                                                                               
+                                                                             
         if self.multiprocessing:
             args_list = ((var_dict, self.coef_opt, x, shock) for shock in self.shocks2run)
             calc_resid_outputs = self.pool.map(calculate_residuals, args_list)
@@ -335,71 +343,48 @@ class Fit_Fun:
                     display_ind_var = calc_resid_output['independent_var'] 
                     display_observable = calc_resid_output['observable']
         
-        # loss = np.concatenate(output_dict['loss'], axis=0)
-        loss = np.array(output_dict['loss'])
+        loss_resid = np.array(output_dict['loss'])
 
-        if np.size(loss) > 1:
-            c = outlier(loss, a=self.opt_settings['loss_alpha'], c=self.opt_settings['loss_c'])
-            loss = generalized_loss_fcn(loss, a=self.opt_settings['loss_alpha'], c=c)
-            obj_fcn = loss.mean()
-        else:
+        if np.size(loss_resid) == 1:  # optimizing single experiment
             c = 0
-            obj_fcn = loss[0]
+            loss_exp = loss_resid
+        else:                   # optimizing multiple experiments
+            c = outlier(loss_resid, a=self.opt_settings['loss_alpha'], c=self.opt_settings['loss_c'])
+            loss_exp = generalized_loss_fcn(loss_resid, a=self.opt_settings['loss_alpha'], c=c)
         
-        '''
-        #CheKiPEUQ requires a simulation_function based on only the paramters of interest.
-            #Typically, we would us a wrapper.  However, here the structure is a bit different.
-            #We have time_adjust_func and time_adj_decorator, so we need to create a function
-            #that will get values from **inside** that function.
-            #We could just "make" the PE_object again and again inside that function,
-            #but doing so is not a good solution. Instead, we will use something like a global variable.
-            #Here, the "shock" variable is a dictionary in the present namespace, a higher space than the time_adjust_func,
-            #so we will just access a field from the shock variable. That field does not need to exist at the time of this function's creation,
-            #just at the time that this function gets called.
-            #We will only pass in the rate_val values that are being allowed to vary.
-            #Note that the output does not actually depend on varying_rate_vals, so we rely upon only calling it
-            #after last_obs_sim_interp has been changed.
-            def get_last_obs_sim_interp(varying_rate_vals): 
-                try:
-                    last_obs_sim_interp = shock['last_obs_sim_interp']
-                    last_obs_sim_interp = np.array(shock['last_obs_sim_interp']).T
-                except:
-                    print("this isline 207! There may be an error occurring!")
-                    last_obs_sim_interp = None
-                return last_obs_sim_interp
-            import optimize.CheKiPEUQ_from_Frhodo    
-            #now we make a PE_object from a wrapper function inside CheKiPEUQ_from_Frhodo. This PE_object can be accessed from inside time_adjust_func.
-            #TODO: we should bring in x_bnds (the coefficent bounds) so that we can use the elementary step coefficients for Bayesian rather than the rate_val values.
-            #Step 2 of Bayesian:  populate Bayesian_dict with any variables and uncertainties needed.
-            Bayesian_dict = {}
-            Bayesian_dict['simulation_function'] = get_last_obs_sim_interp #a wrapper that just returns the last_obs_sim_interp
-            Bayesian_dict['observed_data'] = obs_exp
-            Bayesian_dict['pars_initial_guess'] = varying_rate_vals_initial_guess
-            Bayesian_dict['pars_lower_bnds'] = varying_rate_vals_lower_bnds
-            Bayesian_dict['pars_upper_bnds'] = varying_rate_vals_upper_bnds
+        if self.opt_settings['obj_fcn_type'] == 'Residual':
+            obj_fcn = loss_exp.mean()
+
+        elif self.opt_settings['obj_fcn_type'] == 'Bayesian':
+            # TODO: we should bring in x_bnds (the coefficent bounds) so that we can use the elementary step coefficients for Bayesian rather than the rate_val values.
+            Bayesian_dict = self.Bayesian_dict
+            Bayesian_dict['simulation_function'] = np.concatenate(output_dict['obs_sim_interp'], axis=0)
+            Bayesian_dict['observed_data'] = np.concatenate(output_dict['obs_exp'], axis=0)
             Bayesian_dict['observed_data_lower_bounds'] = []
             Bayesian_dict['observed_data_upper_bounds'] = []
-            Bayesian_dict['weights_data'] = weights
-            Bayesian_dict['pars_uncertainty_distribution'] = 'gaussian' #A. Savara recommends 'uniform' for rate constants and 'gaussian' for things like "log(A)" and "Ea"
             
-            #Step 3 of Bayesian:  create a CheKiPEUQ_PE_Object (this is a class object)
-            CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(
-                simulation_function=    Bayesian_dict['simulation_function'],
-                observed_data=          Bayesian_dict['observed_data'],
-                pars_initial_guess =    Bayesian_dict['pars_initial_guess'],
-                pars_lower_bnds =       Bayesian_dict['pars_lower_bnds'],
-                pars_upper_bnds =       Bayesian_dict['pars_upper_bnds'],
-                observed_data_lower_bounds= Bayesian_dict['observed_data_lower_bounds'],
-                observed_data_upper_bounds= Bayesian_dict['observed_data_upper_bounds'],
-                weights_data=               Bayesian_dict['weights_data'],
-                pars_uncertainty_distribution=  Bayesian_dict['pars_uncertainty_distribution'])
-            #Step 4 of Bayesian:  call a function to get the posterior density which will be used as the objective function.
-            #We need to provide the current values of the varying_rate_vals to feed into the function.
-            varying_rate_vals = np.array(shock['rate_val'])[list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
-            log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object, varying_rate_vals)
-            #Step 5 of Bayesian:  return the objective function and any other metrics desired.
-            objective_function_value = -1*log_posterior_density #need neg_logP because minimizing.
-        '''
+            if np.size(loss_resid) == 1:  # optimizing single experiment
+                Bayesian_dict['weights_data'] = aggregate_weights
+            else:
+                aggregate_weights = np.array(output_dict['aggregate_weights'], dtype=object)
+                exp_loss_weights = loss_exp/generalized_loss_fcn(loss_resid) # comparison is between selected loss fcn and SSE (L2 loss)
+                Bayesian_dict['weights_data'] = np.concatenate(aggregate_weights*exp_loss_weights, axis=0)
+            
+            #Bayesian_dict['weights_data'] /= np.max(Bayesian_dict['weights_data'])  # if we want to normalize by maximum
+
+            '''
+
+
+
+
+            ASHI THIS IS WHERE YOU'D DO YOUR VOODOO MAGIC AND ALTER obj_fcn
+
+
+
+
+
+
+            '''
 
         # For updating
         self.i += 1
