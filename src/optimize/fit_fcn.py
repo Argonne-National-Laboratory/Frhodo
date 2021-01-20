@@ -93,9 +93,9 @@ def outlier(res, a=2, c=1, weights=[], max_iter=25, percentile=0.25):
 
     return c*res_outlier
     
-def generalized_loss_fcn(res, a=2, c=1):    # defaults to L2 loss
+def generalized_loss_fcn(x, a=2, c=1):    # defaults to L2 loss
     c_2 = c**2
-    x_c_2 = res**2/c_2
+    x_c_2 = x**2/c_2
     if a == 1:          # generalized function reproduces
         loss = (x_c_2 + 1)**(1/2) - 1
     if a == 2:
@@ -122,17 +122,18 @@ def update_mech_coef_opt(mech, coef_opt, x):
     if mech_changed:
         mech.modify_reactions(mech.coeffs)  # Update mechanism with new coefficients
   
-def calculate_residuals(args_list):   
-    def calc_exp_bounds(t_sim, t_exp):
-        t_bounds = [max([t_sim[0], t_exp[0]])]       # Largest initial time in SIM and Exp
-        t_bounds.append(min([t_sim[-1], t_exp[-1]])) # Smallest final time in SIM and Exp
-        # Values within t_bounds
-        exp_bounds = np.where(np.logical_and((t_exp >= t_bounds[0]),(t_exp <= t_bounds[1])))[0]
-        
-        return exp_bounds
-    
+def calculate_residuals(args_list):                                                                                                                                                                 
     def time_adjust_func(t_offset, t_adjust, t_sim, obs_sim, t_exp, obs_exp, weights, 
-                         loss_alpha=2, loss_c=1, scale='Linear', DoF=1, verbose=False):
+                         loss_alpha=2, loss_c=1, scale='Linear', DoF=1, opt_type='Residual', 
+                         verbose=False):
+
+        def calc_exp_bounds(t_sim, t_exp):
+            t_bounds = [max([t_sim[0], t_exp[0]])]       # Largest initial time in SIM and Exp
+            t_bounds.append(min([t_sim[-1], t_exp[-1]])) # Smallest final time in SIM and Exp
+            # Values within t_bounds
+            exp_bounds = np.where(np.logical_and((t_exp >= t_bounds[0]),(t_exp <= t_bounds[1])))[0]
+        
+            return exp_bounds
 
         t_sim_shifted = t_sim + t_offset + t_adjust
 
@@ -144,13 +145,14 @@ def calculate_residuals(args_list):
         obs_sim_interp = f_interp(t_exp)
         
         if scale == 'Linear':
-            resid = np.subtract(obs_exp, obs_sim_interp)
+            resid = np.subtract(obs_exp, obs_sim_interp)                                                     
+                                                    
         elif scale == 'Log':
             ind = np.argwhere(((obs_exp!=0.0)&(obs_sim_interp!=0.0)))
             weights = weights[ind].flatten()
             m = np.divide(obs_exp[ind], obs_sim_interp[ind])
             resid = np.log10(np.abs(m)).flatten()
-        
+                                                                                                                                                                                                       
         resid_outlier = outlier(resid, a=loss_alpha, c=loss_c, weights=weights)
         loss = generalized_loss_fcn(resid, a=loss_alpha, c=resid_outlier)
 
@@ -164,11 +166,18 @@ def calculate_residuals(args_list):
         #loss_scalar = (chi_sqr*weights).sum()
         std_resid = chi_sqr**(1/2)
         loss_scalar = np.average(std_resid, weights=weights)
-        
-        if verbose:
+                                                  
+        if verbose:                                                                                                           
             output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
-                      'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp}
+                      'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp,
+                      'obs_exp': obs_exp}
+
+            if opt_type == 'Bayesian': # need to calculate aggregate weights to reduce outliers in bayesian
+                loss_weights = loss/generalized_loss_fcn(resid) # comparison is between selected loss fcn and SSE (L2 loss)
+                output['aggregate_weights'] = weights*loss_weights
+
             return output
+                                                                                                                            
         else:   # needs to return single value for optimization
             return loss_scalar
     
@@ -186,10 +195,10 @@ def calculate_residuals(args_list):
             x = np.array(x)
         x[x==0] = 1                       # if zero, make OoM 0
         return np.floor(np.log10(np.abs(x)))
-    
+                                                                                                                                                                                                                                                                                                
     var, coef_opt, x, shock = args_list
     mech = mpMech['obj']
-    
+                                             
     # Optimization Begins, update mechanism
     update_mech_coef_opt(mech, coef_opt, x)
 
@@ -203,8 +212,9 @@ def calculate_residuals(args_list):
         SIM_kwargs['solve_energy'] = var['solve_energy']
         SIM_kwargs['frozen_comp'] = var['frozen_comp']
     
+                                                            
     SIM, verbose = mech.run(var['name'], var['t_end'], T_reac, P_reac, mix, **SIM_kwargs)    
-    ind_var, obs = SIM.independent_var[:,None], SIM.observable[:,None]
+    ind_var, obs_sim = SIM.independent_var[:,None], SIM.observable[:,None]
     
     weights = shock['weights_trim']
     obs_exp = shock['exp_data_trim']
@@ -212,22 +222,23 @@ def calculate_residuals(args_list):
     if not np.any(var['t_unc']):
         t_unc = 0
     else:
-        t_unc_OoM = np.mean(OoM(var['t_unc']))  # Do at higher level? (computationally efficient)
-        # calculate time adjust with mse (loss_alpha = 2, loss_c =1)
+        t_unc_OoM = np.mean(OoM(var['t_unc']))  # Do at higher level in code? (computationally efficient)
+        # calculate time adjust with mse (loss_alpha = 2, loss_c =1)                                                                         
         time_adj_decorator = lambda t_adjust: time_adjust_func(shock['time_offset'], t_adjust*10**t_unc_OoM, 
-                ind_var, obs, obs_exp[:,0], obs_exp[:,1], weights, scale=var['resid_scale'], 
-                DoF=len(coef_opt))
+                ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], weights, scale=var['scale'], 
+                DoF=len(coef_opt), opt_type=var['obj_fcn_type'])
         
         res = minimize_scalar(time_adj_decorator, bounds=var['t_unc']/10**t_unc_OoM, method='bounded')
         t_unc = res.x*10**t_unc_OoM
     
-    output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs, obs_exp[:,0], obs_exp[:,1], 
+    output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], 
                               weights, loss_alpha=var['loss_alpha'], loss_c=var['loss_c'], 
-                              scale=var['resid_scale'], DoF=len(coef_opt), verbose=True)  
-    
+                              scale=var['scale'], DoF=len(coef_opt), opt_type=var['obj_fcn_type'], 
+                              verbose=True)  
+
     output['shock'] = shock
     output['independent_var'] = ind_var
-    output['observable'] = obs
+    output['observable'] = obs_sim
 
     plot_stats = True
     if plot_stats:
@@ -253,10 +264,13 @@ class Fit_Fun:
         self.opt_type = 'local' # this is updated outside of the class
         
         self.dist = self.parent.optimize.dist
-        self.resid_scale = self.parent.optimization_settings.get('loss', 'resid_scale')
-        self.loss_alpha = self.parent.optimization_settings.get('loss', 'alpha')
-        self.loss_c = self.parent.optimization_settings.get('loss', 'c')
-        
+        self.opt_settings = {'obj_fcn_type': self.parent.optimization_settings.get('obj_fcn', 'type'),
+                             'scale': self.parent.optimization_settings.get('obj_fcn', 'scale'),
+                             'loss_alpha': self.parent.optimization_settings.get('obj_fcn', 'alpha'),
+                             'loss_c': self.parent.optimization_settings.get('obj_fcn', 'c'),
+                             'bayes_dist_type': self.parent.optimization_settings.get('obj_fcn', 'bayes_dist_type'),
+                             'bayes_unc_sigma': self.parent.optimization_settings.get('obj_fcn', 'bayes_unc_sigma')}
+
         if 'multiprocessing' in input_dict:
             self.multiprocessing = input_dict['multiprocessing']
         
@@ -269,8 +283,17 @@ class Fit_Fun:
         
         self.i = 0        
         self.__abort = False
+
+        if self.opt_settings['obj_fcn_type'] == 'Bayesian': # initialize Bayesian_dictionary if Bayesian selected
+            self.Bayesian_dict = {}
+            # T. Sikes note: optimization is performed on log(rate coefficients), not sure if this is ok or should be np.exp(pars)
+            self.Bayesian_dict['pars_initial_guess'] = self.x0
+            #A. Savara recommends 'uniform' for rate constants and 'gaussian' for things like "log(A)" and "Ea"
+            self.Bayesian_dict['pars_uncertainty_distribution'] = self.opt_settings['bayes_dist_type']
+            self.Bayesian_dict['pars_lower_bnds'] = input_dict['bounds']['lower']
+            self.Bayesian_dict['pars_upper_bnds'] = input_dict['bounds']['upper']
     
-    def __call__(self, s, optimizing=True):
+    def __call__(self, s, optimizing=True):                                                                    
         def append_output(output_dict, calc_resid_output):
             for key in calc_resid_output:
                 if key not in output_dict:
@@ -295,11 +318,11 @@ class Fit_Fun:
         
         var_dict = {key: val for key, val in self.var['reactor'].items()}
         var_dict['t_unc'] = self.t_unc
-        var_dict['resid_scale'] = self.resid_scale
-        var_dict.update({'loss_alpha': self.loss_alpha, 'loss_c': self.loss_c})
+        var_dict.update(self.opt_settings)
         
         display_ind_var = None
         display_observable = None
+                                                                             
         if self.multiprocessing:
             args_list = ((var_dict, self.coef_opt, x, shock) for shock in self.shocks2run)
             calc_resid_outputs = self.pool.map(calculate_residuals, args_list)
@@ -320,22 +343,57 @@ class Fit_Fun:
                     display_ind_var = calc_resid_output['independent_var'] 
                     display_observable = calc_resid_output['observable']
         
-        # loss = np.concatenate(output_dict['loss'], axis=0)
-        loss = np.array(output_dict['loss'])
+        loss_resid = np.array(output_dict['loss'])
 
-        if np.size(loss) > 1:
-            c = outlier(loss, a=self.loss_alpha, c=self.loss_c)
-            loss = generalized_loss_fcn(loss, a=self.loss_alpha, c=c)
-            total_loss = loss.mean()
-        else:
+        if np.size(loss_resid) == 1:  # optimizing single experiment
             c = 0
-            total_loss = loss[0]
+            loss_exp = loss_resid
+        else:                   # optimizing multiple experiments
+            c = outlier(loss_resid, a=self.opt_settings['loss_alpha'], c=self.opt_settings['loss_c'])
+            loss_exp = generalized_loss_fcn(loss_resid, a=self.opt_settings['loss_alpha'], c=c*0.1) # I find that the loss function doesn't do much unless c is reduced further
         
+        if self.opt_settings['obj_fcn_type'] == 'Residual':
+            obj_fcn = loss_exp.mean()
+
+        elif self.opt_settings['obj_fcn_type'] == 'Bayesian':
+            # TODO: we should bring in x_bnds (the coefficent bounds) so that we can use the elementary step coefficients for Bayesian rather than the rate_val values.
+            Bayesian_dict = self.Bayesian_dict
+            Bayesian_dict['simulation_function'] = np.concatenate(output_dict['obs_sim_interp'], axis=0)
+            Bayesian_dict['observed_data'] = np.concatenate(output_dict['obs_exp'], axis=0)
+            Bayesian_dict['observed_data_lower_bounds'] = []
+            Bayesian_dict['observed_data_upper_bounds'] = []
+            
+            if np.size(loss_resid) == 1:  # optimizing single experiment
+                Bayesian_dict['weights_data'] = aggregate_weights
+            else:
+                aggregate_weights = np.array(output_dict['aggregate_weights'], dtype=object)
+                exp_loss_weights = loss_exp/generalized_loss_fcn(loss_resid) # comparison is between selected loss fcn and SSE (L2 loss)
+                Bayesian_dict['weights_data'] = np.concatenate(aggregate_weights*exp_loss_weights, axis=0)
+            
+            #Bayesian_dict['weights_data'] /= np.max(Bayesian_dict['weights_data'])  # if we want to normalize by maximum
+
+            #for val in Bayesian_dict['weights_data']:
+            #    print(val)
+
+            '''
+
+
+
+
+            ASHI THIS IS WHERE YOU'D DO YOUR VOODOO MAGIC AND ALTER obj_fcn
+
+
+
+
+
+
+            '''
+
         # For updating
         self.i += 1
         if not optimizing or self.i % 1 == 0:#5 == 0: # updates plot every 5
-            if total_loss == 0:
-                total_loss = np.inf
+            if obj_fcn == 0:
+                obj_fcn = np.inf
             
             stat_plot = {'shocks2run': self.shocks2run, 'resid': output_dict['resid'], 
                         'resid_outlier': c, 'weights': output_dict['weights']}
@@ -352,16 +410,16 @@ class Fit_Fun:
                     stat_plot['QQ'].append(QQ)
             
             update = {'type': self.opt_type, 'i': self.i, 
-                      'loss': total_loss, 'stat_plot': stat_plot, 
+                      'obj_fcn': obj_fcn, 'stat_plot': stat_plot, 
                       'x': x, 'coef_opt': self.coef_opt, 
                       'ind_var': display_ind_var, 'observable': display_observable}
             
             self.signals.update.emit(update)
                 
         if optimizing:
-            return total_loss
+            return obj_fcn
         else:
-            return total_loss, x, output_dict['shock']
+            return obj_fcn, x, output_dict['shock']
             
     def fit_all_coeffs(self, all_rates):      
         coeffs = []
