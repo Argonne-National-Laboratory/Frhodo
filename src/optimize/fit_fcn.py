@@ -299,7 +299,7 @@ class Fit_Fun:
             
             self.Bayesian_dict['rate_constants_parameters_initial_guess'] = [] #To be filled #we **only** want the ones being changed.
             self.Bayesian_dict['rate_constants_parameters_lower_bnds'] = [] #To be filled #we **only** want the ones being changed.
-            self.Bayesian_dict['rate_constants_parameters_upper_bnds'] = #To be filled #we **only** want the ones being changed.
+            self.Bayesian_dict['rate_constants_parameters_upper_bnds'] = [] #To be filled #we **only** want the ones being changed.
     
     def __call__(self, s, optimizing=True):                                                                    
         def append_output(output_dict, calc_resid_output):
