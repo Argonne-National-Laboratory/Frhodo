@@ -285,13 +285,21 @@ class Fit_Fun:
         self.__abort = False
 
         if self.opt_settings['obj_fcn_type'] == 'Bayesian': # initialize Bayesian_dictionary if Bayesian selected
+            #Step 1 of Bayesian:  Prepare any variables that need to be passed in for Bayesian PE_object creation.
+            #Step 2 of Bayesian:  populate Bayesian_dict with any variables and uncertainties needed.
             self.Bayesian_dict = {}
+            self.Bayesian_dict['pars_uncertainty_distribution'] = self.opt_settings['bayes_dist_type']  #options can be 'Auto', 'Gaussian' or 'Uniform'.
             # T. Sikes note: optimization is performed on log(rate coefficients), not sure if this is ok or should be np.exp(pars)
-            self.Bayesian_dict['pars_initial_guess'] = self.x0
+            # A. Savara agrees that a log scale is appropriate for rate constants, and suggests base 10, but base e is also fine.
+            
             #A. Savara recommends 'uniform' for rate constants and 'gaussian' for things like "log(A)" and "Ea"
-            self.Bayesian_dict['pars_uncertainty_distribution'] = self.opt_settings['bayes_dist_type']
-            self.Bayesian_dict['pars_lower_bnds'] = input_dict['bounds']['lower']
-            self.Bayesian_dict['pars_upper_bnds'] = input_dict['bounds']['upper']
+            self.Bayesian_dict['rate_constants_initial_guess'] = self.x0; print("line 290", self.Bayesian_dict['pars_initial_guess']) #we **only** want the ones being changed. I assume you have this, but if not, there is a helper function I made called get_varying_rate_vals_and_bnds in CheKiPEUQ_from_Frhodo.py
+            self.Bayesian_dict['rate_constants_lower_bnds'] = input_dict['bounds']['lower']; print ("line 293", input_dict['bounds']['lower']) #we **only** want the ones being changed.
+            self.Bayesian_dict['rate_constants_upper_bnds'] = input_dict['bounds']['upper']; print ("line 294", input_dict['bounds']['lower']) #we **only** want the ones being changed.
+            
+            self.Bayesian_dict['rate_constants_parameters_initial_guess'] = [] #To be filled #we **only** want the ones being changed.
+            self.Bayesian_dict['rate_constants_parameters_lower_bnds'] = [] #To be filled #we **only** want the ones being changed.
+            self.Bayesian_dict['rate_constants_parameters_upper_bnds'] = #To be filled #we **only** want the ones being changed.
     
     def __call__(self, s, optimizing=True):                                                                    
         def append_output(output_dict, calc_resid_output):
@@ -358,13 +366,30 @@ class Fit_Fun:
         elif self.opt_settings['obj_fcn_type'] == 'Bayesian':
             # TODO: we should bring in x_bnds (the coefficent bounds) so that we can use the elementary step coefficients for Bayesian rather than the rate_val values.
             Bayesian_dict = self.Bayesian_dict
-            Bayesian_dict['simulation_function'] = np.concatenate(output_dict['obs_sim_interp'], axis=0)
+            '''
+            Start of variables Travis needs to fill.
+            '''
+            Bayesian_dict['rate_constants_current_guess'] = [] #we **only** want the ones that are being changed, not the full set. 
+            Bayesian_dict['rate_constants_parameters_current_guess'] = [] #we **only** want the ones that are being changed, not the full set.
+            '''
+            End of variables Travis needs to fill.
+            '''
+            Bayesian_dict['last_obs_sim_interp'] = np.concatenate(output_dict['obs_sim_interp'], axis=0)
             Bayesian_dict['observed_data'] = np.concatenate(output_dict['obs_exp'], axis=0)
             Bayesian_dict['observed_data_lower_bounds'] = []
             Bayesian_dict['observed_data_upper_bounds'] = []
+            def get_last_obs_sim_interp(varying_rate_vals): #A. Savara added this. It needs to be here.
+                try:
+                    last_obs_sim_interp = Bayesian_dict['last_obs_sim_interp']
+                    last_obs_sim_interp = np.array(shock['last_obs_sim_interp']).T
+                except:
+                    print("this isline 207! There may be an error occurring!")
+                    last_obs_sim_interp = None
+                return last_obs_sim_interp
+            Bayesian_dict['simulation_function'] = get_last_obs_sim_interp #using wrapper that just returns the last_obs_sim_interp
             
             if np.size(loss_resid) == 1:  # optimizing single experiment
-                Bayesian_dict['weights_data'] = aggregate_weights
+                Bayesian_dict['weights_data'] = np.array(output_dict['aggregate_weights'], dtype=object)
             else:
                 aggregate_weights = np.array(output_dict['aggregate_weights'], dtype=object)
                 exp_loss_weights = loss_exp/generalized_loss_fcn(loss_resid) # comparison is between selected loss fcn and SSE (L2 loss)
@@ -375,19 +400,38 @@ class Fit_Fun:
             #for val in Bayesian_dict['weights_data']:
             #    print(val)
 
-            '''
+           
+            #Start of getting Bayesian objecive_function_value
+            import optimize.CheKiPEUQ_from_Frhodo    
+            print("line 392", x)
+            #Step 3 of Bayesian:  create a CheKiPEUQ_PE_Object (this is a class object)
+            #NOTE: normally, the Bayesian object would be created earlier. However, we are using a non-standard application
+            #where the observed_data uncertainties might change with each simulation.
+            #To gain efficiency, we could cheat and se the feature get_responses_simulation_uncertainties function of CheKiPEUQ, 
+            #or could create a new get_responses_observed_uncertainties function in CheKiPEUQ
+            #for now we will just create a new PE_object each time.
+            CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(
+                simulation_function=    Bayesian_dict['simulation_function'],
+                observed_data=          Bayesian_dict['observed_data'],
+                pars_initial_guess =    Bayesian_dict['pars_initial_guess'], #this is assigned in the "__init__" function up above.
+                pars_lower_bnds =       Bayesian_dict['pars_lower_bnds'],    #this is assigned in the "__init__" function up above.
+                pars_upper_bnds =       Bayesian_dict['pars_upper_bnds'],    #this is assigned in the "__init__" function up above.
+                observed_data_lower_bounds= Bayesian_dict['observed_data_lower_bounds'],
+                observed_data_upper_bounds= Bayesian_dict['observed_data_upper_bounds'],
+                weights_data=               Bayesian_dict['weights_data'],
+                pars_uncertainty_distribution=  Bayesian_dict['pars_uncertainty_distribution']) #this is assigned in the "__init__" function up above.
+            #Step 4 of Bayesian:  call a function to get the posterior density which will be used as the objective function.
+            #We need to provide the current values of the varying_rate_vals to feed into the function.
+            print("line 406", varying_rate_vals_indices)
+            
+            
+            varying_rate_vals = np.array(output_dict['shock']['rate_val'])[list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
+            log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object, varying_rate_vals)
+            #Step 5 of Bayesian:  return the objective function and any other metrics desired.
+            obj_fcn = -1*log_posterior_density #need neg_logP because minimizing.
+            #End of getting Bayesian objecive_function_value
 
 
-
-
-            ASHI THIS IS WHERE YOU'D DO YOUR VOODOO MAGIC AND ALTER obj_fcn
-
-
-
-
-
-
-            '''
 
         # For updating
         self.i += 1
