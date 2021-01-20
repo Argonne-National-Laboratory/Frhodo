@@ -350,7 +350,7 @@ class Fit_Fun:
             loss_exp = loss_resid
         else:                   # optimizing multiple experiments
             c = outlier(loss_resid, a=self.opt_settings['loss_alpha'], c=self.opt_settings['loss_c'])
-            loss_exp = generalized_loss_fcn(loss_resid, a=self.opt_settings['loss_alpha'], c=c)
+            loss_exp = generalized_loss_fcn(loss_resid, a=self.opt_settings['loss_alpha'], c=c*0.1) # I find that the loss function doesn't do much unless c is reduced further
         
         if self.opt_settings['obj_fcn_type'] == 'Residual':
             obj_fcn = loss_exp.mean()
@@ -371,6 +371,9 @@ class Fit_Fun:
                 Bayesian_dict['weights_data'] = np.concatenate(aggregate_weights*exp_loss_weights, axis=0)
             
             #Bayesian_dict['weights_data'] /= np.max(Bayesian_dict['weights_data'])  # if we want to normalize by maximum
+
+            #for val in Bayesian_dict['weights_data']:
+            #    print(val)
 
             '''
 
