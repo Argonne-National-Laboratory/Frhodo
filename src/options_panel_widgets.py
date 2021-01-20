@@ -879,6 +879,7 @@ class Optimization(QtCore.QObject):
     def __init__(self, parent): # TODO: Setting tab order needs to happen here
         super().__init__(parent)
         parent = self.parent()
+
         self.settings = {'obj_fcn': {}, 'global': {}, 'local': {}}
         
         for box in [parent.loss_alpha_box, parent.loss_c_box, parent.bayes_unc_sigma_box]:
@@ -914,6 +915,14 @@ class Optimization(QtCore.QObject):
                     box.stateChanged.connect(self.update_opt_settings)
         
         self.update_opt_settings()
+
+        '''
+        weight_unc_parameters_stacked_widget
+            WeightFunctionPage
+                weight_fcn_table
+            UncertaintyFunctionPage
+                unc_fcn_table
+        '''
      
     def _create_spinboxes(self):
         parent = self.parent()
@@ -928,9 +937,10 @@ class Optimization(QtCore.QObject):
                 self.widgets[opt_type][var_type].setSingleStep(0.1)
                 self.widgets[opt_type][var_type].setStrDecimals(1)
                 layout.addWidget(self.widgets[opt_type][var_type], n, 0)
-             
+
     def update_obj_fcn_settings(self, event=None):
         parent = self.parent()
+        sender = self.sender()
         settings = self.settings['obj_fcn']
         
         settings['type'] = parent.obj_fcn_type_box.currentText()
@@ -941,6 +951,16 @@ class Optimization(QtCore.QObject):
 
         settings['bayes_dist_type'] = parent.bayes_dist_type_box.currentText()
         settings['bayes_unc_sigma'] = parent.bayes_unc_sigma_box.value()
+
+        # Hides and unhides the Bayesian page depending upon selection. Is this better than disabling though?
+        if sender is parent.obj_fcn_type_box or event is None: 
+            stackWidget = parent.weight_unc_parameters_stacked_widget
+            if settings['type'] == 'Residual':
+                parent.obj_fcn_tab_widget.removeTab(parent.obj_fcn_tab_widget.indexOf(parent.Bayesian_tab))
+                stackWidget.setCurrentWidget(parent.WeightFunctionPage)
+            else:
+                parent.obj_fcn_tab_widget.insertTab(parent.obj_fcn_tab_widget.count() + 1, parent.Bayesian_tab, "Bayesian")
+                stackWidget.setCurrentWidget(parent.UncertaintyFunctionPage)
 
         self.save_settings(event)
          

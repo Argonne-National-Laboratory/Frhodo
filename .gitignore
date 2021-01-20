@@ -132,3 +132,4 @@ Paths/
 *.sln
 .vs/Frhodo_dev/v16/.suo
 *.pyproj
+Frhodo_dev.pyproj.user
