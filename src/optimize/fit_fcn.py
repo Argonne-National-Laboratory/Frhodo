@@ -285,6 +285,8 @@ class Fit_Fun:
         self.__abort = False
 
         if self.opt_settings['obj_fcn_type'] == 'Bayesian': # initialize Bayesian_dictionary if Bayesian selected
+            #Step 1 of Bayesian:  Prepare any variables that need to be passed in for Bayesian PE_object creation.
+            #Step 2 of Bayesian:  populate Bayesian_dict with any variables and uncertainties needed.
             self.Bayesian_dict = {}
             self.Bayesian_dict['pars_uncertainty_distribution'] = self.opt_settings['bayes_dist_type']  #options can be 'Auto', 'Gaussian' or 'Uniform'.
             # T. Sikes note: optimization is performed on log(rate coefficients), not sure if this is ok or should be np.exp(pars)
@@ -403,6 +405,11 @@ class Fit_Fun:
             import optimize.CheKiPEUQ_from_Frhodo    
             print("line 392", x)
             #Step 3 of Bayesian:  create a CheKiPEUQ_PE_Object (this is a class object)
+            #NOTE: normally, the Bayesian object would be created earlier. However, we are using a non-standard application
+            #where the observed_data uncertainties might change with each simulation.
+            #To gain efficiency, we could cheat and se the feature get_responses_simulation_uncertainties function of CheKiPEUQ, 
+            #or could create a new get_responses_observed_uncertainties function in CheKiPEUQ
+            #for now we will just create a new PE_object each time.
             CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(
                 simulation_function=    Bayesian_dict['simulation_function'],
                 observed_data=          Bayesian_dict['observed_data'],
@@ -416,6 +423,8 @@ class Fit_Fun:
             #Step 4 of Bayesian:  call a function to get the posterior density which will be used as the objective function.
             #We need to provide the current values of the varying_rate_vals to feed into the function.
             print("line 406", varying_rate_vals_indices)
+            
+            
             varying_rate_vals = np.array(output_dict['shock']['rate_val'])[list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
             log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object, varying_rate_vals)
             #Step 5 of Bayesian:  return the objective function and any other metrics desired.
