@@ -2597,22 +2597,15 @@ p, li { white-space: pre-wrap; }
                       <layout class="QGridLayout" name="gridLayout_56">
                        <item row="0" column="0">
                         <widget class="QLabel" name="label_9">
+                         <property name="toolTip">
+                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Automatic makes rate constants a uniform distribution and rate parameters Gaussian&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                         </property>
                          <property name="text">
                           <string>Distribution Type</string>
                          </property>
                         </widget>
                        </item>
-                       <item row="1" column="0">
-                        <widget class="QLabel" name="label_10">
-                         <property name="toolTip">
-                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;How many Sigma the parameter uncertainty represents&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                         </property>
-                         <property name="text">
-                          <string>Parameter Uncertainty Sigma</string>
-                         </property>
-                        </widget>
-                       </item>
-                       <item row="1" column="2">
+                       <item row="1" column="1">
                         <widget class="QDoubleSpinBox" name="bayes_unc_sigma_box">
                          <property name="decimals">
                           <number>1</number>
@@ -2628,8 +2621,13 @@ p, li { white-space: pre-wrap; }
                          </property>
                         </widget>
                        </item>
-                       <item row="0" column="2">
+                       <item row="0" column="1">
                         <widget class="QComboBox" name="bayes_dist_type_box">
+                         <item>
+                          <property name="text">
+                           <string>Automatic</string>
+                          </property>
+                         </item>
                          <item>
                           <property name="text">
                            <string>Gaussian</string>
@@ -2642,21 +2640,15 @@ p, li { white-space: pre-wrap; }
                          </item>
                         </widget>
                        </item>
-                       <item row="0" column="1">
-                        <spacer name="horizontalSpacer_34">
-                         <property name="orientation">
-                          <enum>Qt::Horizontal</enum>
+                       <item row="1" column="0">
+                        <widget class="QLabel" name="label_10">
+                         <property name="toolTip">
+                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;How many Sigma the parameter uncertainty represents&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                          </property>
-                         <property name="sizeType">
-                          <enum>QSizePolicy::MinimumExpanding</enum>
+                         <property name="text">
+                          <string>Parameter Uncertainty Sigma</string>
                          </property>
-                         <property name="sizeHint" stdset="0">
-                          <size>
-                           <width>0</width>
-                           <height>20</height>
-                          </size>
-                         </property>
-                        </spacer>
+                        </widget>
                        </item>
                       </layout>
                      </widget>

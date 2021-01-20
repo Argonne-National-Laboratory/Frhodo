@@ -71,7 +71,7 @@ class Worker(QRunnable):
         # Calculate x0
         self.x0 = rates()
         
-        # Determine bounds
+        # Determine rate bounds
         lb = []
         ub = []
         i = 0
@@ -88,18 +88,20 @@ class Worker(QRunnable):
                 
                 i += 1
         
-        # Calculate initial scalers
+        self.bnds = {'lower': np.array(lb), 'upper': np.array(ub)}
+
+        # Calculate coefficient x0 and bounds
+        # TODO 
+
+        # Calculate initial rate scalers
         mech.coeffs = initial_mech
         mech.modify_reactions(mech.coeffs)
         self.s = np.divide(rates(), self.x0)
 
-        # Correct initial guesses if outside bounds
+        # Correct initial rate guesses if outside bounds
         np.putmask(self.s, self.s < lb, lb)
-        np.putmask(self.s, self.s > ub, ub)
-        
-        # Set opt option variables
-        self.bnds = {'lower': np.array(lb), 'upper': np.array(ub)}
-    
+        np.putmask(self.s, self.s > ub, ub)       
+
     def trim_shocks(self): # trim shocks from zero weighted data
         for n, shock in enumerate(self.shocks2run):
             weights = shock['normalized_weights']
@@ -119,11 +121,10 @@ class Worker(QRunnable):
         
         self.trim_shocks()  # trim shock data from zero weighted data
         
-        input_dict = {'parent': parent, 'pool': pool, 'shocks2run': self.shocks2run,
+        input_dict = {'parent': parent, 'pool': pool, 'mech': self.mech, 'shocks2run': self.shocks2run,
                       'coef_opt': self.coef_opt, 'rxn_coef_opt': self.rxn_coef_opt,
-                      'x0': self.x0, 'bounds': self.bnds, 'mech': self.mech, 
-                      'multiprocessing': parent.multiprocessing, 
-                      'signals': self.signals}
+                      'x0': self.x0, 'bounds': self.bnds,
+                      'multiprocessing': parent.multiprocessing, 'signals': self.signals}
            
         Scaled_Fit_Fun = Fit_Fun(input_dict)
            

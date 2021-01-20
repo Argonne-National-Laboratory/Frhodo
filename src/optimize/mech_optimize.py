@@ -13,6 +13,10 @@ from optimize.optimize_worker import Worker
 from optimize.fit_fcn import initialize_parallel_worker, update_mech_coef_opt
 
 
+min_neg_system_value = np.finfo(float).min*(1E-20) # Don't push the limits too hard
+min_pos_system_value = np.finfo(float).eps*(1.1)
+max_pos_system_value = np.finfo(float).max*(1E-20)
+
 class Multithread_Optimize:
     def __init__(self, parent):
         self.parent = parent
@@ -174,12 +178,41 @@ class Multithread_Optimize:
         invT_bnds = np.divide(10000, T_bnds)
         P_bnds = [np.min(shock_conditions['P_reactor']), np.max(shock_conditions['P_reactor'])]
         for rxn_coef in rxn_coef_opt:
+            # Set coefficient initial values and bounds
+            rxnIdx = rxn_coef['rxnIdx']
+            rxn_coef['coef_x0'] = []
+            rxn_coef['coef_bnds'] = {'lower': [], 'upper': []}
+            
+            for coefName in rxn_coef['coefName']:
+                coef_x0 = mech.coeffs_bnds[rxnIdx][coefName]['resetVal']
+                rxn_coef['coef_x0'].append(coef_x0)
+
+                coef_limits = mech.coeffs_bnds[rxnIdx][coefName]['limits']()
+                if np.isnan(coef_limits).any():
+                    if coefName == 'pre_exponential_factor':
+                        rxn_coef['coef_bnds']['lower'].append(min_pos_system_value)             # A should be positive
+                    elif coefName == 'activation_energy' and coef_x0 > 0:
+                        rxn_coef['coef_bnds']['lower'].append(0)                                # Ea shouldn't change sign
+                    else:
+                        rxn_coef['coef_bnds']['lower'].append(min_neg_system_value)
+            
+                    if coefName == 'activation_energy' and coef_x0 < 0:   # Ea shouldn't change sign
+                        rxn_coef['coef_bnds']['upper'].append(0)
+                    else:
+                        rxn_coef['coef_bnds']['upper'].append(max_pos_system_value)
+                else:
+                    rxn_coef['coef_bnds']['lower'].append(coef_limits[0])
+                    rxn_coef['coef_bnds']['upper'].append(coef_limits[1])
+
+                prior_rxnIdx = rxnIdx
+            
+            # Set evaluation rate conditions
             n_coef = len(rxn_coef['coefIdx'])
             rxn_coef['invT'] = np.linspace(*invT_bnds, n_coef)
             rxn_coef['T'] = np.divide(10000, rxn_coef['invT'])
             rxn_coef['P'] = np.linspace(*P_bnds, n_coef)
             rxn_coef['X'] = shock_conditions['thermo_mix'][0]   # TODO: IF MIXTURE COMPOSITION FOR DUMMY RATES MATTER CHANGE HERE
-                      
+            
         return rxn_coef_opt
 
     def update(self, result):
