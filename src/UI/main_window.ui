@@ -2480,6 +2480,487 @@ p, li { white-space: pre-wrap; }
                 <string>Optimization Settings</string>
                </attribute>
                <layout class="QGridLayout" name="gridLayout_63">
+                <item row="1" column="0">
+                 <widget class="QGroupBox" name="groupBox_6">
+                  <property name="enabled">
+                   <bool>true</bool>
+                  </property>
+                  <property name="title">
+                   <string>Optimization</string>
+                  </property>
+                  <layout class="QGridLayout" name="gridLayout_41">
+                   <item row="0" column="0">
+                    <widget class="QCheckBox" name="multiprocessing_box">
+                     <property name="text">
+                      <string>Multiprocessing</string>
+                     </property>
+                     <property name="checked">
+                      <bool>true</bool>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="0" rowspan="2" colspan="2">
+                    <widget class="QToolBox" name="opt_toolbox">
+                     <property name="minimumSize">
+                      <size>
+                       <width>0</width>
+                       <height>220</height>
+                      </size>
+                     </property>
+                     <property name="autoFillBackground">
+                      <bool>true</bool>
+                     </property>
+                     <property name="currentIndex">
+                      <number>0</number>
+                     </property>
+                     <property name="tabSpacing">
+                      <number>4</number>
+                     </property>
+                     <widget class="QWidget" name="global_opt_page">
+                      <property name="enabled">
+                       <bool>true</bool>
+                      </property>
+                      <property name="geometry">
+                       <rect>
+                        <x>0</x>
+                        <y>0</y>
+                        <width>252</width>
+                        <height>170</height>
+                       </rect>
+                      </property>
+                      <attribute name="label">
+                       <string>Global Optimization</string>
+                      </attribute>
+                      <layout class="QGridLayout" name="gridLayout_42">
+                       <item row="1" column="0">
+                        <widget class="QFrame" name="frame_30">
+                         <property name="frameShape">
+                          <enum>QFrame::StyledPanel</enum>
+                         </property>
+                         <property name="frameShadow">
+                          <enum>QFrame::Raised</enum>
+                         </property>
+                         <layout class="QGridLayout" name="gridLayout_60">
+                          <property name="leftMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="topMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="rightMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="bottomMargin">
+                           <number>0</number>
+                          </property>
+                          <item row="2" column="0">
+                           <widget class="QLabel" name="global_text_2">
+                            <property name="text">
+                             <string>Relative Tolerance: x</string>
+                            </property>
+                           </widget>
+                          </item>
+                          <item row="0" column="0">
+                           <widget class="QLabel" name="global_text_1">
+                            <property name="text">
+                             <string>Initial Step</string>
+                            </property>
+                           </widget>
+                          </item>
+                          <item row="1" column="0">
+                           <widget class="QComboBox" name="global_stop_criteria_box">
+                            <item>
+                             <property name="text">
+                              <string>Iteration Maximum</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>Maximum Time [min]</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>No Abort Criteria</string>
+                             </property>
+                            </item>
+                           </widget>
+                          </item>
+                          <item row="3" column="0">
+                           <widget class="QLabel" name="global_text_3">
+                            <property name="sizePolicy">
+                             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                             </sizepolicy>
+                            </property>
+                            <property name="text">
+                             <string>Relative Tolerance: obj fcn</string>
+                            </property>
+                           </widget>
+                          </item>
+                          <item row="4" column="0">
+                           <widget class="QLabel" name="global_text_4">
+                            <property name="text">
+                             <string>Initial Population Multiplier</string>
+                            </property>
+                           </widget>
+                          </item>
+                         </layout>
+                        </widget>
+                       </item>
+                       <item row="1" column="2">
+                        <widget class="QFrame" name="frame_21">
+                         <property name="sizePolicy">
+                          <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+                           <horstretch>0</horstretch>
+                           <verstretch>0</verstretch>
+                          </sizepolicy>
+                         </property>
+                         <property name="minimumSize">
+                          <size>
+                           <width>15</width>
+                           <height>0</height>
+                          </size>
+                         </property>
+                         <property name="frameShape">
+                          <enum>QFrame::NoFrame</enum>
+                         </property>
+                         <property name="frameShadow">
+                          <enum>QFrame::Plain</enum>
+                         </property>
+                         <property name="lineWidth">
+                          <number>0</number>
+                         </property>
+                         <layout class="QGridLayout" name="global_opt_layout">
+                          <property name="leftMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="topMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="rightMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="bottomMargin">
+                           <number>0</number>
+                          </property>
+                         </layout>
+                        </widget>
+                       </item>
+                       <item row="0" column="0" colspan="3">
+                        <widget class="QFrame" name="frame_18">
+                         <property name="frameShape">
+                          <enum>QFrame::StyledPanel</enum>
+                         </property>
+                         <property name="frameShadow">
+                          <enum>QFrame::Raised</enum>
+                         </property>
+                         <layout class="QGridLayout" name="gridLayout_45">
+                          <property name="leftMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="topMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="rightMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="bottomMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="horizontalSpacing">
+                           <number>6</number>
+                          </property>
+                          <item row="0" column="1">
+                           <widget class="QComboBox" name="global_opt_choice_box">
+                            <property name="sizePolicy">
+                             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                             </sizepolicy>
+                            </property>
+                            <property name="toolTip">
+                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;ISRES: Improved Stochastic Ranking Evolution Strategy&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                            </property>
+                            <property name="currentIndex">
+                             <number>0</number>
+                            </property>
+                            <item>
+                             <property name="text">
+                              <string>DIRECT</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>DIRECT-L</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>CRS (Controlled Random Search)</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>Evolutionary</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>MLSL (Multi-Level Single-Linkage)</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>ISRES</string>
+                             </property>
+                            </item>
+                           </widget>
+                          </item>
+                          <item row="0" column="0">
+                           <widget class="QCheckBox" name="global_opt_enable_box">
+                            <property name="sizePolicy">
+                             <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                             </sizepolicy>
+                            </property>
+                            <property name="text">
+                             <string/>
+                            </property>
+                            <property name="checked">
+                             <bool>true</bool>
+                            </property>
+                           </widget>
+                          </item>
+                         </layout>
+                        </widget>
+                       </item>
+                       <item row="1" column="1">
+                        <spacer name="horizontalSpacer_22">
+                         <property name="orientation">
+                          <enum>Qt::Horizontal</enum>
+                         </property>
+                         <property name="sizeHint" stdset="0">
+                          <size>
+                           <width>0</width>
+                           <height>20</height>
+                          </size>
+                         </property>
+                        </spacer>
+                       </item>
+                      </layout>
+                     </widget>
+                     <widget class="QWidget" name="page_2">
+                      <property name="geometry">
+                       <rect>
+                        <x>0</x>
+                        <y>0</y>
+                        <width>252</width>
+                        <height>170</height>
+                       </rect>
+                      </property>
+                      <attribute name="label">
+                       <string>Local Optimization</string>
+                      </attribute>
+                      <layout class="QGridLayout" name="gridLayout_47">
+                       <item row="0" column="0" colspan="3">
+                        <widget class="QFrame" name="frame_20">
+                         <property name="frameShape">
+                          <enum>QFrame::StyledPanel</enum>
+                         </property>
+                         <property name="frameShadow">
+                          <enum>QFrame::Raised</enum>
+                         </property>
+                         <layout class="QGridLayout" name="gridLayout_46">
+                          <property name="leftMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="topMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="rightMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="bottomMargin">
+                           <number>0</number>
+                          </property>
+                          <item row="0" column="1">
+                           <widget class="QComboBox" name="local_opt_choice_box">
+                            <property name="sizePolicy">
+                             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                             </sizepolicy>
+                            </property>
+                            <property name="currentIndex">
+                             <number>0</number>
+                            </property>
+                            <item>
+                             <property name="text">
+                              <string>Subplex</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>COBYLA</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>BOBYQA</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>Nelder-Mead Simplex</string>
+                             </property>
+                            </item>
+                           </widget>
+                          </item>
+                          <item row="0" column="0">
+                           <widget class="QCheckBox" name="local_opt_enable_box">
+                            <property name="sizePolicy">
+                             <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                             </sizepolicy>
+                            </property>
+                            <property name="text">
+                             <string/>
+                            </property>
+                            <property name="checked">
+                             <bool>true</bool>
+                            </property>
+                           </widget>
+                          </item>
+                         </layout>
+                        </widget>
+                       </item>
+                       <item row="1" column="2">
+                        <widget class="QFrame" name="frame_22">
+                         <property name="sizePolicy">
+                          <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+                           <horstretch>0</horstretch>
+                           <verstretch>0</verstretch>
+                          </sizepolicy>
+                         </property>
+                         <property name="minimumSize">
+                          <size>
+                           <width>15</width>
+                           <height>0</height>
+                          </size>
+                         </property>
+                         <property name="frameShape">
+                          <enum>QFrame::NoFrame</enum>
+                         </property>
+                         <property name="frameShadow">
+                          <enum>QFrame::Plain</enum>
+                         </property>
+                         <property name="lineWidth">
+                          <number>0</number>
+                         </property>
+                         <layout class="QGridLayout" name="local_opt_layout">
+                          <property name="leftMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="topMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="rightMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="bottomMargin">
+                           <number>0</number>
+                          </property>
+                         </layout>
+                        </widget>
+                       </item>
+                       <item row="1" column="0">
+                        <widget class="QFrame" name="frame_31">
+                         <property name="frameShape">
+                          <enum>QFrame::StyledPanel</enum>
+                         </property>
+                         <property name="frameShadow">
+                          <enum>QFrame::Raised</enum>
+                         </property>
+                         <layout class="QGridLayout" name="gridLayout_61">
+                          <property name="leftMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="topMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="rightMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="bottomMargin">
+                           <number>0</number>
+                          </property>
+                          <item row="0" column="0">
+                           <widget class="QLabel" name="local_text_1">
+                            <property name="text">
+                             <string>Initial Step</string>
+                            </property>
+                           </widget>
+                          </item>
+                          <item row="2" column="0">
+                           <widget class="QLabel" name="local_text_2">
+                            <property name="text">
+                             <string>Relative Tolerance: x</string>
+                            </property>
+                           </widget>
+                          </item>
+                          <item row="1" column="0">
+                           <widget class="QComboBox" name="local_stop_criteria_box">
+                            <item>
+                             <property name="text">
+                              <string>Iteration Maximum</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>Maximum Time [min]</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
+                              <string>No Abort Criteria</string>
+                             </property>
+                            </item>
+                           </widget>
+                          </item>
+                          <item row="3" column="0">
+                           <widget class="QLabel" name="local_text_3">
+                            <property name="text">
+                             <string>Relative Tolerance: obj fcn</string>
+                            </property>
+                           </widget>
+                          </item>
+                         </layout>
+                        </widget>
+                       </item>
+                       <item row="1" column="1">
+                        <spacer name="horizontalSpacer_23">
+                         <property name="orientation">
+                          <enum>Qt::Horizontal</enum>
+                         </property>
+                         <property name="sizeHint" stdset="0">
+                          <size>
+                           <width>0</width>
+                           <height>20</height>
+                          </size>
+                         </property>
+                        </spacer>
+                       </item>
+                      </layout>
+                     </widget>
+                    </widget>
+                   </item>
+                  </layout>
+                 </widget>
+                </item>
                 <item row="0" column="0">
                  <widget class="QGroupBox" name="groupBox">
                   <property name="title">
@@ -2648,394 +3129,6 @@ p, li { white-space: pre-wrap; }
                          <property name="text">
                           <string>Parameter Uncertainty Sigma</string>
                          </property>
-                        </widget>
-                       </item>
-                      </layout>
-                     </widget>
-                    </widget>
-                   </item>
-                  </layout>
-                 </widget>
-                </item>
-                <item row="1" column="0">
-                 <widget class="QGroupBox" name="groupBox_6">
-                  <property name="enabled">
-                   <bool>true</bool>
-                  </property>
-                  <property name="title">
-                   <string>Optimization</string>
-                  </property>
-                  <layout class="QGridLayout" name="gridLayout_41">
-                   <item row="0" column="0">
-                    <widget class="QCheckBox" name="multiprocessing_box">
-                     <property name="text">
-                      <string>Multiprocessing</string>
-                     </property>
-                     <property name="checked">
-                      <bool>true</bool>
-                     </property>
-                    </widget>
-                   </item>
-                   <item row="1" column="0" rowspan="2" colspan="2">
-                    <widget class="QToolBox" name="opt_toolbox">
-                     <property name="minimumSize">
-                      <size>
-                       <width>0</width>
-                       <height>168</height>
-                      </size>
-                     </property>
-                     <property name="autoFillBackground">
-                      <bool>true</bool>
-                     </property>
-                     <property name="currentIndex">
-                      <number>0</number>
-                     </property>
-                     <property name="tabSpacing">
-                      <number>4</number>
-                     </property>
-                     <widget class="QWidget" name="global_opt_page">
-                      <property name="enabled">
-                       <bool>true</bool>
-                      </property>
-                      <property name="geometry">
-                       <rect>
-                        <x>0</x>
-                        <y>0</y>
-                        <width>252</width>
-                        <height>118</height>
-                       </rect>
-                      </property>
-                      <attribute name="label">
-                       <string>Global Optimization</string>
-                      </attribute>
-                      <layout class="QGridLayout" name="gridLayout_42">
-                       <item row="1" column="0" colspan="3">
-                        <widget class="QFrame" name="frame_18">
-                         <property name="frameShape">
-                          <enum>QFrame::StyledPanel</enum>
-                         </property>
-                         <property name="frameShadow">
-                          <enum>QFrame::Raised</enum>
-                         </property>
-                         <layout class="QGridLayout" name="gridLayout_45">
-                          <property name="leftMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="topMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="rightMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="bottomMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="horizontalSpacing">
-                           <number>6</number>
-                          </property>
-                          <item row="0" column="1">
-                           <widget class="QComboBox" name="global_opt_choice_box">
-                            <property name="sizePolicy">
-                             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                              <horstretch>0</horstretch>
-                              <verstretch>0</verstretch>
-                             </sizepolicy>
-                            </property>
-                            <property name="toolTip">
-                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;ISRES: Improved Stochastic Ranking Evolution Strategy&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                            </property>
-                            <property name="currentIndex">
-                             <number>0</number>
-                            </property>
-                            <item>
-                             <property name="text">
-                              <string>DIRECT</string>
-                             </property>
-                            </item>
-                            <item>
-                             <property name="text">
-                              <string>DIRECT-L</string>
-                             </property>
-                            </item>
-                            <item>
-                             <property name="text">
-                              <string>CRS (Controlled Random Search)</string>
-                             </property>
-                            </item>
-                            <item>
-                             <property name="text">
-                              <string>Evolutionary</string>
-                             </property>
-                            </item>
-                            <item>
-                             <property name="text">
-                              <string>MLSL (Multi-Level Single-Linkage)</string>
-                             </property>
-                            </item>
-                            <item>
-                             <property name="text">
-                              <string>ISRES</string>
-                             </property>
-                            </item>
-                           </widget>
-                          </item>
-                          <item row="0" column="0">
-                           <widget class="QCheckBox" name="global_opt_enable_box">
-                            <property name="sizePolicy">
-                             <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-                              <horstretch>0</horstretch>
-                              <verstretch>0</verstretch>
-                             </sizepolicy>
-                            </property>
-                            <property name="text">
-                             <string/>
-                            </property>
-                            <property name="checked">
-                             <bool>true</bool>
-                            </property>
-                           </widget>
-                          </item>
-                         </layout>
-                        </widget>
-                       </item>
-                       <item row="3" column="0">
-                        <widget class="QLabel" name="global_text_2">
-                         <property name="text">
-                          <string>Relative Tolerance: x</string>
-                         </property>
-                        </widget>
-                       </item>
-                       <item row="2" column="0">
-                        <widget class="QLabel" name="global_text_1">
-                         <property name="text">
-                          <string>Initial Step</string>
-                         </property>
-                        </widget>
-                       </item>
-                       <item row="2" column="1">
-                        <spacer name="horizontalSpacer_22">
-                         <property name="orientation">
-                          <enum>Qt::Horizontal</enum>
-                         </property>
-                         <property name="sizeHint" stdset="0">
-                          <size>
-                           <width>40</width>
-                           <height>20</height>
-                          </size>
-                         </property>
-                        </spacer>
-                       </item>
-                       <item row="4" column="0">
-                        <widget class="QLabel" name="global_text_3">
-                         <property name="sizePolicy">
-                          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                           <horstretch>0</horstretch>
-                           <verstretch>0</verstretch>
-                          </sizepolicy>
-                         </property>
-                         <property name="text">
-                          <string>Relative Tolerance: obj fcn</string>
-                         </property>
-                        </widget>
-                       </item>
-                       <item row="2" column="2" rowspan="3">
-                        <widget class="QFrame" name="frame_21">
-                         <property name="sizePolicy">
-                          <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
-                           <horstretch>0</horstretch>
-                           <verstretch>0</verstretch>
-                          </sizepolicy>
-                         </property>
-                         <property name="minimumSize">
-                          <size>
-                           <width>15</width>
-                           <height>0</height>
-                          </size>
-                         </property>
-                         <property name="frameShape">
-                          <enum>QFrame::NoFrame</enum>
-                         </property>
-                         <property name="frameShadow">
-                          <enum>QFrame::Plain</enum>
-                         </property>
-                         <property name="lineWidth">
-                          <number>0</number>
-                         </property>
-                         <layout class="QGridLayout" name="global_opt_layout">
-                          <property name="leftMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="topMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="rightMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="bottomMargin">
-                           <number>0</number>
-                          </property>
-                         </layout>
-                        </widget>
-                       </item>
-                      </layout>
-                     </widget>
-                     <widget class="QWidget" name="page_2">
-                      <property name="geometry">
-                       <rect>
-                        <x>0</x>
-                        <y>0</y>
-                        <width>174</width>
-                        <height>104</height>
-                       </rect>
-                      </property>
-                      <attribute name="label">
-                       <string>Local Optimization</string>
-                      </attribute>
-                      <layout class="QGridLayout" name="gridLayout_47">
-                       <item row="1" column="0">
-                        <widget class="QLabel" name="local_text_1">
-                         <property name="text">
-                          <string>Initial Step</string>
-                         </property>
-                        </widget>
-                       </item>
-                       <item row="1" column="1">
-                        <spacer name="horizontalSpacer_23">
-                         <property name="orientation">
-                          <enum>Qt::Horizontal</enum>
-                         </property>
-                         <property name="sizeHint" stdset="0">
-                          <size>
-                           <width>40</width>
-                           <height>20</height>
-                          </size>
-                         </property>
-                        </spacer>
-                       </item>
-                       <item row="2" column="0">
-                        <widget class="QLabel" name="local_text_2">
-                         <property name="text">
-                          <string>Relative Tolerance: x</string>
-                         </property>
-                        </widget>
-                       </item>
-                       <item row="3" column="0">
-                        <widget class="QLabel" name="local_text_3">
-                         <property name="text">
-                          <string>Relative Tolerance: obj fcn</string>
-                         </property>
-                        </widget>
-                       </item>
-                       <item row="1" column="2" rowspan="3">
-                        <widget class="QFrame" name="frame_22">
-                         <property name="sizePolicy">
-                          <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
-                           <horstretch>0</horstretch>
-                           <verstretch>0</verstretch>
-                          </sizepolicy>
-                         </property>
-                         <property name="minimumSize">
-                          <size>
-                           <width>15</width>
-                           <height>0</height>
-                          </size>
-                         </property>
-                         <property name="frameShape">
-                          <enum>QFrame::NoFrame</enum>
-                         </property>
-                         <property name="frameShadow">
-                          <enum>QFrame::Plain</enum>
-                         </property>
-                         <property name="lineWidth">
-                          <number>0</number>
-                         </property>
-                         <layout class="QGridLayout" name="local_opt_layout">
-                          <property name="leftMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="topMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="rightMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="bottomMargin">
-                           <number>0</number>
-                          </property>
-                         </layout>
-                        </widget>
-                       </item>
-                       <item row="0" column="0" colspan="3">
-                        <widget class="QFrame" name="frame_20">
-                         <property name="frameShape">
-                          <enum>QFrame::StyledPanel</enum>
-                         </property>
-                         <property name="frameShadow">
-                          <enum>QFrame::Raised</enum>
-                         </property>
-                         <layout class="QGridLayout" name="gridLayout_46">
-                          <property name="leftMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="topMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="rightMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="bottomMargin">
-                           <number>0</number>
-                          </property>
-                          <item row="0" column="1">
-                           <widget class="QComboBox" name="local_opt_choice_box">
-                            <property name="sizePolicy">
-                             <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                              <horstretch>0</horstretch>
-                              <verstretch>0</verstretch>
-                             </sizepolicy>
-                            </property>
-                            <property name="currentIndex">
-                             <number>0</number>
-                            </property>
-                            <item>
-                             <property name="text">
-                              <string>Subplex</string>
-                             </property>
-                            </item>
-                            <item>
-                             <property name="text">
-                              <string>COBYLA</string>
-                             </property>
-                            </item>
-                            <item>
-                             <property name="text">
-                              <string>BOBYQA</string>
-                             </property>
-                            </item>
-                            <item>
-                             <property name="text">
-                              <string>Nelder-Mead Simplex</string>
-                             </property>
-                            </item>
-                           </widget>
-                          </item>
-                          <item row="0" column="0">
-                           <widget class="QCheckBox" name="local_opt_enable_box">
-                            <property name="sizePolicy">
-                             <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
-                              <horstretch>0</horstretch>
-                              <verstretch>0</verstretch>
-                             </sizepolicy>
-                            </property>
-                            <property name="text">
-                             <string/>
-                            </property>
-                            <property name="checked">
-                             <bool>true</bool>
-                            </property>
-                           </widget>
-                          </item>
-                         </layout>
                         </widget>
                        </item>
                       </layout>

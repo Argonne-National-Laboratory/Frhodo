@@ -151,6 +151,11 @@ class Worker(QRunnable):
                 
                 opt = nlopt.opt(options['algorithm'], np.size(self.x0))
                 opt.set_min_objective(eval_fun)
+                if options['stop_criteria_type'] == 'Iteration Maximum':
+                    opt.set_maxeval(int(options['stop_criteria_val'])-1)
+                elif options['stop_criteria_type'] == 'Maximum Time [min]':
+                    opt.set_maxtime(options['stop_criteria_val']*60)
+
                 opt.set_xtol_rel(options['xtol_rel'])
                 opt.set_ftol_rel(options['ftol_rel'])
                 opt.set_lower_bounds(self.bnds['lower'])
@@ -159,7 +164,18 @@ class Worker(QRunnable):
                 initial_step = (self.bnds['upper'] - self.bnds['lower'])*options['initial_step'] 
                 np.putmask(initial_step, s < 1, -initial_step)  # first step in direction of more variable space
                 opt.set_initial_step(initial_step)
-                
+
+                # alter default size of population in relevant algorithms
+                if options['algorithm'] in [nlopt.GN_CRS2_LM, nlopt.GN_MLSL_LDS, nlopt.GN_MLSL, nlopt.GN_ISRES]:
+                    if options['algorithm'] is nlopt.GN_CRS2_LM:
+                        default_pop_size = 10*(len(s)+1)
+                    elif options['algorithm'] in [nlopt.GN_MLSL_LDS, nlopt.GN_MLSL]:
+                        default_pop_size = 4
+                    elif options['algorithm'] is nlopt.GN_ISRES:
+                        default_pop_size = 20*(len(s)+1)
+
+                    opt.set_population(int(np.rint(default_pop_size*options['initial_pop_multiplier'])))
+
                 if options['algorithm'] is nlopt.GN_MLSL_LDS:   # if using multistart algorithm as global, set subopt
                     sub_opt = nlopt.opt(opt_options['local']['algorithm'], np.size(self.x0))
                     sub_opt.set_initial_step(initial_step)

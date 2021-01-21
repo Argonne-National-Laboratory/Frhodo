@@ -874,7 +874,9 @@ optAlgorithm = {'DIRECT': nlopt.GN_DIRECT,
                 'Subplex': nlopt.LN_SBPLX,
                 'COBYLA': nlopt.LN_COBYLA,
                 'BOBYQA': nlopt.LN_BOBYQA}   
-                
+ 
+populationAlgorithms = [nlopt.GN_CRS2_LM, nlopt.GN_MLSL_LDS, nlopt.GN_MLSL, nlopt.GN_ISRES]
+
 class Optimization(QtCore.QObject):
     def __init__(self, parent): # TODO: Setting tab order needs to happen here
         super().__init__(parent)
@@ -884,7 +886,8 @@ class Optimization(QtCore.QObject):
         
         for box in [parent.loss_alpha_box, parent.loss_c_box, parent.bayes_unc_sigma_box]:
             box.valueChanged.connect(self.update_obj_fcn_settings)
-        for box in [parent.obj_fcn_type_box, parent.obj_fcn_scale_box, parent.bayes_dist_type_box]:
+        for box in [parent.obj_fcn_type_box, parent.obj_fcn_scale_box, parent.global_stop_criteria_box,
+                    parent.local_opt_choice_box, parent.bayes_dist_type_box]:
             box.currentTextChanged.connect(self.update_obj_fcn_settings)
         
         self.update_obj_fcn_settings() # initialize settings
@@ -893,10 +896,13 @@ class Optimization(QtCore.QObject):
         
         self.widgets = {'global': {'run': parent.global_opt_enable_box,
                                    'algorithm': parent.global_opt_choice_box, 'initial_step': [],
-                                   'xtol_rel': [], 'ftol_rel': []},
+                                   'stop_criteria_type': parent.global_stop_criteria_box,
+                                   'stop_criteria_val': [], 'xtol_rel': [], 'ftol_rel': [],
+                                   'initial_pop_multiplier': []},
                         'local': {'run': parent.local_opt_enable_box,
                                    'algorithm': parent.local_opt_choice_box, 'initial_step': [],
-                                   'xtol_rel': [], 'ftol_rel': []}}
+                                   'stop_criteria_type': parent.local_stop_criteria_box,
+                                   'stop_criteria_val': [], 'xtol_rel': [], 'ftol_rel': []}}
         
         self.labels = {'global': [parent.global_text_1, parent.global_text_2, parent.global_text_3],
                        'local':  [parent.local_text_1, parent.local_text_2, parent.local_text_3]}
@@ -927,15 +933,27 @@ class Optimization(QtCore.QObject):
     def _create_spinboxes(self):
         parent = self.parent()
         layout = {'global': parent.global_opt_layout, 'local': parent.local_opt_layout}
-        vars = {'global': {'initial_step': 1E-2, 'xtol_rel': 1E-4, 'ftol_rel': 5E-4},
-                'local':  {'initial_step': 1E-2, 'xtol_rel': 1E-4, 'ftol_rel': 1E-3}}
+        vars = {'global': {'initial_step': 1E-2, 'stop_criteria_val': 1500, 'xtol_rel': 1E-4, 'ftol_rel': 5E-4, 'initial_pop_multiplier': 1},
+                'local':  {'initial_step': 1E-2, 'stop_criteria_val': 1500, 'xtol_rel': 1E-4, 'ftol_rel': 1E-3}}
         
         spinbox = misc_widget.ScientificDoubleSpinBox
         for opt_type, layout in layout.items():
             for n, (var_type, val) in enumerate(vars[opt_type].items()):
-                self.widgets[opt_type][var_type] = spinbox(parent=parent, value=val, numFormat='e')
-                self.widgets[opt_type][var_type].setSingleStep(0.1)
-                self.widgets[opt_type][var_type].setStrDecimals(1)
+                if var_type in ['stop_criteria_val', 'initial_pop_multiplier']:
+                    self.widgets[opt_type][var_type] = spinbox(parent=parent, value=val, numFormat='g')
+                    self.widgets[opt_type][var_type].setMinimum(1)
+                    self.widgets[opt_type][var_type].setStrDecimals(4)
+                    if var_type == 'stop_criteria_val':
+                        self.widgets[opt_type][var_type].setSingleStep(1)
+                        self.widgets[opt_type][var_type].setDecimals(0)
+                    else:
+                        self.widgets[opt_type][var_type].setSingleStep(0.1)
+                        self.widgets[opt_type][var_type].setDecimals(1)
+                else:
+                    self.widgets[opt_type][var_type] = spinbox(parent=parent, value=val, numFormat='e')
+                    self.widgets[opt_type][var_type].setSingleStep(0.1)
+                    self.widgets[opt_type][var_type].setStrDecimals(1)
+                
                 layout.addWidget(self.widgets[opt_type][var_type], n, 0)
 
     def update_obj_fcn_settings(self, event=None):
@@ -965,8 +983,10 @@ class Optimization(QtCore.QObject):
         self.save_settings(event)
          
     def update_opt_settings(self, event=None):
+        parent = self.parent()
+        sender = self.sender()
         if event is not None:
-            box = self.sender()
+            box = sender
             opt_type = box.info['opt_type']
             var_type = box.info['var']
             
@@ -990,10 +1010,24 @@ class Optimization(QtCore.QObject):
                 if isinstance(box, QtWidgets.QDoubleSpinBox) or isinstance(box, QtWidgets.QSpinBox):
                     self.settings[opt_type][var_type] = box.value()
                 elif isinstance(box, QtWidgets.QComboBox):
-                    self.settings[opt_type][var_type] = optAlgorithm[box.currentText()]
+                    if box in [parent.global_opt_choice_box, parent.local_opt_choice_box]:
+                        self.settings[opt_type][var_type] = optAlgorithm[box.currentText()]
+                        if sender is box and box is parent.global_opt_choice_box:   # Toggle pop_multiplier box
+                            if self.settings[opt_type][var_type] in populationAlgorithms:
+                                self.widgets[opt_type]['initial_pop_multiplier'].setEnabled(True)
+                            else:
+                                self.widgets[opt_type]['initial_pop_multiplier'].setEnabled(False)
+                    else:
+                        self.settings[opt_type][var_type] = box.currentText()
+                        if sender is box and box is self.widgets[opt_type]['stop_criteria_type']:
+                            if self.settings[opt_type][var_type] == 'No Abort Criteria':
+                                self.widgets[opt_type]['stop_criteria_val'].setEnabled(False)
+                            else:
+                                self.widgets[opt_type]['stop_criteria_val'].setEnabled(True)
+
                 elif isinstance(box, QtWidgets.QCheckBox):
                     self.settings[opt_type][var_type] = box.isChecked()
-        
+
         self.save_settings(event)
     
     def save_settings(self, event=None):

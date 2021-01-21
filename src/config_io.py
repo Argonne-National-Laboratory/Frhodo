@@ -110,15 +110,18 @@ class GUI_Config(yaml.YAML):
                             'objective function type': 'Residual',
                             'objective function scale': 'Linear',
                             'loss function alpha': -2.00,
-                            'loss function c': 1.00,
-                            'Bayesian distribution type': 'Gaussian',
+                            'loss function c': 0.50,
+                            'Bayesian distribution type': 'Automatic',
                             'Bayesian uncertainty sigma': 3.0,
                             'multiprocessing': True,
-                            'enabled':                  {'global': True,                             'local': True},
-                            'algorithm':                {'global': 'CRS (Controlled Random Search)', 'local': 'Subplex'},
-                            'initial step':             {'global': 5.0E-2,                           'local': 1.0E-3},
-                            'relative x tolerance':     {'global': 1.0E-3,                           'local': 1.0E-4},
-                            'relative fcn tolerance':   {'global': 5.0E-2,                           'local': 1.0E-3},
+                            'enabled':                       {'global': True,                             'local': True},
+                            'algorithm':                     {'global': 'CRS (Controlled Random Search)', 'local': 'Subplex'},
+                            'initial step':                  {'global': 5.0E-2,                           'local': 1.0E-3},
+                            'stop criteria type':            {'global': 'Iteration Maximum',              'local': 'Iteration Maximum'},
+                            'stop criteria value':           {'global': 2500,                             'local': 2500},
+                            'relative x tolerance':          {'global': 1.0E-3,                           'local': 1.0E-4},
+                            'relative fcn tolerance':        {'global': 5.0E-2,                           'local': 1.0E-3},
+                            'initial population multiplier': {'global': 1.0},
                             'weight function': {
                                 'max': 100.0,
                                 'min': [0.0, 0.0],
@@ -239,15 +242,19 @@ class GUI_settings:
         
         # Update Global and Local Settings
         for opt_type in ['global', 'local']:
+            widget = parent.optimization_settings.widgets[opt_type]
+
             if opt_type == 'global':
                 parent.global_opt_enable_box.setChecked(settings['opt']['enabled'][opt_type])
                 parent.global_opt_choice_box.setCurrentText(settings['opt']['algorithm'][opt_type])
+                widget['initial_pop_multiplier'].setValue(settings['opt']['initial population multiplier'][opt_type])
             else:
                 parent.local_opt_enable_box.setChecked(settings['opt']['enabled'][opt_type])
                 parent.local_opt_choice_box.setCurrentText(settings['opt']['algorithm'][opt_type])
                 
-            widget = parent.optimization_settings.widgets[opt_type]
             widget['initial_step'].setValue(settings['opt']['initial step'][opt_type])
+            widget['stop_criteria_type'].setCurrentText(settings['opt']['stop criteria type'][opt_type])
+            widget['stop_criteria_val'].setValue(settings['opt']['stop criteria value'][opt_type])
             widget['xtol_rel'].setValue(settings['opt']['relative x tolerance'][opt_type])
             widget['ftol_rel'].setValue(settings['opt']['relative fcn tolerance'][opt_type])
         
@@ -315,15 +322,19 @@ class GUI_settings:
 
         # Update Global and Local Settings
         for opt_type in ['global', 'local']:
+            widget = parent.optimization_settings.widgets[opt_type]
+
             if opt_type == 'global':
                 settings['opt']['enabled'][opt_type] = parent.global_opt_enable_box.isChecked()
                 settings['opt']['algorithm'][opt_type] = parent.global_opt_choice_box.currentText()
+                settings['opt']['initial population multiplier'][opt_type] = widget['initial_pop_multiplier'].value()
             else:
                 settings['opt']['enabled'][opt_type] = parent.local_opt_enable_box.isChecked()
                 settings['opt']['algorithm'][opt_type] = parent.local_opt_choice_box.currentText()
                 
-            widget = parent.optimization_settings.widgets[opt_type]
             settings['opt']['initial step'][opt_type] = widget['initial_step'].value()
+            settings['opt']['stop criteria type'][opt_type] = widget['stop_criteria_type'].currentText()
+            settings['opt']['stop criteria value'][opt_type] = widget['stop_criteria_val'].value()
             settings['opt']['relative x tolerance'][opt_type] = widget['xtol_rel'].value()
             settings['opt']['relative fcn tolerance'][opt_type] = widget['ftol_rel'].value()
         
