@@ -20,7 +20,7 @@ max_pos_system_value = np.finfo(float).max*(1E-20)
 class Multithread_Optimize:
     def __init__(self, parent):
         self.parent = parent
-        
+
         # Initialize Threads
         parent.optimize_running = False
         # parent.threadpool = QThreadPool()
@@ -136,11 +136,14 @@ class Multithread_Optimize:
         # Optimization plot
         parent.plot.opt.clear_plot()
 
+        # Reset Hall of Fame
+        self.HoF = []   # hall of fame for tracking the best result so far
+
         # Create Progress Bar
         # parent.create_progress_bar()
                 
         if not parent.abort:
-            s = 'Optimization starting\n\n   Iteration\t\t   Avg Std Residual'
+            s = 'Optimization starting\n\n   Iteration\t\t Objective Func\tBest Objetive Func'
             parent.log.append(s, alert=False)
             parent.threadpool.start(self.worker)
     
@@ -220,8 +223,16 @@ class Multithread_Optimize:
         replace_strs = [['e+', 'e'], ['e0', 'e'], ['e0', ''], ['e-0', 'e-']]
         for pair in replace_strs:
             obj_fcn_str = obj_fcn_str.replace(pair[0], pair[1])
-        self.parent.log.append('\t{:s} {:^5d}\t\t\t{:^s}'.format(
-            result['type'][0].upper(), result['i'], obj_fcn_str), alert=False)
+        result['obj_fcn_str'] = obj_fcn_str
+
+        # Update Hall of Fame
+        if not self.HoF:
+            self.HoF = result
+        elif result['obj_fcn'] < self.HoF['obj_fcn']:
+            self.HoF = result
+        
+        self.parent.log.append('\t{:s} {:^5d}\t\t\t{:^s}\t\t\t{:^s}'.format(
+            result['type'][0].upper(), result['i'], obj_fcn_str, self.HoF['obj_fcn_str']), alert=False)
         self.parent.tree.update_coef_rate_from_opt(result['coef_opt'], result['x'])
         
         # if displayed shock isn't in shocks being optimized, calculate the new plot
@@ -267,4 +278,5 @@ class Multithread_Optimize:
         if hasattr(self, 'worker'):
             self.worker.signals.abort.emit()
             self.parent.abort = True
+            self.update(self.HoF)
             # self.parent.update_progress(100, '00:00:00') # This turns off the progress bar
