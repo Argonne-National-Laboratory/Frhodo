@@ -103,3 +103,16 @@ def get_varying_rate_vals_and_bnds(rate_vals, rate_bnds):
             varying_rate_vals_lower_bnds.append(rate_bnds[bounds_index][0]) #append current lower bound
             varying_rate_vals_upper_bnds.append(rate_bnds[bounds_index][1]) #append current upper bound
     return varying_rate_vals_indices, varying_rate_vals_initial_guess, varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds
+    
+def get_consolidated_parameters_arrays(rate_constants_initial_guess, rate_constants_lower_bnds, rate_constants_upper_bnds, rate_constants_parameters_initial_guess, rate_constants_parameters_lower_bnds, rate_constants_parameters_upper_bnds):
+    #A. Savara recommends 'uniform' for rate constants and 'gaussian' for things like "log(A)" and "Ea"
+    #we first start the arrays using the rate_constants arrays.
+    pars_initial_guess = np.array(rate_constants_initial_guess).flatten()
+    pars_lower_bnds = np.array(rate_constants_lower_bnds).flatten()
+    pars_upper_bnds = np.array(rate_constants_upper_bnds).flatten()
+    
+    #Now we concatenate those with the rate_constant_parameters arrays.
+    pars_initial_guess = np.concatenate(  pars_initial_guess , np.array(rate_constants_parameters_initial_guess).flatten() ) 
+    pars_lower_bnds = np.concatenate( pars_lower_bnds, np.array(rate_constants_parameters_lower_bnds).flatten() )
+    pars_upper_bnds = np.concatenate( pars_upper_bnds, np.array(rate_constants_parameters_upper_bnds).flatten() ) 
+    return pars_initial_guess, pars_lower_bnds, pars_upper_bnds
