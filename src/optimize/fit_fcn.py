@@ -321,7 +321,8 @@ class Fit_Fun:
             return
         
         # Convert to mech values
-        x = self.fit_all_coeffs(np.exp(s*self.x0))
+        opt_rates = np.exp(s*self.x0)
+        x = self.fit_all_coeffs(opt_rates)
         if x is None: 
             return np.inf
 
@@ -370,14 +371,9 @@ class Fit_Fun:
         elif self.opt_settings['obj_fcn_type'] == 'Bayesian':
             # TODO: we should bring in x_bnds (the coefficent bounds) so that we can use the elementary step coefficients for Bayesian rather than the rate_val values.
             Bayesian_dict = self.Bayesian_dict
-            '''
-            Start of variables Travis needs to fill.
-            '''
-            Bayesian_dict['rate_constants_current_guess'] = [] #we **only** want the ones that are being changed, not the full set. 
-            Bayesian_dict['rate_constants_parameters_current_guess'] = [] #we **only** want the ones that are being changed, not the full set.
-            '''
-            End of variables Travis needs to fill.
-            '''
+            
+            Bayesian_dict['rate_constants_current_guess'] = opt_rates
+            Bayesian_dict['rate_constants_parameters_current_guess'] = x
             Bayesian_dict['last_obs_sim_interp'] = np.concatenate(output_dict['obs_sim_interp'], axis=0)
             Bayesian_dict['observed_data'] = np.concatenate(output_dict['obs_exp'], axis=0)
             Bayesian_dict['observed_data_lower_bounds'] = []
