@@ -369,9 +369,19 @@ class Fit_Fun:
             obj_fcn = loss_exp.mean()
 
         elif self.opt_settings['obj_fcn_type'] == 'Bayesian':
-            # TODO: we should bring in x_bnds (the coefficent bounds) so that we can use the elementary step coefficients for Bayesian rather than the rate_val values.
+            import optimize.CheKiPEUQ_from_Frhodo    
             Bayesian_dict = self.Bayesian_dict
             
+           #concatenate all of the initial guesses and bounds. 
+            Bayesian_dict['pars_initial_guess'], Bayesian_dict['pars_lower_bnds'],Bayesian_dict['pars_upper_bnds'] = optimize.CheKiPEUQ_from_Frhodo.get_consolidated_parameters_arrays( 
+                Bayesian_dict['rate_constants_initial_guess'],
+                Bayesian_dict['rate_constants_lower_bnds'],
+                Bayesian_dict['rate_constants_upper_bnds'],                
+                Bayesian_dict['rate_constants_parameters_initial_guess'],
+                Bayesian_dict['rate_constants_parameters_lower_bnds'],
+                Bayesian_dict['rate_constants_parameters_upper_bnds'],
+                )
+                        
             Bayesian_dict['rate_constants_current_guess'] = opt_rates
             Bayesian_dict['rate_constants_parameters_current_guess'] = x
             Bayesian_dict['last_obs_sim_interp'] = np.concatenate(output_dict['obs_sim_interp'], axis=0)
@@ -402,7 +412,6 @@ class Fit_Fun:
 
            
             #Start of getting Bayesian objecive_function_value
-            import optimize.CheKiPEUQ_from_Frhodo    
             print("line 392", x)
             #Step 3 of Bayesian:  create a CheKiPEUQ_PE_Object (this is a class object)
             #NOTE: normally, the Bayesian object would be created earlier. However, we are using a non-standard application
@@ -413,13 +422,15 @@ class Fit_Fun:
             CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(
                 simulation_function=    Bayesian_dict['simulation_function'],
                 observed_data=          Bayesian_dict['observed_data'],
-                pars_initial_guess =    Bayesian_dict['pars_initial_guess'], #this is assigned in the "__init__" function up above.
-                pars_lower_bnds =       Bayesian_dict['pars_lower_bnds'],    #this is assigned in the "__init__" function up above.
-                pars_upper_bnds =       Bayesian_dict['pars_upper_bnds'],    #this is assigned in the "__init__" function up above.
+                pars_initial_guess =    Bayesian_dict['pars_initial_guess'],
+                pars_lower_bnds =       Bayesian_dict['pars_lower_bnds'],   
+                pars_upper_bnds =       Bayesian_dict['pars_upper_bnds'],   
                 observed_data_lower_bounds= Bayesian_dict['observed_data_lower_bounds'],
                 observed_data_upper_bounds= Bayesian_dict['observed_data_upper_bounds'],
                 weights_data=               Bayesian_dict['weights_data'],
-                pars_uncertainty_distribution=  Bayesian_dict['pars_uncertainty_distribution']) #this is assigned in the "__init__" function up above.
+                pars_uncertainty_distribution=  Bayesian_dict['pars_uncertainty_distribution'],
+                num_rate_constants_and_rate_constant_parameters = [len(Bayesian_dict['rate_constants_initial_guess']), len(Bayesian_dict['rate_constants_parameters_initial_guess'])]
+                ) #this is assigned in the "__init__" function up above.
             #Step 4 of Bayesian:  call a function to get the posterior density which will be used as the objective function.
             #We need to provide the current values of the varying_rate_vals to feed into the function.
             print("line 406", varying_rate_vals_indices)
