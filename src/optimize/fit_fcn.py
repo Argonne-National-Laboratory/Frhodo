@@ -288,18 +288,22 @@ class Fit_Fun:
             #Step 1 of Bayesian:  Prepare any variables that need to be passed in for Bayesian PE_object creation.
             #Step 2 of Bayesian:  populate Bayesian_dict with any variables and uncertainties needed.
             self.Bayesian_dict = {}
-            self.Bayesian_dict['pars_uncertainty_distribution'] = self.opt_settings['bayes_dist_type']  #options can be 'Auto', 'Gaussian' or 'Uniform'.
-            # T. Sikes note: optimization is performed on log(rate coefficients), not sure if this is ok or should be np.exp(pars)
-            # A. Savara agrees that a log scale is appropriate for rate constants, and suggests base 10, but base e is also fine.
+            self.Bayesian_dict['pars_uncertainty_distribution'] = self.opt_settings['bayes_dist_type']  #options can be 'Auto', 'Gaussian' or 'Uniform'. 
+            # T. Sikes: The options for self.opt_settings['bayes_dist_type'] is now Automatic, Gaussian, or Uniform
             
             #A. Savara recommends 'uniform' for rate constants and 'gaussian' for things like "log(A)" and "Ea"
-            self.Bayesian_dict['rate_constants_initial_guess'] = self.x0; print("line 290", self.Bayesian_dict['pars_initial_guess']) #we **only** want the ones being changed. I assume you have this, but if not, there is a helper function I made called get_varying_rate_vals_and_bnds in CheKiPEUQ_from_Frhodo.py
-            self.Bayesian_dict['rate_constants_lower_bnds'] = input_dict['bounds']['lower']; print ("line 293", input_dict['bounds']['lower']) #we **only** want the ones being changed.
-            self.Bayesian_dict['rate_constants_upper_bnds'] = input_dict['bounds']['upper']; print ("line 294", input_dict['bounds']['lower']) #we **only** want the ones being changed.
-            
-            self.Bayesian_dict['rate_constants_parameters_initial_guess'] = [] #To be filled #we **only** want the ones being changed.
-            self.Bayesian_dict['rate_constants_parameters_lower_bnds'] = [] #To be filled #we **only** want the ones being changed.
-            self.Bayesian_dict['rate_constants_parameters_upper_bnds'] = #To be filled #we **only** want the ones being changed.
+            self.Bayesian_dict['rate_constants_initial_guess'] = self.x0
+            self.Bayesian_dict['rate_constants_lower_bnds'] = input_dict['bounds']['lower']
+            self.Bayesian_dict['rate_constants_upper_bnds'] = input_dict['bounds']['upper']
+
+            self.Bayesian_dict['rate_constants_parameters_changing'] = self.coef_opt
+            self.Bayesian_dict['rate_constants_parameters_initial_guess'] = []
+            self.Bayesian_dict['rate_constants_parameters_lower_bnds'] = []
+            self.Bayesian_dict['rate_constants_parameters_upper_bnds'] = []
+            for rxn_coef in self.rxn_coef_opt:
+                self.Bayesian_dict['rate_constants_parameters_initial_guess'].append(rxn_coef['coef_x0'])
+                self.Bayesian_dict['rate_constants_parameters_lower_bnds'].append(rxn_coef['coef_bnds']['lower'])
+                self.Bayesian_dict['rate_constants_parameters_upper_bnds'].append(rxn_coef['coef_bnds']['upper'])
     
     def __call__(self, s, optimizing=True):                                                                    
         def append_output(output_dict, calc_resid_output):
@@ -317,7 +321,8 @@ class Fit_Fun:
             return
         
         # Convert to mech values
-        x = self.fit_all_coeffs(np.exp(s*self.x0))
+        opt_rates = np.exp(s*self.x0)
+        x = self.fit_all_coeffs(opt_rates)
         if x is None: 
             return np.inf
 
@@ -366,14 +371,9 @@ class Fit_Fun:
         elif self.opt_settings['obj_fcn_type'] == 'Bayesian':
             # TODO: we should bring in x_bnds (the coefficent bounds) so that we can use the elementary step coefficients for Bayesian rather than the rate_val values.
             Bayesian_dict = self.Bayesian_dict
-            '''
-            Start of variables Travis needs to fill.
-            '''
-            Bayesian_dict['rate_constants_current_guess'] = [] #we **only** want the ones that are being changed, not the full set. 
-            Bayesian_dict['rate_constants_parameters_current_guess'] = [] #we **only** want the ones that are being changed, not the full set.
-            '''
-            End of variables Travis needs to fill.
-            '''
+            
+            Bayesian_dict['rate_constants_current_guess'] = opt_rates
+            Bayesian_dict['rate_constants_parameters_current_guess'] = x
             Bayesian_dict['last_obs_sim_interp'] = np.concatenate(output_dict['obs_sim_interp'], axis=0)
             Bayesian_dict['observed_data'] = np.concatenate(output_dict['obs_exp'], axis=0)
             Bayesian_dict['observed_data_lower_bounds'] = []
@@ -468,17 +468,18 @@ class Fit_Fun:
     def fit_all_coeffs(self, all_rates):      
         coeffs = []
         i = 0
-
         for rxn_coef in self.rxn_coef_opt:
             rxnIdx = rxn_coef['rxnIdx']
             T, P, X = rxn_coef['T'], rxn_coef['P'], rxn_coef['X']
+            coef_x0 = rxn_coef['coef_x0']
+            coef_bnds = [rxn_coef['coef_bnds']['lower'], rxn_coef['coef_bnds']['upper']]
             rxn_rates = all_rates[i:i+len(T)]
             if len(coeffs) == 0:
-                coeffs = fit_coeffs(rxn_rates, T, P, X, rxn_coef['coefName'], rxnIdx, self.mech)
+                coeffs = fit_coeffs(rxn_rates, T, P, X, rxn_coef['coefName'], rxnIdx, coef_x0, coef_bnds, self.mech)
                 if coeffs is None:
                     return
             else:
-                coeffs_append = fit_coeffs(rxn_rates, T, P, X, rxn_coef['coefName'], rxnIdx, self.mech)
+                coeffs_append = fit_coeffs(rxn_rates, T, P, X, rxn_coef['coefName'], rxnIdx, coef_x0, coef_bnds, self.mech)
                 if coeffs_append is None:
                     return
                 coeffs = np.append(coeffs, coeffs_append)
