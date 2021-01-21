@@ -116,8 +116,6 @@ def get_varying_rate_vals_and_bnds(rate_vals, rate_bnds):
     return varying_rate_vals_indices, varying_rate_vals_initial_guess, varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds
     
 def get_consolidated_parameters_arrays(rate_constants_initial_guess, rate_constants_lower_bnds, rate_constants_upper_bnds, rate_constants_parameters_initial_guess, rate_constants_parameters_lower_bnds, rate_constants_parameters_upper_bnds):
-    print("line 108", rate_constants_initial_guess, rate_constants_lower_bnds, rate_constants_upper_bnds, rate_constants_parameters_initial_guess, rate_constants_parameters_lower_bnds, rate_constants_parameters_upper_bnds)
-
     #A. Savara recommends 'uniform' for rate constants and 'gaussian' for things like "log(A)" and "Ea"
     #we first start the arrays using the rate_constants arrays.
     pars_initial_guess = np.array(rate_constants_initial_guess).flatten()

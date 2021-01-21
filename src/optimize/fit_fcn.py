@@ -292,18 +292,18 @@ class Fit_Fun:
             # T. Sikes: The options for self.opt_settings['bayes_dist_type'] is now Automatic, Gaussian, or Uniform
             
             #A. Savara recommends 'uniform' for rate constants and 'gaussian' for things like "log(A)" and "Ea"
-            self.Bayesian_dict['rate_constants_initial_guess'] = self.x0
-            self.Bayesian_dict['rate_constants_lower_bnds'] = input_dict['bounds']['lower']
-            self.Bayesian_dict['rate_constants_upper_bnds'] = input_dict['bounds']['upper']
+            self.Bayesian_dict['rate_constants_initial_guess'] = deepcopy(self.x0)
+            self.Bayesian_dict['rate_constants_lower_bnds'] = deepcopy(input_dict['bounds']['lower'])
+            self.Bayesian_dict['rate_constants_upper_bnds'] = deepcopy(input_dict['bounds']['upper'])
 
-            self.Bayesian_dict['rate_constants_parameters_changing'] = self.coef_opt
+            self.Bayesian_dict['rate_constants_parameters_changing'] = deepcopy(self.coef_opt)
             self.Bayesian_dict['rate_constants_parameters_initial_guess'] = []
             self.Bayesian_dict['rate_constants_parameters_lower_bnds'] = []
             self.Bayesian_dict['rate_constants_parameters_upper_bnds'] = []
             for rxn_coef in self.rxn_coef_opt:
-                self.Bayesian_dict['rate_constants_parameters_initial_guess'].append(rxn_coef['coef_x0'])
-                self.Bayesian_dict['rate_constants_parameters_lower_bnds'].append(rxn_coef['coef_bnds']['lower'])
-                self.Bayesian_dict['rate_constants_parameters_upper_bnds'].append(rxn_coef['coef_bnds']['upper'])
+                self.Bayesian_dict['rate_constants_parameters_initial_guess'].append(deepcopy(rxn_coef['coef_x0'])) 
+                self.Bayesian_dict['rate_constants_parameters_lower_bnds'].append(deepcopy(rxn_coef['coef_bnds']['lower']))
+                self.Bayesian_dict['rate_constants_parameters_upper_bnds'].append(deepcopy(rxn_coef['coef_bnds']['upper']))
     
     def __call__(self, s, optimizing=True):                                                                    
         def append_output(output_dict, calc_resid_output):
@@ -369,10 +369,17 @@ class Fit_Fun:
             obj_fcn = loss_exp.mean()
 
         elif self.opt_settings['obj_fcn_type'] == 'Bayesian':
-            import optimize.CheKiPEUQ_from_Frhodo    
             Bayesian_dict = self.Bayesian_dict
-            
-           #concatenate all of the initial guesses and bounds. 
+            print("line 384, rate_constants_initial_guess", Bayesian_dict['rate_constants_initial_guess'])
+            print("line 384, rate_constants_lower_bnds", Bayesian_dict['rate_constants_lower_bnds'])
+            print("line 384, rate_constants_upper_bnds", Bayesian_dict['rate_constants_upper_bnds'])
+            print("line 384, rate_constants_parameters_initial_guess", Bayesian_dict['rate_constants_parameters_initial_guess'])
+            print("line 384, rate_constants_parameters_lower_bnds", Bayesian_dict['rate_constants_parameters_lower_bnds'])
+            print("line 384, rate_constants_parameters_upper_bnds", Bayesian_dict['rate_constants_parameters_upper_bnds'])       
+            print("line 384, rate_constants_parameters_changing",  Bayesian_dict['rate_constants_parameters_changing'])
+        
+            import optimize.CheKiPEUQ_from_Frhodo    
+            #concatenate all of the initial guesses and bounds. 
             Bayesian_dict['pars_initial_guess'], Bayesian_dict['pars_lower_bnds'],Bayesian_dict['pars_upper_bnds'] = optimize.CheKiPEUQ_from_Frhodo.get_consolidated_parameters_arrays( 
                 Bayesian_dict['rate_constants_initial_guess'],
                 Bayesian_dict['rate_constants_lower_bnds'],
@@ -381,9 +388,12 @@ class Fit_Fun:
                 Bayesian_dict['rate_constants_parameters_lower_bnds'],
                 Bayesian_dict['rate_constants_parameters_upper_bnds'],
                 )
-                        
-            Bayesian_dict['rate_constants_current_guess'] = opt_rates
-            Bayesian_dict['rate_constants_parameters_current_guess'] = x
+            Bayesian_dict['rate_constants_current_guess'] = deepcopy(opt_rates)
+            Bayesian_dict['rate_constants_parameters_current_guess'] = deepcopy(x)
+            print("line 397, rate_constants_current_guess", Bayesian_dict['rate_constants_current_guess'])
+            print("line 397, rate_constants_parameters_current_guess", Bayesian_dict['rate_constants_parameters_current_guess'])
+            
+            Bayesian_dict['pars_current_guess'] = np.concatenate( (Bayesian_dict['rate_constants_current_guess'], Bayesian_dict['rate_constants_parameters_current_guess'] ) )
             Bayesian_dict['last_obs_sim_interp'] = np.concatenate(output_dict['obs_sim_interp'], axis=0)
             Bayesian_dict['observed_data'] = np.concatenate(output_dict['obs_exp'], axis=0)
             Bayesian_dict['observed_data_lower_bounds'] = []
@@ -391,7 +401,7 @@ class Fit_Fun:
             def get_last_obs_sim_interp(varying_rate_vals): #A. Savara added this. It needs to be here.
                 try:
                     last_obs_sim_interp = Bayesian_dict['last_obs_sim_interp']
-                    last_obs_sim_interp = np.array(shock['last_obs_sim_interp']).T
+                    last_obs_sim_interp = np.array(last_obs_sim_interp).T
                 except:
                     print("this isline 207! There may be an error occurring!")
                     last_obs_sim_interp = None
@@ -411,8 +421,6 @@ class Fit_Fun:
             #    print(val)
 
            
-            #Start of getting Bayesian objecive_function_value
-            print("line 392", x)
             #Step 3 of Bayesian:  create a CheKiPEUQ_PE_Object (this is a class object)
             #NOTE: normally, the Bayesian object would be created earlier. However, we are using a non-standard application
             #where the observed_data uncertainties might change with each simulation.
@@ -433,17 +441,14 @@ class Fit_Fun:
                 ) #this is assigned in the "__init__" function up above.
             #Step 4 of Bayesian:  call a function to get the posterior density which will be used as the objective function.
             #We need to provide the current values of the varying_rate_vals to feed into the function.
-            print("line 406", varying_rate_vals_indices)
+            #print("line 406", varying_rate_vals_indices)
             
             
-            varying_rate_vals = np.array(output_dict['shock']['rate_val'])[list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
-            log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object, varying_rate_vals)
+            #varying_rate_vals = np.array(output_dict['shock']['rate_val'])[list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
+            log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object, Bayesian_dict['pars_current_guess'])
             #Step 5 of Bayesian:  return the objective function and any other metrics desired.
             obj_fcn = -1*log_posterior_density #need neg_logP because minimizing.
-            #End of getting Bayesian objecive_function_value
-
-
-
+           
         # For updating
         self.i += 1
         if not optimizing or self.i % 1 == 0:#5 == 0: # updates plot every 5
