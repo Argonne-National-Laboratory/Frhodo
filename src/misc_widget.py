@@ -138,13 +138,16 @@ class ScientificDoubleSpinBox(QtWidgets.QDoubleSpinBox):
 
     def textFromValue(self, value):
         """Modified form of the 'g' format specifier."""
-        if 'g' in self.numFormat: 
-            string = "{:.{dec}{numFormat}}".format(value, dec=self.strDecimals, 
-                                                   numFormat=self.numFormat)
+        if 'g' in self.numFormat:
+            # if full number showing and number decimals less than str, switch to number decimals
+            if abs(OoM(value)) < self.strDecimals and self.decimals() < self.strDecimals:
+                string = "{:.{dec}{numFormat}}".format(value, dec=int(abs(OoM(value)))+1+self.decimals(), numFormat=self.numFormat)
+            else:
+                string = "{:.{dec}{numFormat}}".format(value, dec=self.strDecimals, numFormat=self.numFormat)
         elif 'e' in self.numFormat:
-            string = "{:.{dec}{numFormat}}".format(value, dec=self.strDecimals, 
-                                                   numFormat=self.numFormat)
+            string = "{:.{dec}{numFormat}}".format(value, dec=self.strDecimals, numFormat=self.numFormat)
         string = re.sub("e(-?)0*(\d+)", r"e\1\2", string.replace("e+", "e"))
+
         return string
     
     def stepBy(self, steps):
@@ -154,18 +157,32 @@ class ScientificDoubleSpinBox(QtWidgets.QDoubleSpinBox):
             text = self.cleanText()
         
         old_val = float(text)
-        if self.numFormat == 'g' and OoM(old_val) <= self.strDecimals:    # my own custom g
+        if self.numFormat == 'g' and abs(OoM(old_val)) < self.strDecimals:    # my own custom g
             val = old_val + self.singleStep()*steps
-            new_string = "{:.{dec}f}".format(val, dec=self.strDecimals)
+            if self.decimals() < self.strDecimals:
+                new_string = "{:.{dec}f}".format(val, dec=self.decimals())
+            else:
+                new_string = "{:.{dec}f}".format(val, dec=self.strDecimals)
         else:
+            if self.decimals() < self.strDecimals:
+                singleStep = 0.1
+            else:
+                singleStep = self.singleStep()
+            
             old_OoM = OoM(old_val)
-            val = old_val + np.power(10, old_OoM)*self.singleStep()*steps
+            val = old_val + np.power(10, old_OoM)*singleStep*steps
             new_OoM = OoM(val)
             if old_OoM > new_OoM:   # needed to step down by new amount 1E5 -> 9.9E6
-                val = old_val + np.power(10, new_OoM)*self.singleStep()*steps
-                
-            new_string = "{:.{dec}e}".format(val, dec=self.strDecimals)
-
+                if abs(new_OoM) < self.strDecimals and self.decimals() < self.strDecimals:
+                    #val = old_val + np.power(10, -self.decimals())*self.singleStep()*steps
+                    val = old_val + self.singleStep()*steps
+                    new_string = "{:.{dec}f}".format(val, dec=self.decimals())
+                else:
+                    val = old_val + np.power(10, new_OoM)*singleStep*steps
+                    new_string = "{:.{dec}e}".format(val, dec=self.strDecimals)
+            else:
+                new_string = "{:.{dec}e}".format(val, dec=self.strDecimals)
+        
         self.lineEdit().setText(new_string)
         self.setValue(float(new_string))
 

@@ -74,6 +74,7 @@ class Worker(QRunnable):
         # Determine rate bounds
         lb = []
         ub = []
+        unscaled_bnds = {'lower': [], 'upper': []}
         i = 0
         for rxn_coef in self.rxn_coef_opt:
             rxnIdx = rxn_coef['rxnIdx']
@@ -82,16 +83,16 @@ class Worker(QRunnable):
             for T, P in zip(rxn_coef['T'], rxn_coef['P']):
                 mech.set_TPX(T, P)
                 bnds = mech.rate_bnds[rxnIdx]['limits'](mech.gas.forward_rate_constants[rxnIdx])
-                bnds = np.sort(np.log(bnds)/self.x0[i])  # operate on ln and scale
-                lb.append(bnds[0])
-                ub.append(bnds[1])
+                bnds = np.sort(np.log(bnds))  # operate on ln and scale
+                unscaled_bnds['lower'].append(bnds[0])
+                unscaled_bnds['upper'].append(bnds[1])
+                lb.append(bnds[0]/self.x0[i])
+                ub.append(bnds[1]/self.x0[i])
                 
                 i += 1
         
+        self.unscaled_bnds = unscaled_bnds
         self.bnds = {'lower': np.array(lb), 'upper': np.array(ub)}
-
-        # Calculate coefficient x0 and bounds
-        # TODO 
 
         # Calculate initial rate scalers
         mech.coeffs = initial_mech
@@ -123,7 +124,7 @@ class Worker(QRunnable):
         
         input_dict = {'parent': parent, 'pool': pool, 'mech': self.mech, 'shocks2run': self.shocks2run,
                       'coef_opt': self.coef_opt, 'rxn_coef_opt': self.rxn_coef_opt,
-                      'x0': self.x0, 'bounds': self.bnds,
+                      'x0': self.x0, 'bounds': self.unscaled_bnds,
                       'multiprocessing': parent.multiprocessing, 'signals': self.signals}
            
         Scaled_Fit_Fun = Fit_Fun(input_dict)
@@ -151,6 +152,11 @@ class Worker(QRunnable):
                 
                 opt = nlopt.opt(options['algorithm'], np.size(self.x0))
                 opt.set_min_objective(eval_fun)
+                if options['stop_criteria_type'] == 'Iteration Maximum':
+                    opt.set_maxeval(int(options['stop_criteria_val'])-1)
+                elif options['stop_criteria_type'] == 'Maximum Time [min]':
+                    opt.set_maxtime(options['stop_criteria_val']*60)
+
                 opt.set_xtol_rel(options['xtol_rel'])
                 opt.set_ftol_rel(options['ftol_rel'])
                 opt.set_lower_bounds(self.bnds['lower'])
@@ -159,7 +165,18 @@ class Worker(QRunnable):
                 initial_step = (self.bnds['upper'] - self.bnds['lower'])*options['initial_step'] 
                 np.putmask(initial_step, s < 1, -initial_step)  # first step in direction of more variable space
                 opt.set_initial_step(initial_step)
-                
+
+                # alter default size of population in relevant algorithms
+                if options['algorithm'] in [nlopt.GN_CRS2_LM, nlopt.GN_MLSL_LDS, nlopt.GN_MLSL, nlopt.GN_ISRES]:
+                    if options['algorithm'] is nlopt.GN_CRS2_LM:
+                        default_pop_size = 10*(len(s)+1)
+                    elif options['algorithm'] in [nlopt.GN_MLSL_LDS, nlopt.GN_MLSL]:
+                        default_pop_size = 4
+                    elif options['algorithm'] is nlopt.GN_ISRES:
+                        default_pop_size = 20*(len(s)+1)
+
+                    opt.set_population(int(np.rint(default_pop_size*options['initial_pop_multiplier'])))
+
                 if options['algorithm'] is nlopt.GN_MLSL_LDS:   # if using multistart algorithm as global, set subopt
                     sub_opt = nlopt.opt(opt_options['local']['algorithm'], np.size(self.x0))
                     sub_opt.set_initial_step(initial_step)
