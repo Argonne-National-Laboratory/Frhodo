@@ -74,6 +74,7 @@ class Worker(QRunnable):
         # Determine rate bounds
         lb = []
         ub = []
+        unscaled_bnds = {'lower': [], 'upper': []}
         i = 0
         for rxn_coef in self.rxn_coef_opt:
             rxnIdx = rxn_coef['rxnIdx']
@@ -82,16 +83,16 @@ class Worker(QRunnable):
             for T, P in zip(rxn_coef['T'], rxn_coef['P']):
                 mech.set_TPX(T, P)
                 bnds = mech.rate_bnds[rxnIdx]['limits'](mech.gas.forward_rate_constants[rxnIdx])
-                bnds = np.sort(np.log(bnds)/self.x0[i])  # operate on ln and scale
-                lb.append(bnds[0])
-                ub.append(bnds[1])
+                bnds = np.sort(np.log(bnds))  # operate on ln and scale
+                unscaled_bnds['lower'].append(bnds[0])
+                unscaled_bnds['upper'].append(bnds[1])
+                lb.append(bnds[0]/self.x0[i])
+                ub.append(bnds[1]/self.x0[i])
                 
                 i += 1
         
+        self.unscaled_bnds = unscaled_bnds
         self.bnds = {'lower': np.array(lb), 'upper': np.array(ub)}
-
-        # Calculate coefficient x0 and bounds
-        # TODO 
 
         # Calculate initial rate scalers
         mech.coeffs = initial_mech
@@ -123,7 +124,7 @@ class Worker(QRunnable):
         
         input_dict = {'parent': parent, 'pool': pool, 'mech': self.mech, 'shocks2run': self.shocks2run,
                       'coef_opt': self.coef_opt, 'rxn_coef_opt': self.rxn_coef_opt,
-                      'x0': self.x0, 'bounds': self.bnds,
+                      'x0': self.x0, 'bounds': self.unscaled_bnds,
                       'multiprocessing': parent.multiprocessing, 'signals': self.signals}
            
         Scaled_Fit_Fun = Fit_Fun(input_dict)
