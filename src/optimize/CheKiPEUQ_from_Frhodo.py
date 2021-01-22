@@ -38,19 +38,24 @@ software_kwargs = {"version": software_version, "author": ["Aditya Savara", "Eri
 #CiteSoft.import_cite(unique_id=software_unique_id, software_name=software_name, write_immediately=True, **software_kwargs)
 #decorator CiteSoft.after_call_compile_consolidated_log()
 #decorator CiteSoft.module_call_cite(unique_id=software_unique_id, software_name=software_name, **software_kwargs)
-def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess = [], pars_lower_bnds=[], pars_upper_bnds =[],observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=[], pars_uncertainty_distribution='gaussian', sigma_multiple = 3.0):
+def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess = [], pars_lower_bnds=[], pars_upper_bnds =[],observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=[], pars_uncertainty_distribution='automatic', sigma_multiple = 3.0, num_rate_constants_and_rate_constant_parameters=[]):
     #observed_data is an array of values of observed data (can be nested if there is more than one observable)
     #pars_lower_bnds and pars_upper_bnds are the bounds of the parameters ('coefficents') in absolute values.
     #  for 'uniform' distribution the bounds are taken directly. For Gaussian, the larger of the 2 deltas is taken and divided by 3 for sigma.
     #pars_initial_guess is the initial guess for the parameters ('coefficients')
     #weights_data is an optional array of values that matches observed data in length.
     #sigma_multiple is how many sigma the bounds are equal to (relative to mean).
+    #pars_uncertainty_distribution allows 3 choices: automatic, gaussian, uniform.  Automatic gives 'uniform' to the rate constants and 'gaussian' to the rate_constant_parameters.
+    #num_rate_constants_and_rate_constant_parameters  allows the 'automatic setting of pars_uncertainty_distribution to assign distribution types based on the par index. If not supplied, everything is assumed to be a rate_constant.
     try:
         import CheKiPEUQ.UserInput as UserInput
         print("line 44, somehow imported CheKiPEUQ UserInput!!!")
     except:
         import optimize.CheKiPEUQ_local.UserInput as UserInput
     #TODO: put a "clear UserInput" type call here to UnitTesterSG_local
+    
+    if len(num_rate_constants_and_rate_constant_parameters) == 0: num_rate_constants_and_rate_constant_parameters = [len(pars_initial_guess), 0]
+    
     UserInput.responses['responses_abscissa'] = []
     UserInput.responses['responses_observed'] = np.array(observed_data).T
     num_responses = np.shape(UserInput.responses['responses_observed'])[0]
@@ -67,6 +72,12 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
         UserInput.model['InputParametersPriorValuesUncertainties'] = -1*np.ones(len(pars_initial_guess))
     if pars_uncertainty_distribution.lower() == 'gaussian': 
         UserInput.model['InputParametersPriorValuesUncertainties'] = extract_larger_delta_and_make_sigma_values(pars_initial_guess, pars_lower_bnds, pars_upper_bnds, sigma_multiple)
+    if pars_uncertainty_distribution.lower() == 'automatic' or pars_uncertainty_distribution.lower() == 'auto': 
+        num_rate_constants = num_rate_constants_and_rate_constant_parameters[0]
+        num_rate_constants_parameters = num_rate_constants_and_rate_constant_parameters[1]
+        rate_constant_uncertainties = extract_larger_delta_and_make_sigma_values(pars_initial_guess[0:num_rate_constants], pars_lower_bnds[0:num_rate_constants], pars_upper_bnds[0:num_rate_constants], sigma_multiple)
+        rate_constant_parameters_uncertainties = -1*np.ones(num_rate_constants_parameters)
+        UserInput.model['InputParametersPriorValuesUncertainties'] = np.concatenate( (rate_constant_uncertainties, rate_constant_parameters_uncertainties) )
     UserInput.model['InputParameterPriorValues_upperBounds'] = pars_upper_bnds
     UserInput.model['InputParameterPriorValues_lowerBounds'] = pars_lower_bnds
     UserInput.model['simulateByInputParametersOnlyFunction'] = simulation_function
@@ -103,3 +114,16 @@ def get_varying_rate_vals_and_bnds(rate_vals, rate_bnds):
             varying_rate_vals_lower_bnds.append(rate_bnds[bounds_index][0]) #append current lower bound
             varying_rate_vals_upper_bnds.append(rate_bnds[bounds_index][1]) #append current upper bound
     return varying_rate_vals_indices, varying_rate_vals_initial_guess, varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds
+    
+def get_consolidated_parameters_arrays(rate_constants_initial_guess, rate_constants_lower_bnds, rate_constants_upper_bnds, rate_constants_parameters_initial_guess, rate_constants_parameters_lower_bnds, rate_constants_parameters_upper_bnds):
+    #A. Savara recommends 'uniform' for rate constants and 'gaussian' for things like "log(A)" and "Ea"
+    #we first start the arrays using the rate_constants arrays.
+    pars_initial_guess = np.array(rate_constants_initial_guess).flatten()
+    pars_lower_bnds = np.array(rate_constants_lower_bnds).flatten()
+    pars_upper_bnds = np.array(rate_constants_upper_bnds).flatten()
+    
+    #Now we concatenate those with the rate_constant_parameters arrays.
+    pars_initial_guess = np.concatenate( (pars_initial_guess , np.array(rate_constants_parameters_initial_guess).flatten()) ) 
+    pars_lower_bnds = np.concatenate( (pars_lower_bnds, np.array(rate_constants_parameters_lower_bnds).flatten()) )
+    pars_upper_bnds = np.concatenate( (pars_upper_bnds, np.array(rate_constants_parameters_upper_bnds).flatten()) ) 
+    return pars_initial_guess, pars_lower_bnds, pars_upper_bnds
