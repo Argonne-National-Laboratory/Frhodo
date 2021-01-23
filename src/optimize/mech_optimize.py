@@ -208,8 +208,9 @@ class Multithread_Optimize:
                     rxn_coef['coef_bnds']['upper'].append(coef_limits[1])
                 
 
-            lb_exist = [abs(x) == max_pos_system_value for x in rxn_coef['coef_bnds']['lower']]
-            ub_exist = [abs(x) == max_pos_system_value for x in rxn_coef['coef_bnds']['upper']]
+            lb_exist = [abs(x) != min_neg_system_value for x in rxn_coef['coef_bnds']['lower']]
+            print("line 212", lb_exist, rxn_coef['coef_bnds']['lower'], min_neg_system_value); sys.exit() #THIS IS NOT WORKING CORRECTLY FOR min_neg_system_value. THE COMPARISON MUST BE INCLUDING BITS NOT PRINTED TO SCREEN.
+            ub_exist = [abs(x) != max_pos_system_value for x in rxn_coef['coef_bnds']['upper']]
             rxn_coef['coef_bnds']['exist'] = np.array((lb_exist, ub_exist)).T
             
             # Set evaluation rate conditions
