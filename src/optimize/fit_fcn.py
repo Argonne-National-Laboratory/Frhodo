@@ -61,43 +61,43 @@ def weighted_quantile(values, quantiles, weights=None, values_sorted=False, old_
         weighted_quantiles /= np.sum(weights)
     return np.interp(quantiles, weighted_quantiles, values)
 
-def outlier(res, a=2, c=1, weights=[], max_iter=25, percentile=0.25):
-    def diff(res_outlier):
-        if len(res_outlier) < 2: 
+def outlier(x, a=2, c=1, weights=[], max_iter=25, percentile=0.25):
+    def diff(x_outlier):
+        if len(x_outlier) < 2: 
             return 1
         else:
-            return np.diff(res_outlier)[0]
+            return np.diff(x_outlier)[0]
 
-    trunc_res = np.abs(res.copy())
+    x = np.abs(x.copy())
     percentiles = [percentile, 1-percentile]
-    res_outlier = []
+    x_outlier = []
     if a != 2: # define outlier with 1.5 IQR rule
         for n in range(max_iter):
-            if diff(res_outlier) == 0:   # iterate until res_outlier is the same as prior iteration
+            if diff(x_outlier) == 0:   # iterate until res_outlier is the same as prior iteration
                 break
                 
-            if len(res_outlier) > 0:
-                trunc_res = trunc_res[trunc_res < res_outlier[-1]] 
+            if len(x_outlier) > 0:
+                x = x[x < x_outlier[-1]] 
             
-            [q1, q3] = weighted_quantile(trunc_res, percentiles, weights=weights)
+            [q1, q3] = weighted_quantile(x, percentiles, weights=weights)
             iqr = q3 - q1       # interquartile range      
             
-            if len(res_outlier) == 2:
-                del res_outlier[0]
+            if len(x_outlier) == 2:
+                del x_outlier[0]
             
-            res_outlier.append(q3 + iqr*1.5)
+            x_outlier.append(q3 + iqr*1.5)
         
-        res_outlier = res_outlier[-1]
+        x_outlier = x_outlier[-1]
     else:
-        res_outlier = 1
+        x_outlier = 1
 
-    return c*res_outlier
+    return c*x_outlier
     
 def generalized_loss_fcn(x, a=2, c=1):    # defaults to L2 loss
     c_2 = c**2
     x_c_2 = x**2/c_2
     if a == 1:          # generalized function reproduces
-        loss = (x_c_2 + 1)**(1/2) - 1
+        loss = (x_c_2 + 1)**(0.5) - 1
     if a == 2:
         loss = 0.5*x_c_2
     elif a == 0:
@@ -304,6 +304,7 @@ class Fit_Fun:
                 self.Bayesian_dict['rate_constants_parameters_initial_guess'].append(deepcopy(rxn_coef['coef_x0'])) 
                 self.Bayesian_dict['rate_constants_parameters_lower_bnds'].append(deepcopy(rxn_coef['coef_bnds']['lower']))
                 self.Bayesian_dict['rate_constants_parameters_upper_bnds'].append(deepcopy(rxn_coef['coef_bnds']['upper']))
+            self.Bayesian_dict['rate_constants_parameters_bnds_exist'] = rxn_coef['coef_bnds']['exist']
     
     def __call__(self, s, optimizing=True):                                                                    
         def append_output(output_dict, calc_resid_output):
@@ -321,8 +322,8 @@ class Fit_Fun:
             return
         
         # Convert to mech values
-        opt_rates = np.exp(s*self.x0)
-        x = self.fit_all_coeffs(opt_rates)
+        log_opt_rates = s*self.x0
+        x = self.fit_all_coeffs(np.exp(log_opt_rates))
         if x is None: 
             return np.inf
 
@@ -366,7 +367,7 @@ class Fit_Fun:
             loss_exp = generalized_loss_fcn(loss_resid, a=self.opt_settings['loss_alpha'], c=c*0.1) # I find that the loss function doesn't do much unless c is reduced further
         
         if self.opt_settings['obj_fcn_type'] == 'Residual':
-            obj_fcn = loss_exp.mean()
+            obj_fcn = np.mean(loss_exp*loss_resid.max()/loss_exp.max())
 
         elif self.opt_settings['obj_fcn_type'] == 'Bayesian':
             Bayesian_dict = self.Bayesian_dict
@@ -374,6 +375,7 @@ class Fit_Fun:
             print("line 384, rate_constants_lower_bnds", Bayesian_dict['rate_constants_lower_bnds'])
             print("line 384, rate_constants_upper_bnds", Bayesian_dict['rate_constants_upper_bnds'])
             print("line 384, rate_constants_parameters_initial_guess", Bayesian_dict['rate_constants_parameters_initial_guess'])
+            print('line 384, rate_constants_parameters_bnds_exist', Bayesian_dict['rate_constants_parameters_bnds_exist'])
             print("line 384, rate_constants_parameters_lower_bnds", Bayesian_dict['rate_constants_parameters_lower_bnds'])
             print("line 384, rate_constants_parameters_upper_bnds", Bayesian_dict['rate_constants_parameters_upper_bnds'])       
             print("line 384, rate_constants_parameters_changing",  Bayesian_dict['rate_constants_parameters_changing'])
@@ -388,7 +390,7 @@ class Fit_Fun:
                 Bayesian_dict['rate_constants_parameters_lower_bnds'],
                 Bayesian_dict['rate_constants_parameters_upper_bnds'],
                 )
-            Bayesian_dict['rate_constants_current_guess'] = deepcopy(opt_rates)
+            Bayesian_dict['rate_constants_current_guess'] = deepcopy(log_opt_rates)
             Bayesian_dict['rate_constants_parameters_current_guess'] = deepcopy(x)
             print("line 397, rate_constants_current_guess", Bayesian_dict['rate_constants_current_guess'])
             print("line 397, rate_constants_parameters_current_guess", Bayesian_dict['rate_constants_parameters_current_guess'])
