@@ -795,6 +795,7 @@ class rateExpCoefficient(QWidget):  # rate expression coefficient
         self.valueBox = misc_widget.ScientificDoubleSpinBox(parent=parent, *args, **valueBox_kwargs)
         self.valueBox.info = info
         self.valueBox.setValue(coef[2])
+        self.valueBox.setSingleIntStep(0.01)
         self.valueBox.setMaximumWidth(75)   # This matches the coefficients
         self.valueBox.setToolTip('Coefficient Value')
         
@@ -1001,7 +1002,7 @@ class UncertaintyBox(misc_widget.ScientificDoubleSpinBox):
         
         self.minimumBaseValue= 1
         self.maximumBaseValue = maxUnc
-        self.setSingleStep(0.25)
+        self.setSingleIntStep(0.25)
         self.setDecimals(2)
         if value is None:
             self.setValue(-1)
