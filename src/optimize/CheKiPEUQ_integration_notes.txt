@@ -1,11 +1,10 @@
 Notes on Jan 23rd 2021
 
-* The temperature exponent (n) is coming in as "True True" for bounds because the bounds are never checked on that. After inspecting the code, it looks like this is some kind of oversight. I think it is because the checking of bounds had an error in how it was deciding the True and False, so I have changed that to be as follows:
+* The temperature exponent (n) was coming in as "True True" for bounds because of an error in the bounds checking. I have changed the lines to as follows:
 
-            lb_exist = [abs(x) != min_neg_system_value for x in rxn_coef['coef_bnds']['lower']]
-            ub_exist = [abs(x) != max_pos_system_value for x in rxn_coef['coef_bnds']['upper']]
+            lb_exist = [x != min_neg_system_value for x in rxn_coef['coef_bnds']['lower']]
+            ub_exist = [x != max_pos_system_value for x in rxn_coef['coef_bnds']['upper']]
 
-That did not work. There is an issue at line 212 of mech_optimize.py. We expect that min_neg_system_value == min_neg_system_value should return TRUE and min_neg_system_value != min_neg_system_value would return FALSE but that is not what happens.  This probably has to do with rounding. Whatever the reason is, it seems that it is dangerous to try to compare to the system values. It is probably fine to *set* limits to the system values, but it seems that is not a good way to *check* if the limit is at the system value.  Either a comparison like "1E99" should be used, or the values should just be tracked separately. For this specific application, I am just going to change the above comparisons to -1E99 and +1E99 to avoid complications.
 
 
 ******
