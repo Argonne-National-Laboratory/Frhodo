@@ -38,10 +38,11 @@ software_kwargs = {"version": software_version, "author": ["Aditya Savara", "Eri
 #CiteSoft.import_cite(unique_id=software_unique_id, software_name=software_name, write_immediately=True, **software_kwargs)
 #decorator CiteSoft.after_call_compile_consolidated_log()
 #decorator CiteSoft.module_call_cite(unique_id=software_unique_id, software_name=software_name, **software_kwargs)
-def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess = [], pars_lower_bnds=[], pars_upper_bnds =[],observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=[], pars_uncertainty_distribution='automatic', sigma_multiple = 3.0, num_rate_constants_and_rate_constant_parameters=[]):
+def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess = [], pars_lower_bnds=[], pars_upper_bnds =[], pars_bnds_exist = [], observed_data_lower_bounds=[], observed_data_upper_bounds=[], weights_data=[], pars_uncertainty_distribution='automatic', sigma_multiple = 3.0, num_rate_constants_and_rate_constant_parameters=[]):
     #observed_data is an array of values of observed data (can be nested if there is more than one observable)
     #pars_lower_bnds and pars_upper_bnds are the bounds of the parameters ('coefficents') in absolute values.
     #  for 'uniform' distribution the bounds are taken directly. For Gaussian, the larger of the 2 deltas is taken and divided by 3 for sigma.
+    # rate_constants_parameters_bnds_exist is an array-like with values like [True False] where the Booleans are about whether the parameter has a lower bound and upper bound, respectively. So there is one pair of booleans per parameter.
     #pars_initial_guess is the initial guess for the parameters ('coefficients')
     #weights_data is an optional array of values that matches observed data in length.
     #sigma_multiple is how many sigma the bounds are equal to (relative to mean).
@@ -115,7 +116,7 @@ def get_varying_rate_vals_and_bnds(rate_vals, rate_bnds):
             varying_rate_vals_upper_bnds.append(rate_bnds[bounds_index][1]) #append current upper bound
     return varying_rate_vals_indices, varying_rate_vals_initial_guess, varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds
     
-def get_consolidated_parameters_arrays(rate_constants_initial_guess, rate_constants_lower_bnds, rate_constants_upper_bnds, rate_constants_parameters_initial_guess, rate_constants_parameters_lower_bnds, rate_constants_parameters_upper_bnds):
+def get_consolidated_parameters_arrays(rate_constants_initial_guess, rate_constants_lower_bnds, rate_constants_upper_bnds, rate_constants_bnds_exist, rate_constants_parameters_initial_guess, rate_constants_parameters_lower_bnds, rate_constants_parameters_upper_bnds, rate_constants_parameters_bnds_exist):
     #A. Savara recommends 'uniform' for rate constants and 'gaussian' for things like "log(A)" and "Ea"
     #we first start the arrays using the rate_constants arrays.
     pars_initial_guess = np.array(rate_constants_initial_guess).flatten()
@@ -126,4 +127,5 @@ def get_consolidated_parameters_arrays(rate_constants_initial_guess, rate_consta
     pars_initial_guess = np.concatenate( (pars_initial_guess , np.array(rate_constants_parameters_initial_guess).flatten()) ) 
     pars_lower_bnds = np.concatenate( (pars_lower_bnds, np.array(rate_constants_parameters_lower_bnds).flatten()) )
     pars_upper_bnds = np.concatenate( (pars_upper_bnds, np.array(rate_constants_parameters_upper_bnds).flatten()) ) 
-    return pars_initial_guess, pars_lower_bnds, pars_upper_bnds
+    pars_bnds_exist = []
+    return pars_initial_guess, pars_lower_bnds, pars_upper_bnds, pars_bnds_exist
