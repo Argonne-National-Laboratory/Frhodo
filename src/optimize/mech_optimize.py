@@ -17,6 +17,7 @@ min_neg_system_value = np.finfo(float).min*(1E-20) # Don't push the limits too h
 min_pos_system_value = np.finfo(float).eps*(1.1)
 max_pos_system_value = np.finfo(float).max*(1E-20)
 
+
 class Multithread_Optimize:
     def __init__(self, parent):
         self.parent = parent
@@ -208,9 +209,9 @@ class Multithread_Optimize:
                     rxn_coef['coef_bnds']['upper'].append(coef_limits[1])
                 
 
-            lb_exist = [abs(x) >-1E99 for x in rxn_coef['coef_bnds']['lower']]
-            print("line 212", lb_exist, rxn_coef['coef_bnds']['lower'])  #SOMEWHAT SURPRISINGLY, THE COMPARISON IS STILL FAILING. -1E288 > -1E99 is returning True.
-            ub_exist = [abs(x) <1E99 for x in rxn_coef['coef_bnds']['upper']]
+            lb_exist = [x ! = min_neg_system_value for x in rxn_coef['coef_bnds']['lower']]
+            print("line 212", lb_exist, rxn_coef['coef_bnds']['lower'])  
+            ub_exist = [x != max_pos_system_value for x in rxn_coef['coef_bnds']['upper']]
             rxn_coef['coef_bnds']['exist'] = np.array((lb_exist, ub_exist)).T
             print("line 212", ub_exist, rxn_coef['coef_bnds']['upper']); sys.exit()
             
