@@ -184,7 +184,7 @@ class Multithread_Optimize:
             # Set coefficient initial values and bounds
             rxnIdx = rxn_coef['rxnIdx']
             rxn_coef['coef_x0'] = []
-            rxn_coef['coef_bnds'] = {'lower': [], 'upper': []}
+            rxn_coef['coef_bnds'] = {'lower': [], 'upper': [], 'exist': []}
             
             for coefName in rxn_coef['coefName']:
                 coef_x0 = mech.coeffs_bnds[rxnIdx][coefName]['resetVal']
@@ -206,8 +206,11 @@ class Multithread_Optimize:
                 else:
                     rxn_coef['coef_bnds']['lower'].append(coef_limits[0])
                     rxn_coef['coef_bnds']['upper'].append(coef_limits[1])
+                
 
-                prior_rxnIdx = rxnIdx
+            lb_exist = [abs(x) == max_pos_system_value for x in rxn_coef['coef_bnds']['lower']]
+            ub_exist = [abs(x) == max_pos_system_value for x in rxn_coef['coef_bnds']['upper']]
+            rxn_coef['coef_bnds']['exist'] = np.array((lb_exist, ub_exist)).T
             
             # Set evaluation rate conditions
             n_coef = len(rxn_coef['coefIdx'])
