@@ -154,11 +154,12 @@ def get_consolidated_parameters_arrays(rate_constants_values, rate_constants_low
     pars_bnds_exist = np.concatenate( (rate_constants_bnds_exist, np.array(rate_constants_parameters_bnds_exist, dtype = bool) )) #Can't flatten() because these have to be retained as pairs; 
     
     unbounded_indices = []  #need to make this even if it will not be populated.
-    if return_unbounded_indices=True
+    if return_unbounded_indices==True:
         if len(pars_bnds_exist)> 1: #If this is not a blank list, we're going to check each entry. For anything which has a "False", we are going to set the InputParametersPriorValuesUncertainties value to "-1" to indicate uniform since that means it can't be a Gaussian.
-        for exist_index, lower_upper_booleans in enumerate(pars_bnds_exist):
-            if np.sum(lower_upper_booleans) < 2: #True True will add to 2, anything else does not pass.
-                unbounded_indices.append(exist_index)
+            #pars_bnds_exist has values like [True False] for each parameter. [True False] would mean it has a lower bound but no upper bound.
+            for exist_index, lower_upper_booleans in enumerate(pars_bnds_exist):
+                if np.sum(lower_upper_booleans) < 2: #True True will add to 2, anything else does not pass.
+                    unbounded_indices.append(exist_index)
                 
     return pars_values, pars_lower_bnds, pars_upper_bnds, pars_bnds_exist, unbounded_indices
     
