@@ -11,7 +11,7 @@ Notes on Jan 23rd 2021
 
 * I am concerned that a bad initial guess combined with a loss function might prevent a good optimization, unless a regular optimization was done before the Bayesian one. I do think there should be a facile way for the user to turn off the loss function when using Bayesian.
 
-* I need to still check what happens if I use several rate_constants' parameters at the same time.
+* I have checked and the code seems to work correctly if I use several rate_constants' parameters at the same time. It might be worth testing this even more thoroughly.
 
 ******
 Notes before Jan 23rd 2021
