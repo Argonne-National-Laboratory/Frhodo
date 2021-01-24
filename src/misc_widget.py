@@ -54,6 +54,8 @@ class ScientificDoubleSpinBox(QtWidgets.QDoubleSpinBox):
         self.setMaximum(sys.float_info.max)
         self.setDecimals(int(np.floor(np.log10(sys.float_info.max))))   # big for setting value
         self.setSingleStep(0.1)
+        self.setSingleIntStep(1)
+        self.setSingleExpStep(0.1)
         self.setAccelerated(True)
         # self.installEventFilter(self)
         
@@ -104,6 +106,12 @@ class ScientificDoubleSpinBox(QtWidgets.QDoubleSpinBox):
     def setStrDecimals(self, value: int):
         self.strDecimals = value
     
+    def setSingleIntStep(self, value: float):
+        self.singleIntStep = value
+
+    def setSingleExpStep(self, value: float):
+        self.singleExpStep = value
+
     def _set_reset_value(self, value):
         self.reset_value = value
         self.resetValueChanged.emit(self.reset_value)
@@ -158,33 +166,18 @@ class ScientificDoubleSpinBox(QtWidgets.QDoubleSpinBox):
         
         old_val = float(text)
         if self.numFormat == 'g' and abs(OoM(old_val)) < self.strDecimals:    # my own custom g
-            val = old_val + self.singleStep()*steps
-            if self.decimals() < self.strDecimals:
-                new_string = "{:.{dec}f}".format(val, dec=self.decimals())
-            else:
-                new_string = "{:.{dec}f}".format(val, dec=self.strDecimals)
+            val = old_val + self.singleIntStep*steps
         else:
-            if self.decimals() < self.strDecimals:
-                singleStep = 0.1
-            else:
-                singleStep = self.singleStep()
-            
             old_OoM = OoM(old_val)
-            val = old_val + np.power(10, old_OoM)*singleStep*steps
+            val = old_val + np.power(10, old_OoM)*self.singleExpStep*steps
             new_OoM = OoM(val)
             if old_OoM > new_OoM:   # needed to step down by new amount 1E5 -> 9.9E6
-                if abs(new_OoM) < self.strDecimals and self.decimals() < self.strDecimals:
-                    #val = old_val + np.power(10, -self.decimals())*self.singleStep()*steps
-                    val = old_val + self.singleStep()*steps
-                    new_string = "{:.{dec}f}".format(val, dec=self.decimals())
+                if self.numFormat == 'g' and abs(new_OoM) < self.strDecimals:
+                    val = old_val + self.singleIntStep*steps
                 else:
-                    val = old_val + np.power(10, new_OoM)*singleStep*steps
-                    new_string = "{:.{dec}e}".format(val, dec=self.strDecimals)
-            else:
-                new_string = "{:.{dec}e}".format(val, dec=self.strDecimals)
-        
-        self.lineEdit().setText(new_string)
-        self.setValue(float(new_string))
+                    val = old_val + np.power(10, new_OoM)*self.singleExpStep*steps
+
+        self.setValue(val)
 
         
 class SearchComboBox(QComboBox):

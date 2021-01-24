@@ -83,8 +83,7 @@ class Multithread_Optimize:
         # Initialize variables in shocks if need be
         for shock in self.shocks2run:      
             # if weight variables aren't set, update
-            weight_var = [shock[key] for key in ['weight_max', 'weight_min', 'weight_shift', 
-                    'weight_k']]
+            weight_var = [shock[key] for key in ['weight_max', 'weight_min', 'weight_shift', 'weight_k']]
             if np.isnan(np.hstack(weight_var)).any():
                 parent.weight.update(shock=shock)
                 shock['weights'] = parent.series.weights(shock['exp_data'][:,0], shock)
@@ -207,7 +206,6 @@ class Multithread_Optimize:
                 else:
                     rxn_coef['coef_bnds']['lower'].append(coef_limits[0])
                     rxn_coef['coef_bnds']['upper'].append(coef_limits[1])
-                
 
             lb_exist = [x != min_neg_system_value for x in rxn_coef['coef_bnds']['lower']]
             ub_exist = [x != max_pos_system_value for x in rxn_coef['coef_bnds']['upper']]

@@ -60,6 +60,7 @@ class Initialize(QtCore.QObject):
         # Setup tables
         parent.mix = Mix_Table(parent)
         parent.weight = Weight_Parameters_Table(parent)
+        parent.exp_unc = Uncertainty_Parameters_Table(parent)
         
         # Setup reactor settings
         parent.reactor_settings = Reactor_Settings(parent)
@@ -569,7 +570,7 @@ class Mix_Table(QtCore.QObject):
             self.molFrac_box.append(misc_widget.ScientificDoubleSpinBox(parent=self.parent(), value=molFrac))
             self.molFrac_box[-1].setMinimum(0)
             self.molFrac_box[-1].setMaximum(1)
-            self.molFrac_box[-1].setSingleStep(0.001)
+            self.molFrac_box[-1].setSingleIntStep(0.001)
             self.molFrac_box[-1].setSpecialValueText('-')
             self.molFrac_box[-1].setFrame(False)
             self.molFrac_box[-1].valueChanged.connect(self.update_mix)
@@ -715,7 +716,7 @@ class Weight_Parameters_Table(QtCore.QObject):
                 box_val = self.prop[col][row]['value']
                 box = misc_widget.ScientificDoubleSpinBox(parent=self.parent(), value=box_val)
                
-                box.setSingleStep(self.prop[col][row]['singleStep'])
+                box.setSingleIntStep(self.prop[col][row]['singleStep'])
                 box.setStrDecimals(self.prop[col][row]['decimals'])
                 box.setMinimum(self.prop[col][row]['minimum'])
                 if 'suffix' in self.prop[col][row]:
@@ -757,7 +758,114 @@ class Weight_Parameters_Table(QtCore.QObject):
         if parent.display_shock['exp_data'].size > 0 and update_plot: # If exp_data exists
             parent.plot.signal.update(update_lim=False)
             parent.plot.signal.canvas.draw()
+ 
+            
+class Uncertainty_Parameters_Table(QtCore.QObject):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.table = self.parent().unc_fcn_table
+
+        stylesheet = ["QHeaderView::section{",  # stylesheet because windows 10 doesn't show borders on the bottom
+            "border-top:0px solid #D8D8D8;",
+            "border-left:0px solid #D8D8D8;",
+            "border-right:1px solid #D8D8D8;",
+            "border-bottom:1px solid #D8D8D8;",
+            # "background-color:white;",                                        # this matches windows 10 theme 
+            "background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,"     # this matches windows 7 theme perfectly
+                                 "stop: 0 #ffffff, stop: 1.0 #f1f2f4);"
+            "padding:4px;}",
+        "QTableCornerButton::section{",
+            "border-top:0px solid #D8D8D8;",
+            "border-left:0px solid #D8D8D8;",
+            "border-right:1px solid #D8D8D8;",
+            "border-bottom:1px solid #D8D8D8;",
+            "background-color:white;}"]
         
+        header = self.table.horizontalHeader()   
+        header.setStyleSheet(' '.join(stylesheet))
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
+        header.setFixedHeight(24)
+        
+        self.table.setSpan(1, 0, 1, 2)  # make first row span entire length
+        
+        self.create_boxes()
+        self.table.itemChanged.connect(self.update)
+    
+    def create_boxes(self):
+        parent = self.parent()
+        # self.table.setStyleSheet("QTableWidget::item { margin-left: 10px }")
+        # TODO: Change to saved variables
+        self.boxes = {'unc_max': [], 'unc_min': [], 'unc_shift': [], 'unc_k': [], 'unc_cutoff': []}
+        self.prop = {'start': {'unc_max':    {'value': 0,     'singleStep': 1,                    'row': 0,
+                                              'minimum': 0,   'decimals': 3},
+                               'unc_min':    {'value': 0,     'singleStep': 1,    'maximum': 100, 'row': 1,
+                                              'minimum': 0,   'decimals': 3,      'suffix': '%'},
+                               'unc_shift':  {'value': 4.5,   'singleStep': 0.1,  'maximum': 100, 'row': 2,
+                                              'minimum': 0,   'decimals': 3,      'suffix': '%'},              
+                               'unc_k':      {'value': 0,     'singleStep': 0.01, 'decimals': 3,  'row': 3,
+                                              'minimum': 0},
+                               'unc_cutoff': {'value': 4.5,   'singleStep': 0.1,  'maximum': 100, 'row': 4,
+                                              'minimum': 0,   'decimals': 3,      'suffix': '%'}},
+                     'end':   {'unc_max':    {'value': 0,     'singleStep': 1,                    'row': 0,
+                                              'minimum': 0,   'decimals': 3},
+                               'unc_shift':  {'value': 36.0,  'singleStep': 0.1,  'maximum': 100, 'row': 2,
+                                              'minimum': 0,   'decimals': 3,      'suffix': '%'},
+                               'unc_k':      {'value': 0.3,   'singleStep': 0.01, 'decimals': 3,  'row': 3,
+                                              'minimum': 0},
+                               'unc_cutoff': {'value': 4.5,   'singleStep': 0.1,  'maximum': 100, 'row': 4,
+                                              'minimum': 0,   'decimals': 3,      'suffix': '%'}}}
+                          
+        for j, col in enumerate(['start', 'end']):
+            for row in self.prop[col]:
+                i = self.prop[col][row]['row']
+
+                box_val = self.prop[col][row]['value']
+                box = misc_widget.ScientificDoubleSpinBox(parent=self.parent(), value=box_val)
+               
+                box.setSingleIntStep(self.prop[col][row]['singleStep'])
+                box.setStrDecimals(self.prop[col][row]['decimals'])
+                box.setMinimum(self.prop[col][row]['minimum'])
+                if 'suffix' in self.prop[col][row]:
+                    box.setSuffix(self.prop[col][row]['suffix'])
+                if 'maximum' in self.prop[col][row]:
+                    box.setMaximum(self.prop[col][row]['maximum'])
+                box.setFrame(False)
+                box.info = [col, row]
+                
+                box.valueChanged.connect(self.update)
+                self.table.setCellWidget(i, j, box)
+                self.boxes[row].append(box)
+    
+    def set_boxes(self, shock=None):
+        parent = self.parent()
+        if shock is None:
+            shock = parent.display_shock
+            
+        for j, col in enumerate(['start', 'end']):
+            for i, row in enumerate(self.prop[col]):
+                box_val = shock[row][j]
+                box = self.boxes[row][j]
+                box.blockSignals(True)
+                box.setValue(box_val)
+                box.blockSignals(False)
+    
+    def update(self, event=None, shock=None):
+        parent = self.parent()
+        update_plot = False
+        if shock is None:           # if no shock given, must be from widgets
+            shock = parent.display_shock
+            update_plot = True
+        
+        for param in list(self.boxes.keys()):
+            shock[param] = [box.value() for box in self.boxes[param]]
+          
+        # WORKING HERE, NEED TO CHANGE PLOT, SETTINGS, AND OPTIMIZATION
+
+        #if parent.display_shock['exp_data'].size > 0 and update_plot: # If exp_data exists
+        #    parent.plot.signal.update(update_lim=False)
+        #    parent.plot.signal.canvas.draw()
+
          
 class Tables_Tab(QtCore.QObject):
     def __init__(self, parent):
@@ -944,14 +1052,12 @@ class Optimization(QtCore.QObject):
                     self.widgets[opt_type][var_type].setMinimum(1)
                     self.widgets[opt_type][var_type].setStrDecimals(4)
                     if var_type == 'stop_criteria_val':
-                        self.widgets[opt_type][var_type].setSingleStep(1)
+                        self.widgets[opt_type][var_type].setSingleIntStep(1)
                         self.widgets[opt_type][var_type].setDecimals(0)
                     else:
-                        self.widgets[opt_type][var_type].setSingleStep(0.1)
                         self.widgets[opt_type][var_type].setDecimals(1)
                 else:
                     self.widgets[opt_type][var_type] = spinbox(parent=parent, value=val, numFormat='e')
-                    self.widgets[opt_type][var_type].setSingleStep(0.1)
                     self.widgets[opt_type][var_type].setStrDecimals(1)
                 
                 layout.addWidget(self.widgets[opt_type][var_type], n, 0)

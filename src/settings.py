@@ -555,6 +555,13 @@ class series:
                 'weight_k': [np.nan, np.nan],
                 'weight_shift': [np.nan, np.nan],
                 'weight_min': [np.nan, np.nan],
+
+                # Uncertainty parameters
+                'unc_max': [np.nan],
+                'unc_k': [np.nan, np.nan],
+                'unc_shift': [np.nan, np.nan],
+                'unc_min': [np.nan, np.nan],
+                'unc_cutoff': [np.nan, np.nan],
                 
                 # Mechanism parameters
                 'species_alias': self.species_alias[-1],
