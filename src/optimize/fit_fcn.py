@@ -394,7 +394,7 @@ class Fit_Fun:
         
             import optimize.CheKiPEUQ_from_Frhodo    
             #concatenate all of the initial guesses and bounds. 
-            Bayesian_dict['pars_initial_guess'], Bayesian_dict['pars_lower_bnds'],Bayesian_dict['pars_upper_bnds'], Bayesian_dict['pars_bnds_exist'] = optimize.CheKiPEUQ_from_Frhodo.get_consolidated_parameters_arrays( 
+            Bayesian_dict['pars_initial_guess'], Bayesian_dict['pars_lower_bnds'],Bayesian_dict['pars_upper_bnds'], Bayesian_dict['pars_bnds_exist'], Bayesian_dict['unbounded_indices'] = optimize.CheKiPEUQ_from_Frhodo.get_consolidated_parameters_arrays( 
                 Bayesian_dict['rate_constants_initial_guess'],
                 Bayesian_dict['rate_constants_lower_bnds'],
                 Bayesian_dict['rate_constants_upper_bnds'],                
@@ -402,7 +402,8 @@ class Fit_Fun:
                 Bayesian_dict['rate_constants_parameters_initial_guess'],
                 Bayesian_dict['rate_constants_parameters_lower_bnds'],
                 Bayesian_dict['rate_constants_parameters_upper_bnds'],
-                Bayesian_dict['rate_constants_parameters_bnds_exist']
+                Bayesian_dict['rate_constants_parameters_bnds_exist'],
+                return_unbounded_indices=True
                 )
             Bayesian_dict['rate_constants_current_guess'] = deepcopy(log_opt_rates)
             Bayesian_dict['rate_constants_parameters_current_guess'] = deepcopy(x)
