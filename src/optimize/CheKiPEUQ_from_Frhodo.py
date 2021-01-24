@@ -137,18 +137,31 @@ def get_varying_rate_vals_and_bnds(rate_vals, rate_bnds):
             varying_rate_vals_upper_bnds.append(rate_bnds[bounds_index][1]) #append current upper bound
     return varying_rate_vals_indices, varying_rate_vals_initial_guess, varying_rate_vals_lower_bnds, varying_rate_vals_upper_bnds
     
-def get_consolidated_parameters_arrays(rate_constants_initial_guess, rate_constants_lower_bnds, rate_constants_upper_bnds, rate_constants_bnds_exist, rate_constants_parameters_initial_guess, rate_constants_parameters_lower_bnds, rate_constants_parameters_upper_bnds, rate_constants_parameters_bnds_exist):
-    #A. Savara recommends 'uniform' for rate constants and 'gaussian' for things like "log(A)" and "Ea"
+def get_consolidated_parameters_arrays(rate_constants_values, rate_constants_lower_bnds, rate_constants_upper_bnds, rate_constants_bnds_exist, rate_constants_parameters_values, rate_constants_parameters_lower_bnds, rate_constants_parameters_upper_bnds, rate_constants_parameters_bnds_exist, return_unbounded_indices=True):
+    #A. Savara recommends 'uniform' for rate constants and 'gaussian' for things like "log(A)" and "Ea"    
+    #note that we use "pars_values" as the variable name because it can be pars_initial_guess or pars_current_guess and this makes the function more general.
+    
     #we first start the arrays using the rate_constants arrays.
-    pars_initial_guess = np.array(rate_constants_initial_guess).flatten()
+    pars_values = np.array(rate_constants_values).flatten()
     pars_lower_bnds = np.array(rate_constants_lower_bnds).flatten()
     pars_upper_bnds = np.array(rate_constants_upper_bnds).flatten()
     rate_constants_bnds_exist = np.array(rate_constants_bnds_exist, dtype = bool) #Can't flatten() because these have to be retained as pairs;
     
     #Now we concatenate those with the rate_constant_parameters arrays.
-    pars_initial_guess = np.concatenate( (pars_initial_guess , np.array(rate_constants_parameters_initial_guess).flatten()) ) 
+    pars_values = np.concatenate( (pars_values , np.array(rate_constants_parameters_values).flatten()) ) 
     pars_lower_bnds = np.concatenate( (pars_lower_bnds, np.array(rate_constants_parameters_lower_bnds).flatten()) )
     pars_upper_bnds = np.concatenate( (pars_upper_bnds, np.array(rate_constants_parameters_upper_bnds).flatten()) ) 
     pars_bnds_exist = np.concatenate( (rate_constants_bnds_exist, np.array(rate_constants_parameters_bnds_exist, dtype = bool) )) #Can't flatten() because these have to be retained as pairs; 
     
-    return pars_initial_guess, pars_lower_bnds, pars_upper_bnds, pars_bnds_exist
+    unbounded_indices = []  #need to make this even if it will not be populated.
+    if return_unbounded_indices=True
+        if len(pars_bnds_exist)> 1: #If this is not a blank list, we're going to check each entry. For anything which has a "False", we are going to set the InputParametersPriorValuesUncertainties value to "-1" to indicate uniform since that means it can't be a Gaussian.
+        for exist_index, lower_upper_booleans in enumerate(pars_bnds_exist):
+            if np.sum(lower_upper_booleans) < 2: #True True will add to 2, anything else does not pass.
+                unbounded_indices.append(exist_index)
+                
+    return pars_values, pars_lower_bnds, pars_upper_bnds, pars_bnds_exist, unbounded_indices
+    
+def remove_unbounded_values(array_to_truncate, unbounded_indices):
+    truncated_array = np.delete(array_to_truncate, unbounded_indices)
+    return truncated_array
