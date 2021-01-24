@@ -69,18 +69,39 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
     except:
         print("There was an error in the weightings in CheKiPEUQ_from_Frhodo processing.")
     UserInput.model['InputParameterPriorValues'] = pars_initial_guess
+    print("line 72 pars_uncertainty_distribution", pars_uncertainty_distribution)
     if pars_uncertainty_distribution.lower() == 'uniform': #make an array of -1 for uncertainties to signify a uniform distribution.
         UserInput.model['InputParametersPriorValuesUncertainties'] = -1*np.ones(len(pars_initial_guess))
     if pars_uncertainty_distribution.lower() == 'gaussian': 
         UserInput.model['InputParametersPriorValuesUncertainties'] = extract_larger_delta_and_make_sigma_values(pars_initial_guess, pars_lower_bnds, pars_upper_bnds, sigma_multiple)
     if pars_uncertainty_distribution.lower() == 'automatic' or pars_uncertainty_distribution.lower() == 'auto': 
-        num_rate_constants = num_rate_constants_and_rate_constant_parameters[0]
+        num_rate_constants = num_rate_constants_and_rate_constant_parameters[0] 
         num_rate_constants_parameters = num_rate_constants_and_rate_constant_parameters[1]
-        rate_constant_uncertainties = extract_larger_delta_and_make_sigma_values(pars_initial_guess[0:num_rate_constants], pars_lower_bnds[0:num_rate_constants], pars_upper_bnds[0:num_rate_constants], sigma_multiple)
-        rate_constant_parameters_uncertainties = -1*np.ones(num_rate_constants_parameters)
+        rate_constant_uncertainties = -1*np.ones(num_rate_constants_parameters) #by default, use uniform for the rate_constant_uncertainties (signified by -1).
+        print("line 81 pars_initial_guess", pars_initial_guess, num_rate_constants)
+        rate_constant_parameters_uncertainties = extract_larger_delta_and_make_sigma_values(pars_initial_guess[num_rate_constants+0:], pars_lower_bnds[num_rate_constants+0:], pars_upper_bnds[num_rate_constants+0:], sigma_multiple)  #this returns a 1 sigma value for a gaussian, assuming that the range indicates a certain sigma_multiple in each direction. The "+0" is to start at next value with array indexing. Kind of like "-1 +1".
         UserInput.model['InputParametersPriorValuesUncertainties'] = np.concatenate( (rate_constant_uncertainties, rate_constant_parameters_uncertainties) )
-    UserInput.model['InputParameterPriorValues_upperBounds'] = pars_upper_bnds
-    UserInput.model['InputParameterPriorValues_lowerBounds'] = pars_lower_bnds
+        print("ilne 81 InputParametersPriorValuesUncertainties ",  UserInput.model['InputParametersPriorValuesUncertainties'])
+    print("line 82", UserInput.model['InputParametersPriorValuesUncertainties'])
+    if len(pars_bnds_exist)> 1: #If this is not a blank list, we're going to check each entry. For anything which has a "False", we are going to set the InputParametersPriorValuesUncertainties value to "-1" to indicate uniform since that means it can't be a Gaussian.
+        for exist_index, lower_upper_booleans in enumerate(pars_bnds_exist):
+            print("line 85", exist_index, lower_upper_booleans, np.sum(lower_upper_booleans))
+            if np.sum(lower_upper_booleans) < 2: #True True will add to 2, anything else does not pass.
+                UserInput.model['InputParametersPriorValuesUncertainties'][exist_index] = -1
+    print("line 86", UserInput.model['InputParametersPriorValuesUncertainties']) 
+    
+    #CheKiPEUQ cannot handle much larger than 1E100 for upper bounds.
+    for upper_bound_index, upper_bound in enumerate(pars_upper_bnds):
+        if upper_bound > 1.0E100:
+            pars_upper_bnds[upper_bound_index] = 1.0E100
+
+    #CheKiPEUQ cannot handle much more negative than -1E100 for lower bounds.
+    for lower_bound_index, lower_bound in enumerate(pars_lower_bnds):
+        if lower_bound < -1.0E100:
+            pars_lower_bnds[lower_bound_index] = -1.0E100
+    
+    UserInput.model['InputParameterPriorValues_upperBounds'] = np.array(pars_upper_bnds)
+    UserInput.model['InputParameterPriorValues_lowerBounds'] = np.array(pars_lower_bnds)
     UserInput.model['simulateByInputParametersOnlyFunction'] = simulation_function
     print("line 61", CKPQ.frog)
     PE_object = CKPQ.parameter_estimation(UserInput)
@@ -92,7 +113,7 @@ def get_log_posterior_density(PE_object, parameters):
 #calculates delta between initial guess and bounds, takes the larger delta, and divides by sigma_multiple to return sigma.
 def extract_larger_delta_and_make_sigma_values(initial_guess, lower_bound, upper_bound, sigma_multiple):
     #can probably be done faster with some kind of arrays and zipping, but for simple algorithm will use for loop and if statements.
-    sigma_values = np.zeros(len(initial_guess))
+    sigma_values = np.zeros(len(initial_guess)) #just initializing.
     for index in range(len(initial_guess)):
         upper_delta = np.abs(upper_bound[index]-initial_guess[index])
         lower_delta = np.abs(lower_bound[index]-initial_guess[index])
@@ -122,10 +143,12 @@ def get_consolidated_parameters_arrays(rate_constants_initial_guess, rate_consta
     pars_initial_guess = np.array(rate_constants_initial_guess).flatten()
     pars_lower_bnds = np.array(rate_constants_lower_bnds).flatten()
     pars_upper_bnds = np.array(rate_constants_upper_bnds).flatten()
+    rate_constants_bnds_exist = np.array(rate_constants_bnds_exist, dtype = bool) #Can't flatten() because these have to be retained as pairs;
     
     #Now we concatenate those with the rate_constant_parameters arrays.
     pars_initial_guess = np.concatenate( (pars_initial_guess , np.array(rate_constants_parameters_initial_guess).flatten()) ) 
     pars_lower_bnds = np.concatenate( (pars_lower_bnds, np.array(rate_constants_parameters_lower_bnds).flatten()) )
     pars_upper_bnds = np.concatenate( (pars_upper_bnds, np.array(rate_constants_parameters_upper_bnds).flatten()) ) 
-    pars_bnds_exist = []
+    pars_bnds_exist = np.concatenate( (rate_constants_bnds_exist, np.array(rate_constants_parameters_bnds_exist, dtype = bool) )) #Can't flatten() because these have to be retained as pairs; 
+    
     return pars_initial_guess, pars_lower_bnds, pars_upper_bnds, pars_bnds_exist

@@ -89,6 +89,7 @@ class parameter_estimation:
         self.UserInput.mu_prior = np.array(UserInput.model['InputParameterPriorValues'], dtype='float')
         #Below code is mainly for allowing uniform distributions in priors.
         UserInput.InputParametersPriorValuesUncertainties = np.array(UserInput.model['InputParametersPriorValuesUncertainties'],dtype='float') #Doing this so that the -1.0 check below should work.
+        print("line 91 of CheKiPEUQ", UserInput.InputParametersPriorValuesUncertainties)
         if -1.0 in UserInput.InputParametersPriorValuesUncertainties: #This means that at least one of the uncertainties has been set to "-1" which means a uniform distribution. 
             UserInput.InputParametersPriorValuesUniformDistributionsIndices = [] #intializing.
             if len(np.shape(UserInput.InputParametersPriorValuesUncertainties)) != 1:
@@ -100,6 +101,7 @@ class parameter_estimation:
             UserInput.InputParametersPriorValuesUniformDistributionsKey  = UserInput.InputParametersPriorValuesUncertainties *1.0 #Just initalizing
             for parameterIndex, uncertaintyValue in enumerate(UserInput.InputParametersPriorValuesUncertainties):
                 if uncertaintyValue == -1.0:
+                    print("line 104 of CheKiPEUQ", parameterIndex, uncertaintyValue, UserInput.model['InputParameterPriorValues_upperBounds'][parameterIndex], UserInput.model['InputParameterPriorValues_lowerBounds'][parameterIndex])
                     UserInput.InputParametersPriorValuesUniformDistributionsKey[parameterIndex] = 1.0 #This is setting the parameter as "True" for having a uniform distribution. 
                     UserInput.InputParametersPriorValuesUniformDistributionsIndices.append(parameterIndex)
                     #In the case of a uniform distribution, the standard deviation and variance are given by sigma = (b−a)/ √12 :   
