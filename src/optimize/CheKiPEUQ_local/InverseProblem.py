@@ -89,7 +89,6 @@ class parameter_estimation:
         self.UserInput.mu_prior = np.array(UserInput.model['InputParameterPriorValues'], dtype='float')
         #Below code is mainly for allowing uniform distributions in priors.
         UserInput.InputParametersPriorValuesUncertainties = np.array(UserInput.model['InputParametersPriorValuesUncertainties'],dtype='float') #Doing this so that the -1.0 check below should work.
-        print("line 91 of CheKiPEUQ", UserInput.InputParametersPriorValuesUncertainties)
         if -1.0 in UserInput.InputParametersPriorValuesUncertainties: #This means that at least one of the uncertainties has been set to "-1" which means a uniform distribution. 
             UserInput.InputParametersPriorValuesUniformDistributionsIndices = [] #intializing.
             if len(np.shape(UserInput.InputParametersPriorValuesUncertainties)) != 1:
@@ -101,7 +100,6 @@ class parameter_estimation:
             UserInput.InputParametersPriorValuesUniformDistributionsKey  = UserInput.InputParametersPriorValuesUncertainties *1.0 #Just initalizing
             for parameterIndex, uncertaintyValue in enumerate(UserInput.InputParametersPriorValuesUncertainties):
                 if uncertaintyValue == -1.0:
-                    print("line 104 of CheKiPEUQ", parameterIndex, uncertaintyValue, UserInput.model['InputParameterPriorValues_upperBounds'][parameterIndex], UserInput.model['InputParameterPriorValues_lowerBounds'][parameterIndex])
                     UserInput.InputParametersPriorValuesUniformDistributionsKey[parameterIndex] = 1.0 #This is setting the parameter as "True" for having a uniform distribution. 
                     UserInput.InputParametersPriorValuesUniformDistributionsIndices.append(parameterIndex)
                     #In the case of a uniform distribution, the standard deviation and variance are given by sigma = (b−a)/ √12 :   
@@ -111,8 +109,8 @@ class parameter_estimation:
                     #We will also fill the model['InputParameterPriorValues'] to have the mean of the two bounds. This can matter for some of the scaling that occurs later.
                     self.UserInput.mu_prior[parameterIndex] = (UserInput.model['InputParameterPriorValues_upperBounds'][parameterIndex] + UserInput.model['InputParameterPriorValues_lowerBounds'][parameterIndex])/2
         
+        print("line 112 of CheKiPEUQ", UserInput.InputParametersPriorValuesUncertainties)
         #Now to make covmat. Leaving the original dictionary object intact, but making a new object to make covmat_prior.
-        print("line 114 of CheKiPEUQ", UserInput.InputParametersPriorValuesUncertainties)
         if len(np.shape(UserInput.InputParametersPriorValuesUncertainties)) == 1 and (len(UserInput.InputParametersPriorValuesUncertainties) > 0): #If it's a 1D array/list that is filled, we'll diagonalize it.
             UserInput.std_prior = np.array(UserInput.InputParametersPriorValuesUncertainties, dtype='float') #using 32 since not everyone has 64.
             UserInput.var_prior = np.power(UserInput.InputParametersPriorValuesUncertainties,2)

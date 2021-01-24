@@ -69,7 +69,6 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
     except:
         print("There was an error in the weightings in CheKiPEUQ_from_Frhodo processing.")
     UserInput.model['InputParameterPriorValues'] = pars_initial_guess
-    print("line 72 pars_uncertainty_distribution", pars_uncertainty_distribution)
     if pars_uncertainty_distribution.lower() == 'uniform': #make an array of -1 for uncertainties to signify a uniform distribution.
         UserInput.model['InputParametersPriorValuesUncertainties'] = -1*np.ones(len(pars_initial_guess))
     if pars_uncertainty_distribution.lower() == 'gaussian': 
@@ -78,17 +77,14 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
         num_rate_constants = num_rate_constants_and_rate_constant_parameters[0] 
         num_rate_constants_parameters = num_rate_constants_and_rate_constant_parameters[1]
         rate_constant_uncertainties = -1*np.ones(num_rate_constants_parameters) #by default, use uniform for the rate_constant_uncertainties (signified by -1).
-        print("line 81 pars_initial_guess", pars_initial_guess, num_rate_constants)
         rate_constant_parameters_uncertainties = extract_larger_delta_and_make_sigma_values(pars_initial_guess[num_rate_constants+0:], pars_lower_bnds[num_rate_constants+0:], pars_upper_bnds[num_rate_constants+0:], sigma_multiple)  #this returns a 1 sigma value for a gaussian, assuming that the range indicates a certain sigma_multiple in each direction. The "+0" is to start at next value with array indexing. Kind of like "-1 +1".
         UserInput.model['InputParametersPriorValuesUncertainties'] = np.concatenate( (rate_constant_uncertainties, rate_constant_parameters_uncertainties) )
-        print("ilne 81 InputParametersPriorValuesUncertainties ",  UserInput.model['InputParametersPriorValuesUncertainties'])
-    print("line 82", UserInput.model['InputParametersPriorValuesUncertainties'])
     if len(pars_bnds_exist)> 1: #If this is not a blank list, we're going to check each entry. For anything which has a "False", we are going to set the InputParametersPriorValuesUncertainties value to "-1" to indicate uniform since that means it can't be a Gaussian.
         for exist_index, lower_upper_booleans in enumerate(pars_bnds_exist):
-            print("line 85", exist_index, lower_upper_booleans, np.sum(lower_upper_booleans))
+            #print("line 85", exist_index, lower_upper_booleans, np.sum(lower_upper_booleans))
             if np.sum(lower_upper_booleans) < 2: #True True will add to 2, anything else does not pass.
                 UserInput.model['InputParametersPriorValuesUncertainties'][exist_index] = -1
-    print("line 86", UserInput.model['InputParametersPriorValuesUncertainties']) 
+    #print("line 86", UserInput.model['InputParametersPriorValuesUncertainties']) 
     
     #CheKiPEUQ cannot handle much larger than 1E100 for upper bounds.
     for upper_bound_index, upper_bound in enumerate(pars_upper_bnds):
@@ -165,7 +161,5 @@ def get_consolidated_parameters_arrays(rate_constants_values, rate_constants_low
     return pars_values, pars_lower_bnds, pars_upper_bnds, pars_bnds_exist, unbounded_indices
     
 def remove_unbounded_values(array_to_truncate, unbounded_indices):
-    print("line 167, unbounded_indices", unbounded_indices, array_to_truncate)
     truncated_array = np.delete(array_to_truncate, unbounded_indices, axis=0)
-    print("line 168, unbounded_indices", unbounded_indices, truncated_array)
     return truncated_array
