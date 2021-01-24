@@ -1,3 +1,21 @@
+Notes on Jan 23rd 2021
+
+* The temperature exponent (n) was coming in as "True True" for bounds because of an error in the bounds checking. I have changed the lines to as follows:
+
+            lb_exist = [x != min_neg_system_value for x in rxn_coef['coef_bnds']['lower']]
+            ub_exist = [x != max_pos_system_value for x in rxn_coef['coef_bnds']['upper']]
+
+* I have found that the "Ea" is having a first guess of 34 million, not matching the table.
+
+* It looks like the "global" optimization is not working very well with Bayesian right now, at least for the example I am playing with. Additionally, the global optimization seems to go on "forever" if there is no abort. It will be interesting to know what happens once the local optimization happens. Trying "no abort" criteria. 
+
+* I am concerned that a bad initial guess combined with a loss function might prevent a good optimization, unless a regular optimization was done before the Bayesian one. I do think there should be a facile way for the user to turn off the loss function when using Bayesian.
+
+* I have checked and the code seems to work correctly if I use several rate_constants' parameters at the same time. It might be worth testing this even more thoroughly.
+
+******
+Notes before Jan 23rd 2021
+
 General Notes: 
 1) I was mistaken about only a numpy dependence: we need scipy as well. But that is also standard for Anaconda so should not be hard to add.
 2) IMPORTANT: There is a flag at top top of fit_fcn.py to forceBayesian = True until the GUI has it. FOR NOW, SET THIS TO FALSE TO TURN BAYESIAN OFF, AND TO TRUE IF YOU WANT BAYESIAN ON.
@@ -25,3 +43,5 @@ Bayesian Notes: I have put comments labeling the below steps in the code.  To si
 NEXT STEPS AFTER THE ABOVE ITEMS ARE FIXED.
 
 #ATTENTION: Right now, the Bayesian parameter estimation is taking in the rate_val parameters and their bounds.  It is actually even better if we feed in the "logA" "n" and "Ea" values and their bounds.  I suggest that we fix the above issues first, and then do that after.  However, we should probably discuss what happens in fit_coeffs so I can implement the Bayesian part in the most logical way.
+
+
