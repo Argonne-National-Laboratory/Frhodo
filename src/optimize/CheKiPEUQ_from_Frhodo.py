@@ -160,9 +160,12 @@ def get_consolidated_parameters_arrays(rate_constants_values, rate_constants_low
             for exist_index, lower_upper_booleans in enumerate(pars_bnds_exist):
                 if np.sum(lower_upper_booleans) < 2: #True True will add to 2, anything else does not pass.
                     unbounded_indices.append(exist_index)
+        unbounded_indices = np.atleast_1d(np.array(unbounded_indices))
                 
     return pars_values, pars_lower_bnds, pars_upper_bnds, pars_bnds_exist, unbounded_indices
     
 def remove_unbounded_values(array_to_truncate, unbounded_indices):
-    truncated_array = np.delete(array_to_truncate, unbounded_indices)
+    print("line 167, unbounded_indices", unbounded_indices, array_to_truncate)
+    truncated_array = np.delete(array_to_truncate, unbounded_indices, axis=0)
+    print("line 168, unbounded_indices", unbounded_indices, truncated_array)
     return truncated_array
