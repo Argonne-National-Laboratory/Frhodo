@@ -5,7 +5,13 @@ Notes on Jan 23rd 2021
             lb_exist = [x != min_neg_system_value for x in rxn_coef['coef_bnds']['lower']]
             ub_exist = [x != max_pos_system_value for x in rxn_coef['coef_bnds']['upper']]
 
+* I have found that the "Ea" is having a first guess of 34 million, not matching the table.
 
+* It looks like the "global" optimization is not working very well with Bayesian right now, at least for the example I am playing with. Additionally, the global optimization seems to go on "forever" if there is no abort. It will be interesting to know what happens once the local optimization happens. Trying "no abort" criteria. 
+
+* I am concerned that a bad initial guess combined with a loss function might prevent a good optimization, unless a regular optimization was done before the Bayesian one. I do think there should be a facile way for the user to turn off the loss function when using Bayesian.
+
+* I need to still check what happens if I use several rate_constants' parameters at the same time.
 
 ******
 Notes before Jan 23rd 2021
