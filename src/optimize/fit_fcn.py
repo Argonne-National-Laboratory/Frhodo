@@ -302,14 +302,17 @@ class Fit_Fun:
             self.Bayesian_dict['rate_constants_parameters_initial_guess'] = []
             self.Bayesian_dict['rate_constants_parameters_lower_bnds'] = []
             self.Bayesian_dict['rate_constants_parameters_upper_bnds'] = []
+            self.Bayesian_dict['rate_constants_parameters_bnds_exist'] = []
             for rxn_coef in self.rxn_coef_opt:
                 self.Bayesian_dict['rate_constants_parameters_initial_guess'].append(deepcopy(rxn_coef['coef_x0'])) 
                 self.Bayesian_dict['rate_constants_parameters_lower_bnds'].append(deepcopy(rxn_coef['coef_bnds']['lower']))
                 self.Bayesian_dict['rate_constants_parameters_upper_bnds'].append(deepcopy(rxn_coef['coef_bnds']['upper']))
+                self.Bayesian_dict['rate_constants_parameters_bnds_exist'].extend(list(deepcopy(rxn_coef['coef_bnds']['exist']))) #we can't use append because this is a list of lists/array, and we want parallel construction.
             self.Bayesian_dict['rate_constants_parameters_initial_guess'] = np.array(self.Bayesian_dict['rate_constants_parameters_initial_guess']).flatten()
             self.Bayesian_dict['rate_constants_parameters_lower_bnds'] = np.array(self.Bayesian_dict['rate_constants_parameters_lower_bnds']).flatten()
             self.Bayesian_dict['rate_constants_parameters_upper_bnds'] = np.array(self.Bayesian_dict['rate_constants_parameters_upper_bnds']).flatten()
-            self.Bayesian_dict['rate_constants_parameters_bnds_exist'] = rxn_coef['coef_bnds']['exist']
+            #self.Bayesian_dict['rate_constants_parameters_bnds_exist'] does not get flattened because it is a list of list/arrays (so we don't want it flattened).
+
             print("line 310 !!!!!! the below shows that the activation energy initial guess is 34 million!!! It does not match the reaction table.")
             print("line 310 rate_constants_parameters_initial_guess", len(self.Bayesian_dict['rate_constants_parameters_initial_guess']), self.Bayesian_dict['rate_constants_parameters_initial_guess'])
             print("line 310 rate_constants_parameters_lower_bnds", len(self.Bayesian_dict['rate_constants_parameters_lower_bnds']), self.Bayesian_dict['rate_constants_parameters_lower_bnds'])
