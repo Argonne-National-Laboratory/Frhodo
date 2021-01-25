@@ -93,7 +93,7 @@ def outlier(x, a=2, c=1, weights=[], max_iter=25, percentile=0.25):
 
     return c*x_outlier
     
-def generalized_loss_fcn(x, a=2, c=1):    # defaults to L2 loss
+def generalized_loss_fcn(x, a=2, c=1, original_scale=False):    # defaults to L2 loss
     c_2 = c**2
     x_c_2 = x**2/c_2
     if a == 1:          # generalized function reproduces
@@ -108,8 +108,15 @@ def generalized_loss_fcn(x, a=2, c=1):    # defaults to L2 loss
         loss = 1 - np.exp(-0.5*x_c_2)
     else:
         loss = np.abs(a-2)/a*((x_c_2/np.abs(a-2) + 1)**(a/2) - 1)
-        
-    return loss*c_2   # multiplying by c^2 is not necessary, but makes order appropriate
+    
+    scaled_loss = loss*c_2   # multiplying by c^2 is not necessary, but makes order appropriate
+
+    if original_scale:
+        loss_min = scaled_loss.min()
+        loss_max = scaled_loss.max()
+        scaled_loss = (x.max() - x.min())/(loss_max - loss_min)*(scaled_loss - loss_min) + x.min()
+
+    return scaled_loss
 
 def update_mech_coef_opt(mech, coef_opt, x):
     mech_changed = False
@@ -163,9 +170,8 @@ def calculate_residuals(args_list):
             N = wgt_sum
         stderr_sqr = (loss_sqr*weights).sum()/N
         chi_sqr = loss_sqr/stderr_sqr
-        #loss_scalar = (chi_sqr*weights).sum()
         std_resid = chi_sqr**(1/2)
-        loss_scalar = np.average(std_resid, weights=weights)
+        loss_scalar = weighted_quantile(std_resid, 0.5, weights=weights)    # median value
                                                   
         if verbose:                                                                                                           
             output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
@@ -399,11 +405,12 @@ class Fit_Fun:
             c = 0
             loss_exp = loss_resid
         else:                   # optimizing multiple experiments
-            c = outlier(loss_resid, a=self.opt_settings['loss_alpha'], c=self.opt_settings['loss_c'])
-            loss_exp = generalized_loss_fcn(loss_resid, a=self.opt_settings['loss_alpha'], c=c*0.1) # I find that the loss function doesn't do much unless c is reduced further
+            loss_resid_min = np.min(loss_resid)
+            c = outlier(loss_resid-loss_resid_min, a=self.opt_settings['loss_alpha'], c=self.opt_settings['loss_c'])
+            loss_exp = generalized_loss_fcn(loss_resid-loss_resid_min, a=self.opt_settings['loss_alpha'], c=c, original_scale=True) + loss_resid_min
         
         if self.opt_settings['obj_fcn_type'] == 'Residual':
-            obj_fcn = np.mean(loss_exp*loss_resid.max()/loss_exp.max())
+            obj_fcn = np.median(loss_exp)
 
         elif self.opt_settings['obj_fcn_type'] == 'Bayesian':
             import optimize.CheKiPEUQ_from_Frhodo
@@ -431,7 +438,7 @@ class Fit_Fun:
                 Bayesian_dict['weights_data'] = np.array(output_dict['aggregate_weights'], dtype=object)
             else:
                 aggregate_weights = np.array(output_dict['aggregate_weights'], dtype=object)
-                exp_loss_weights = loss_exp/generalized_loss_fcn(loss_resid) # comparison is between selected loss fcn and SSE (L2 loss)
+                exp_loss_weights = loss_exp/generalized_loss_fcn(loss_resid, original_scale=True) # comparison is between selected loss fcn and SSE (L2 loss)
                 Bayesian_dict['weights_data'] = np.concatenate(aggregate_weights*exp_loss_weights, axis=0)
             
             #Bayesian_dict['weights_data'] /= np.max(Bayesian_dict['weights_data'])  # if we want to normalize by maximum

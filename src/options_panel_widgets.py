@@ -1053,9 +1053,8 @@ class Optimization(QtCore.QObject):
                     self.widgets[opt_type][var_type].setStrDecimals(4)
                     if var_type == 'stop_criteria_val':
                         self.widgets[opt_type][var_type].setSingleIntStep(1)
-                        self.widgets[opt_type][var_type].setDecimals(0)
                     else:
-                        self.widgets[opt_type][var_type].setDecimals(1)
+                        self.widgets[opt_type][var_type].setSingleIntStep(0.1)
                 else:
                     self.widgets[opt_type][var_type] = spinbox(parent=parent, value=val, numFormat='e')
                     self.widgets[opt_type][var_type].setStrDecimals(1)

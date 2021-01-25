@@ -220,7 +220,7 @@ class Multithread_Optimize:
             
         return rxn_coef_opt
 
-    def update(self, result):
+    def update(self, result, writeLog=True):
         obj_fcn_str = f"{result['obj_fcn']:.3e}"
         replace_strs = [['e+', 'e'], ['e0', 'e'], ['e0', ''], ['e-0', 'e-']]
         for pair in replace_strs:
@@ -233,8 +233,20 @@ class Multithread_Optimize:
         elif result['obj_fcn'] < self.HoF['obj_fcn']:
             self.HoF = result
         
-        self.parent.log.append('\t{:s} {:^5d}\t\t\t{:^s}\t\t\t{:^s}'.format(
-            result['type'][0].upper(), result['i'], obj_fcn_str, self.HoF['obj_fcn_str']), alert=False)
+        if writeLog:
+            if result['i'] > 999:
+                obj_fcn_space = '\t\t'
+            else:
+                obj_fcn_space = '\t\t\t'
+            
+            if len(obj_fcn_str) < 5:
+                obj_fcn_str_space = '\t\t\t\t\t'
+            else:
+                obj_fcn_str_space = '\t\t\t'
+
+            self.parent.log.append('\t{:s} {:^5d}{:s}{:^s}{:s}{:^s}'.format(
+                result['type'][0].upper(), result['i'], obj_fcn_space, obj_fcn_str, 
+                obj_fcn_str_space, self.HoF['obj_fcn_str']), alert=False)
         self.parent.tree.update_coef_rate_from_opt(result['coef_opt'], result['x'])
         
         # if displayed shock isn't in shocks being optimized, calculate the new plot
@@ -280,5 +292,6 @@ class Multithread_Optimize:
         if hasattr(self, 'worker'):
             self.worker.signals.abort.emit()
             self.parent.abort = True
-            self.update(self.HoF)
+            if self.HoF:
+                self.update(self.HoF, writeLog=False)
             # self.parent.update_progress(100, '00:00:00') # This turns off the progress bar
