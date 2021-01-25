@@ -93,9 +93,10 @@ def outlier(x, a=2, c=1, weights=[], max_iter=25, percentile=0.25):
 
     return c*x_outlier
     
-def generalized_loss_fcn(x, a=2, c=1, original_scale=False):    # defaults to L2 loss
+def generalized_loss_fcn(x, mu=0, a=2, c=1):    # defaults to L2 loss
     c_2 = c**2
-    x_c_2 = x**2/c_2
+    x_c_2 = (x-mu)**2/c_2
+    
     if a == 1:          # generalized function reproduces
         loss = (x_c_2 + 1)**(0.5) - 1
     if a == 2:
@@ -108,15 +109,26 @@ def generalized_loss_fcn(x, a=2, c=1, original_scale=False):    # defaults to L2
         loss = 1 - np.exp(-0.5*x_c_2)
     else:
         loss = np.abs(a-2)/a*((x_c_2/np.abs(a-2) + 1)**(a/2) - 1)
+
+    return loss*c_2 + mu  # multiplying by c^2 is not necessary, but makes order appropriate
+
+def rescale_loss_fcn(x, loss, x_outlier=None, weights=[]):
+    if x_outlier is not None:
+        trimmed_indices = np.argwhere(abs(x) < x_outlier)
+        x = x[trimmed_indices]
+        loss_trimmed = loss[trimmed_indices]
+        weights = weights[trimmed_indices]
+    else:
+        loss_trimmed = loss
+
+    if len(weights) == len(x):
+        x_q1, x_q3 = weighted_quantile(x, [0.0, 1.0], weights=weights)
+        loss_q1, loss_q3 = weighted_quantile(loss_trimmed, [0.0, 1.0], weights=weights)
+    else:
+        x_q1, x_q3 = x.min(), x.max()
+        loss_q1, loss_q3 = loss_trimmed.min(), loss_trimmed.max()
     
-    scaled_loss = loss*c_2   # multiplying by c^2 is not necessary, but makes order appropriate
-
-    if original_scale:
-        loss_min = scaled_loss.min()
-        loss_max = scaled_loss.max()
-        scaled_loss = (x.max() - x.min())/(loss_max - loss_min)*(scaled_loss - loss_min) + x.min()
-
-    return scaled_loss
+    return (x_q3 - x_q1)/(loss_q3 - loss_q1)*(loss - loss_q1) + x_q1
 
 def update_mech_coef_opt(mech, coef_opt, x):
     mech_changed = False
@@ -159,9 +171,10 @@ def calculate_residuals(args_list):
             weights = weights[ind].flatten()
             m = np.divide(obs_exp[ind], obs_sim_interp[ind])
             resid = np.log10(np.abs(m)).flatten()
-                                                                                                                                                                                                       
+        
         resid_outlier = outlier(resid, a=loss_alpha, c=loss_c, weights=weights)
         loss = generalized_loss_fcn(resid, a=loss_alpha, c=resid_outlier)
+        loss = rescale_loss_fcn(np.abs(resid), loss, resid_outlier, weights)
 
         loss_sqr = loss**2
         wgt_sum = weights.sum()
@@ -170,7 +183,8 @@ def calculate_residuals(args_list):
             N = wgt_sum
         stderr_sqr = (loss_sqr*weights).sum()/N
         chi_sqr = loss_sqr/stderr_sqr
-        std_resid = chi_sqr**(1/2)
+        std_resid = chi_sqr**(0.5)
+        #loss_scalar = (chi_sqr*weights).sum()
         loss_scalar = weighted_quantile(std_resid, 0.5, weights=weights)    # median value
                                                   
         if verbose:                                                                                                           
@@ -179,7 +193,9 @@ def calculate_residuals(args_list):
                       'obs_exp': obs_exp}
 
             if opt_type == 'Bayesian': # need to calculate aggregate weights to reduce outliers in bayesian
-                loss_weights = loss/generalized_loss_fcn(resid) # comparison is between selected loss fcn and SSE (L2 loss)
+                SSE = generalized_loss_fcn(resid)
+                SSE = rescale_loss_fcn(np.abs(resid), SSE, resid_outlier, weights)
+                loss_weights = loss/SSE # comparison is between selected loss fcn and SSE (L2 loss)
                 output['aggregate_weights'] = weights*loss_weights
 
             return output
@@ -402,12 +418,17 @@ class Fit_Fun:
         loss_resid = np.array(output_dict['loss'])
 
         if np.size(loss_resid) == 1:  # optimizing single experiment
-            c = 0
+            loss_outlier = 0
             loss_exp = loss_resid
         else:                   # optimizing multiple experiments
-            loss_resid_min = np.min(loss_resid)
-            c = outlier(loss_resid-loss_resid_min, a=self.opt_settings['loss_alpha'], c=self.opt_settings['loss_c'])
-            loss_exp = generalized_loss_fcn(loss_resid-loss_resid_min, a=self.opt_settings['loss_alpha'], c=c, original_scale=True) + loss_resid_min
+            loss_min = loss_resid.min()
+            loss_outlier = outlier(loss_resid, a=self.opt_settings['loss_alpha'], c=self.opt_settings['loss_c'])
+            loss_exp = generalized_loss_fcn(loss_resid, mu=loss_min, a=self.opt_settings['loss_alpha'], c=loss_outlier)
+            loss_exp = rescale_loss_fcn(loss_resid, loss_exp)           
+
+            for i in range(0, len(loss_resid)):
+                print(loss_resid[i], loss_exp[i])
+            print('')
         
         if self.opt_settings['obj_fcn_type'] == 'Residual':
             obj_fcn = np.median(loss_exp)
@@ -438,7 +459,9 @@ class Fit_Fun:
                 Bayesian_dict['weights_data'] = np.array(output_dict['aggregate_weights'], dtype=object)
             else:
                 aggregate_weights = np.array(output_dict['aggregate_weights'], dtype=object)
-                exp_loss_weights = loss_exp/generalized_loss_fcn(loss_resid, original_scale=True) # comparison is between selected loss fcn and SSE (L2 loss)
+                SSE = generalized_loss_fcn(loss_resid, mu=loss_min)
+                SSE = rescale_loss_fcn(loss_resid, SSE)
+                exp_loss_weights = loss_exp/SSE # comparison is between selected loss fcn and SSE (L2 loss)
                 Bayesian_dict['weights_data'] = np.concatenate(aggregate_weights*exp_loss_weights, axis=0)
             
             #Bayesian_dict['weights_data'] /= np.max(Bayesian_dict['weights_data'])  # if we want to normalize by maximum
@@ -486,7 +509,7 @@ class Fit_Fun:
                 obj_fcn = np.inf
             
             stat_plot = {'shocks2run': self.shocks2run, 'resid': output_dict['resid'], 
-                        'resid_outlier': c, 'weights': output_dict['weights']}
+                        'resid_outlier': loss_outlier, 'weights': output_dict['weights']}
             
             if 'KDE' in output_dict:
                 stat_plot['KDE'] = output_dict['KDE']
