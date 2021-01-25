@@ -495,7 +495,7 @@ class Fit_Fun:
             
             log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object, Bayesian_dict['pars_current_guess_truncated'])
             #Step 5 of Bayesian:  return the objective function and any other metrics desired.
-            obj_fcn = -1/log_posterior_density #need neg_logP because minimizing.
+            obj_fcn = -1*log_posterior_density #need neg_logP because minimizing.
             print("line 481 of fit_fcn, Bayesian obj_fcn", obj_fcn)
            
         # For updating
@@ -520,7 +520,7 @@ class Fit_Fun:
             
             update = {'type': self.opt_type, 'i': self.i, 
                       'obj_fcn': obj_fcn, 'stat_plot': stat_plot, 
-                      'x': x, 'coef_opt': self.coef_opt, 
+                      's': s, 'x': x, 'coef_opt': self.coef_opt, 
                       'ind_var': display_ind_var, 'observable': display_observable}
             
             self.signals.update.emit(update)

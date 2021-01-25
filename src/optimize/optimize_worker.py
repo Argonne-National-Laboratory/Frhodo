@@ -186,6 +186,7 @@ class Worker(QRunnable):
                     opt.set_local_optimizer(sub_opt)
                 
                 s = opt.optimize(s) # optimize!
+                #s = parent.optimize.HoF['s']
                 
                 obj_fcn, x, shock_output = Scaled_Fit_Fun(s, optimizing=False)
             
