@@ -239,7 +239,9 @@ class Multithread_Optimize:
             else:
                 obj_fcn_space = '\t\t\t'
             
-            if len(obj_fcn_str) < 6:
+            if 'inf' in obj_fcn_str:
+                obj_fcn_str_space = '\t\t\t\t\t'
+            elif len(obj_fcn_str) < 6:
                 obj_fcn_str_space = '\t\t\t\t'
             else:
                 obj_fcn_str_space = '\t\t\t'

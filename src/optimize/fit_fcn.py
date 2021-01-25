@@ -425,10 +425,6 @@ class Fit_Fun:
             loss_outlier = outlier(loss_resid, a=self.opt_settings['loss_alpha'], c=self.opt_settings['loss_c'])
             loss_exp = generalized_loss_fcn(loss_resid, mu=loss_min, a=self.opt_settings['loss_alpha'], c=loss_outlier)
             loss_exp = rescale_loss_fcn(loss_resid, loss_exp)           
-
-            for i in range(0, len(loss_resid)):
-                print(loss_resid[i], loss_exp[i])
-            print('')
         
         if self.opt_settings['obj_fcn_type'] == 'Residual':
             obj_fcn = np.median(loss_exp)
