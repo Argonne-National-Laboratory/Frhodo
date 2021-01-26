@@ -404,8 +404,6 @@ class Fit_Fun:
             Bayesian_dict = self.Bayesian_dict                
             Bayesian_dict['rate_constants_current_guess'] = deepcopy(log_opt_rates)
             Bayesian_dict['rate_constants_parameters_current_guess'] = deepcopy(x)
-            print("line 397, rate_constants_current_guess", Bayesian_dict['rate_constants_current_guess'])
-            print("line 397, rate_constants_parameters_current_guess", Bayesian_dict['rate_constants_parameters_current_guess'])
             Bayesian_dict['pars_current_guess'] = np.concatenate( (Bayesian_dict['rate_constants_current_guess'], Bayesian_dict['rate_constants_parameters_current_guess'] ) )
             Bayesian_dict['last_obs_sim_interp'] = np.concatenate(output_dict['obs_sim_interp'], axis=0)
             Bayesian_dict['observed_data'] = np.concatenate(output_dict['obs_exp'], axis=0)
@@ -440,8 +438,6 @@ class Fit_Fun:
             #To gain efficiency, we could cheat and se the feature get_responses_simulation_uncertainties function of CheKiPEUQ, 
             #or could create a new get_responses_observed_uncertainties function in CheKiPEUQ
             #for now we will just create a new PE_object each time.
-            print("line 443", np.shape(Bayesian_dict['observed_data']))
-            print("line 443", np.shape(Bayesian_dict['weights_data']))
             if np.shape(Bayesian_dict['weights_data']) != np.shape(Bayesian_dict['observed_data']):
                 sys.exit()
             
@@ -469,7 +465,6 @@ class Fit_Fun:
             log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object, Bayesian_dict['pars_current_guess_truncated'])
             #Step 5 of Bayesian:  return the objective function and any other metrics desired.
             obj_fcn = -1*log_posterior_density #need neg_logP because minimizing.
-            print("line 481 of fit_fcn, Bayesian obj_fcn", obj_fcn)
            
         # For updating
         self.i += 1

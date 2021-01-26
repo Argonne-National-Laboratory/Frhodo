@@ -99,7 +99,7 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
     UserInput.model['InputParameterPriorValues_upperBounds'] = np.array(pars_upper_bnds)
     UserInput.model['InputParameterPriorValues_lowerBounds'] = np.array(pars_lower_bnds)
     UserInput.model['simulateByInputParametersOnlyFunction'] = simulation_function
-    print("line 61", CKPQ.frog)
+    #print("line 61", CKPQ.frog)
     PE_object = CKPQ.parameter_estimation(UserInput)
     return PE_object
 
@@ -161,7 +161,5 @@ def get_consolidated_parameters_arrays(rate_constants_values, rate_constants_low
     return pars_values, pars_lower_bnds, pars_upper_bnds, pars_bnds_exist, unbounded_indices
     
 def remove_unbounded_values(array_to_truncate, unbounded_indices):
-    print("line 164", unbounded_indices, array_to_truncate)
     truncated_array = np.delete(array_to_truncate, unbounded_indices, axis=0)
-    print("line 164", unbounded_indices, truncated_array)
     return truncated_array
