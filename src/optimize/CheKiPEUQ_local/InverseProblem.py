@@ -179,14 +179,15 @@ class parameter_estimation:
             if len(self.UserInput.responses['responses_observed_weighting']) > 0:
                 UserInput.responses_observed_weighting = np.array(nestedObjectsFunctions.makeAtLeast_2dNested(UserInput.responses['responses_observed_weighting']))
                 UserInput.responses_observed_weighting = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_observed_weighting)
-                UserInput.responses_observed_weighting = UserInput.responses_observed_weighting.astype(np.float); print("line 182")
+                UserInput.responses_observed_weighting = UserInput.responses_observed_weighting.astype(np.float); print("line 182", np.shape(UserInput.responses_observed_weighting))
                 UserInput.responses_observed_weight_coefficients = copy.deepcopy(UserInput.responses_observed_weighting).astype(np.float) #initialize the weight_coefficients
                 #We'll apply it 1 response at a time.
                 for responseIndex, responseWeightingArray in enumerate(UserInput.responses_observed_weighting):
                     if 0 in responseWeightingArray: #we can't have zeros in weights. So if we have any zeros, we will set the weighting of those to 1E6 times less than other values.
-                        minNonZero = np.min(UserInput.responses_observed_weighting[UserInput.responses_observed_weighting>0]) #get array of nonzeros, then take min.
-                        responseWeightingArray[responseWeightingArray==0] = minNonZero/1E6  #set the 0 values to be 1E6 times smaller than minNonZero.
-                        UserInput.responses_observed_weighting[responseIndex] = responseWeightingArray #Make sure the modified array is kept.
+                        #Originally, used minNonZero/1E6. Now, use eps which is the smallest non-zero value allowed.
+                        #minNonZero = np.min(UserInput.responses_observed_weighting[UserInput.responses_observed_weighting>0]) ; print("line 187") #get array of nonzeros, then take min.
+                        responseWeightingArray[responseWeightingArray==0] = np.finfo(float).eps #minNonZero/1E6  ; print("line 188") #set the 0 values to be 1E6 times smaller than minNonZero.
+                        UserInput.responses_observed_weighting[responseIndex] = responseWeightingArray ; print("line 189") #Make sure the modified array is kept.
                 #now calculate and apply the weight coefficients.
                 for responseIndex in range(len(UserInput.responses_observed_weighting)):
                     UserInput.responses_observed_weight_coefficients[responseIndex] = (UserInput.responses_observed_weighting[responseIndex])**(-0.5) #this is analagous to the sigma of a variance weighted heuristic.
@@ -198,7 +199,7 @@ class parameter_estimation:
                     # print(type(UserInput.responses_observed_uncertainties[responseIndex]))
                     # UserInput.responses_observed_uncertainties[responseIndex] = multipliedArray*1.0
                     # print("after setting multplied array", UserInput.responses_observed_uncertainties[responseIndex])
-                UserInput.responses_observed_uncertainties = UserInput.responses_observed_uncertainties*UserInput.responses_observed_weight_coefficients
+                UserInput.responses_observed_uncertainties = UserInput.responses_observed_uncertainties*UserInput.responses_observed_weight_coefficients ; print("line 201")
         else: #The other possibilities are a None object or a function. For either of thtose cases, we simply set UserInput.responses_observed_uncertainties equal to what the user provided.
             UserInput.responses_observed_uncertainties = copy.deepcopy(self.UserInput.responses['responses_observed_uncertainties'])
         print("line 204 of CheKiPEUQ")    
