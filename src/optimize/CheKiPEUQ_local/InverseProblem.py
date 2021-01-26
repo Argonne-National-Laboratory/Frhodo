@@ -155,19 +155,19 @@ class parameter_estimation:
         #Make sure all objects inside are arrays (if they are lists we convert them). This is needed to apply the heurestic.
         UserInput.responses_abscissa = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_abscissa)
         UserInput.responses_observed = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_observed)
-        
+        print("line 158 of CheKiPEUQ")
         #Now to process responses_observed_uncertainties, there are several options so we need to process it according to the cases.
         #The normal case:
         if isinstance(self.UserInput.responses['responses_observed_uncertainties'], Iterable): #If it's an array or like one, we take it as is. The other options are a none object or a function.
-            UserInput.responses_observed_uncertainties = np.array(nestedObjectsFunctions.makeAtLeast_2dNested(UserInput.responses['responses_observed_uncertainties']))
-            UserInput.responses_observed_uncertainties = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_observed_uncertainties)
+            UserInput.responses_observed_uncertainties = np.array(nestedObjectsFunctions.makeAtLeast_2dNested(UserInput.responses['responses_observed_uncertainties'])); print("line 162")
+            UserInput.responses_observed_uncertainties = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_observed_uncertainties); print("line 163")
             #Processing of responses_observed_uncertainties for case that a blank list is received and not zeros.
             if len(UserInput.responses_observed_uncertainties[0]) == 0: 
                 #if the response uncertainties is blank, we will use the heurestic of sigma = 5% of the observed value, with a floor of 2% of the maximum for that response. 
                 #Note that we are actually checking in index[0], that is because as an atleast_2d array even a blank list / array in it will give a length of 1.
-                UserInput.responses_observed_uncertainties = np.abs( UserInput.responses_observed) * 0.05
+                UserInput.responses_observed_uncertainties = np.abs( UserInput.responses_observed) * 0.05 ; print("line 168")
                 for responseIndex in range(0,UserInput.num_response_dimensions): #need to cycle through to apply the "minimum" uncertainty of 0.02 times the max value.
-                    maxResponseAbsValue = np.max(np.abs(UserInput.responses_observed[responseIndex])) #Because of the "at_least2D" we actually need to use index 0.
+                    maxResponseAbsValue = np.max(np.abs(UserInput.responses_observed[responseIndex])) ; print("line 170", maxResponseAbsValue) #Because of the "at_least2D" we actually need to use index 0. 
                     #The below syntax is a bit hard to read, but it is similar to this: a[a==2] = 10 #replace all 2's with 10's
                     UserInput.responses_observed_uncertainties[responseIndex][UserInput.responses_observed_uncertainties[responseIndex] < maxResponseAbsValue * 0.02] = maxResponseAbsValue * 0.02
             elif nestedObjectsFunctions.sumNested(UserInput.responses_observed_uncertainties) == 0: #If a 0 (or list summing to 0) is provided, we will make the uncertainties zero.
@@ -179,7 +179,7 @@ class parameter_estimation:
             if len(self.UserInput.responses['responses_observed_weighting']) > 0:
                 UserInput.responses_observed_weighting = np.array(nestedObjectsFunctions.makeAtLeast_2dNested(UserInput.responses['responses_observed_weighting']))
                 UserInput.responses_observed_weighting = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_observed_weighting)
-                UserInput.responses_observed_weighting = UserInput.responses_observed_weighting.astype(np.float)
+                UserInput.responses_observed_weighting = UserInput.responses_observed_weighting.astype(np.float); print("line 182")
                 UserInput.responses_observed_weight_coefficients = copy.deepcopy(UserInput.responses_observed_weighting).astype(np.float) #initialize the weight_coefficients
                 #We'll apply it 1 response at a time.
                 for responseIndex, responseWeightingArray in enumerate(UserInput.responses_observed_weighting):
@@ -201,7 +201,7 @@ class parameter_estimation:
                 UserInput.responses_observed_uncertainties = UserInput.responses_observed_uncertainties*UserInput.responses_observed_weight_coefficients
         else: #The other possibilities are a None object or a function. For either of thtose cases, we simply set UserInput.responses_observed_uncertainties equal to what the user provided.
             UserInput.responses_observed_uncertainties = copy.deepcopy(self.UserInput.responses['responses_observed_uncertainties'])
-            
+        print("line 204 of CheKiPEUQ")    
         #Now to process responses_simulation_uncertainties, there are several options so we need to process it according to the cases.
         #The normal case:
         if isinstance(self.UserInput.model['responses_simulation_uncertainties'], Iterable): #If it's an array or like one, we take it as is. The other options are a none object or a function.
@@ -2133,8 +2133,11 @@ class parameter_estimation:
             #We will check if the response has too many values. If has too many values, then the covmat will be too large and will evaluate each value separately (with only variance, no covariance) in order to achive a linear scaling.
             if len(simulatedResponses_transformed[responseIndex]) > self.UserInput.responses['responses_observed_max_covmat_size']:
                 calculate_log_probability_metric_per_value = True
+                response_log_probability_metric = 0 #initializing so that can check if it is a 'nan' or not a bit further down below.
+                print("line 2137")
             else:
                 calculate_log_probability_metric_per_value = False
+                #no need oto intialize response_log_probability_metric.
                 
             if calculate_log_probability_metric_per_value == False: #The normal case.            
                 try: #try to evaluate, but switch to individual values if there is any problem.
@@ -2143,15 +2146,18 @@ class parameter_estimation:
                     response_log_probability_metric = float('nan') #this keeps track of failure cases.
                     calculate_log_probability_metric_per_value = False
             if calculate_log_probability_metric_per_value == True:
+                print("line 2149")
                 if response_log_probability_metric == float('nan'): # if a case failed...
                     response_log_probability_metric = -1E100 #Just initializing, then will add each probability separately. One for each **value** of this response dimension. The -1E100 is to penalize any cases responses that failed.
                 else: 
+                    print("line 2153")
                     response_log_probability_metric = 0 #No penalty if the 'per value' calculation is being done for non-failure reasons, like the number of values being too long to use a covmat directly.
                 for responseValueIndex in range(len(simulatedResponses_transformed[responseIndex])):
                     try:
                         current_log_probability_metric = multivariate_normal.logpdf(mean=simulatedResponses_transformed[responseIndex][responseValueIndex],x=observedResponses_transformed[responseIndex][responseValueIndex],cov=comprehensive_responses_covmat[responseIndex][responseValueIndex])    
                     except: #The above is to catch cases when the multivariate_normal fails.
                         current_log_probability_metric = float('-inf')
+                        print("line 2160")
                     #response_log_probability_metric = current_log_probability_metric + response_log_probability_metric
                     if float(current_log_probability_metric) == float('-inf'):
                         print("Warning: There are posterior points that have zero probability. If there are too many points like this, the MAP and mu_AP returned will not be meaningful. Parameters:", discreteParameterVector)
