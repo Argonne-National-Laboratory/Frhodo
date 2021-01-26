@@ -313,12 +313,6 @@ class Fit_Fun:
             self.Bayesian_dict['rate_constants_parameters_upper_bnds'] = np.array(self.Bayesian_dict['rate_constants_parameters_upper_bnds']).flatten()
             #self.Bayesian_dict['rate_constants_parameters_bnds_exist'] does not get flattened because it is a list of list/arrays (so we don't want it flattened).
 
-            print("line 310 !!!!!! the below shows that the activation energy initial guess is 34 million!!! It does not match the reaction table.")
-            print("line 310 rate_constants_parameters_initial_guess", len(self.Bayesian_dict['rate_constants_parameters_initial_guess']), self.Bayesian_dict['rate_constants_parameters_initial_guess'])
-            print("line 310 rate_constants_parameters_lower_bnds", len(self.Bayesian_dict['rate_constants_parameters_lower_bnds']), self.Bayesian_dict['rate_constants_parameters_lower_bnds'])
-            print("line 310 rate_constants_parameters_upper_bnds", len(self.Bayesian_dict['rate_constants_parameters_upper_bnds']), self.Bayesian_dict['rate_constants_parameters_upper_bnds'])
-            print("line 310 rate_constants_parameters_bnds_exist", len(self.Bayesian_dict['rate_constants_parameters_bnds_exist']), self.Bayesian_dict['rate_constants_parameters_bnds_exist'])
-            print("line 310", self.rxn_coef_opt);
             Bayesian_dict = self.Bayesian_dict            
             import optimize.CheKiPEUQ_from_Frhodo    
             #concatenate all of the initial guesses and bounds. 
@@ -446,6 +440,11 @@ class Fit_Fun:
             #To gain efficiency, we could cheat and se the feature get_responses_simulation_uncertainties function of CheKiPEUQ, 
             #or could create a new get_responses_observed_uncertainties function in CheKiPEUQ
             #for now we will just create a new PE_object each time.
+            print("line 443", np.shape(Bayesian_dict['observed_data']))
+            print("line 443", np.shape(Bayesian_dict['weights_data']))
+            if np.shape(Bayesian_dict['weights_data']) != np.shape(Bayesian_dict['observed_data']):
+                sys.exit()
+            
             CheKiPEUQ_PE_object = optimize.CheKiPEUQ_from_Frhodo.load_into_CheKiPUEQ(
                 simulation_function=    Bayesian_dict['simulation_function'],
                 observed_data=          Bayesian_dict['observed_data'],
