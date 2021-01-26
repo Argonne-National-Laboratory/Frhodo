@@ -64,8 +64,8 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
     if len(observed_data_lower_bounds) > 0: #assume that both lower and upper bounds exist on data if there is a lower bounds array provided.
         UserInput.responses['responses_observed_uncertainties'] = extract_larger_delta_and_make_sigma_values(UserInput.responses['responses_observed'], observed_data_lower_bounds, observed_data_upper_bounds, sigma_multiple)   
     try:
-        weights_data = np.atleast_2d(weights_data).T
-        UserInput.responses['responses_observed_weighting'] = (weights_data*np.ones(num_responses)).T
+        #weights_data = np.atleast_2d(weights_data).T
+        UserInput.responses['responses_observed_weighting'] = weights_data #(weights_data*np.ones(num_responses)).T
     except:
         print("There was an error in the weightings in CheKiPEUQ_from_Frhodo processing.")
     UserInput.model['InputParameterPriorValues'] = pars_initial_guess

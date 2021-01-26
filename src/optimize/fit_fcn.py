@@ -422,11 +422,11 @@ class Fit_Fun:
             Bayesian_dict['simulation_function'] = get_last_obs_sim_interp #using wrapper that just returns the last_obs_sim_interp
             
             if np.size(loss_resid) == 1:  # optimizing single experiment
-                Bayesian_dict['weights_data'] = np.array(output_dict['aggregate_weights'], dtype=object)
+                Bayesian_dict['weights_data'] = np.array(output_dict['aggregate_weights'], dtype=object).flatten()
             else:
                 aggregate_weights = np.array(output_dict['aggregate_weights'], dtype=object)
                 exp_loss_weights = loss_exp/generalized_loss_fcn(loss_resid) # comparison is between selected loss fcn and SSE (L2 loss)
-                Bayesian_dict['weights_data'] = np.concatenate(aggregate_weights*exp_loss_weights, axis=0)
+                Bayesian_dict['weights_data'] = np.concatenate(aggregate_weights*exp_loss_weights, axis=0).flatten()
             
             #Bayesian_dict['weights_data'] /= np.max(Bayesian_dict['weights_data'])  # if we want to normalize by maximum
 
