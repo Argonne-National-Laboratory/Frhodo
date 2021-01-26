@@ -159,13 +159,11 @@ class parameter_estimation:
         #Now to process responses_observed_uncertainties, there are several options so we need to process it according to the cases.
         #The normal case:
         if isinstance(self.UserInput.responses['responses_observed_uncertainties'], Iterable): #If it's an array or like one, we take it as is. The other options are a none object or a function.
-            UserInput.responses_observed_uncertainties = np.array(nestedObjectsFunctions.makeAtLeast_2dNested(UserInput.responses['responses_observed_uncertainties'])); print("line 162")
-            UserInput.responses_observed_uncertainties = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_observed_uncertainties); print("line 163")
             #Processing of responses_observed_uncertainties for case that a blank list is received and not zeros.
-            if len(UserInput.responses_observed_uncertainties[0]) == 0: 
+            if len(UserInput.responses['responses_observed_uncertainties']) == 0: 
                 #if the response uncertainties is blank, we will use the heurestic of sigma = 5% of the observed value, with a floor of 2% of the maximum for that response. 
                 #Note that we are actually checking in index[0], that is because as an atleast_2d array even a blank list / array in it will give a length of 1.
-                UserInput.responses_observed_uncertainties = np.abs( UserInput.responses_observed) * 0.05 ; print("line 168")
+                UserInput.responses_observed_uncertainties = np.abs( UserInput.responses_observed) * 0.05 ; print("line 168", np.shape(UserInput.responses_observed_uncertainties))
                 for responseIndex in range(0,UserInput.num_response_dimensions): #need to cycle through to apply the "minimum" uncertainty of 0.02 times the max value.
                     maxResponseAbsValue = np.max(np.abs(UserInput.responses_observed[responseIndex])) ; print("line 170", maxResponseAbsValue) #Because of the "at_least2D" we actually need to use index 0. 
                     #The below syntax is a bit hard to read, but it is similar to this: a[a==2] = 10 #replace all 2's with 10's
@@ -175,10 +173,14 @@ class parameter_estimation:
                 #Below two lines not needed. Should be removed if everythig is working fine after Nov 2020.
                 #for responseIndex in range(0,len(UserInput.responses_observed[0])):
                 #    UserInput.responses_observed_uncertainties[0][responseIndex]= UserInput.responses_observed[0][responseIndex]*0.0
+            print("line 176",np.shape(UserInput.responses['responses_observed_uncertainties']), UserInput.responses['responses_observed_uncertainties'])
+            UserInput.responses_observed_uncertainties = np.array(nestedObjectsFunctions.makeAtLeast_2dNested(UserInput.responses_observed_uncertainties)); print("line 162", np.shape(UserInput.responses_observed_uncertainties))
+            UserInput.responses_observed_uncertainties = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_observed_uncertainties); print("line 163", np.shape(UserInput.responses_observed_uncertainties))
             #If the feature of self.UserInput.responses['responses_observed_weighting'] has been used, then we need to apply that weighting to the uncertainties.
             if len(self.UserInput.responses['responses_observed_weighting']) > 0:
-                UserInput.responses_observed_weighting = np.array(nestedObjectsFunctions.makeAtLeast_2dNested(UserInput.responses['responses_observed_weighting']))
-                UserInput.responses_observed_weighting = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_observed_weighting)
+                print("line 180", np.shape(UserInput.responses['responses_observed_weighting']))
+                UserInput.responses_observed_weighting = np.array(nestedObjectsFunctions.makeAtLeast_2dNested(UserInput.responses['responses_observed_weighting'])); print("line 182", np.shape(UserInput.responses_observed_weighting))
+                UserInput.responses_observed_weighting = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_observed_weighting); print("line 182", np.shape(UserInput.responses_observed_weighting))
                 UserInput.responses_observed_weighting = UserInput.responses_observed_weighting.astype(np.float); print("line 182", np.shape(UserInput.responses_observed_weighting))
                 UserInput.responses_observed_weight_coefficients = copy.deepcopy(UserInput.responses_observed_weighting).astype(np.float) #initialize the weight_coefficients
                 #We'll apply it 1 response at a time.
