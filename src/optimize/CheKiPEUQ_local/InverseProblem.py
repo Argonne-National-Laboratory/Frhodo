@@ -1,3 +1,4 @@
+
 import numpy as np
 #from mpl_toolkits.mplot3d import Axes3D
 #import scipy
@@ -30,7 +31,7 @@ class parameter_estimation:
     
     
     software_name = "CheKiPEUQ Bayesian Parameter Estimation"
-    software_version = "1.0.0"
+    software_version = "0.6.5"
     software_unique_id = "https://doi.org/10.1002/cctc.202000953"
     software_kwargs = {"version": software_version, "author": ["Aditya Savara", "Eric A. Walker"], "doi": "https://doi.org/10.1002/cctc.202000953", "cite": "Savara, A. and Walker, E.A. (2020), CheKiPEUQ Intro 1: Bayesian Parameter Estimation Considering Uncertainty or Error from both Experiments and Theory. ChemCatChem. Accepted. doi:10.1002/cctc.202000953"} 
     #decorator CiteSoft.after_call_compile_consolidated_log()
@@ -2129,12 +2130,23 @@ class parameter_estimation:
         #If neither of the above return statements have occurred, we should go through the uncertainties per response.
         log_probability_metric = 0 #Initializing since we will be adding to it.
         for responseIndex in range(self.UserInput.num_response_dimensions):
-            try:
-                response_log_probability_metric = multivariate_normal.logpdf(mean=simulatedResponses_transformed[responseIndex],x=observedResponses_transformed[responseIndex],cov=comprehensive_responses_covmat[responseIndex])                
-            except:
-                response_log_probability_metric = 1
-            if response_log_probability_metric == 1:
-                response_log_probability_metric = -1E100 #Just initializing, then will add each probability separately. One for each **value** of this response dimension.
+            #We will check if the response has too many values. If has too many values, then the covmat will be too large and will evaluate each value separately (with only variance, no covariance) in order to achive a linear scaling.
+            if len(simulatedResponses_transformed[responseIndex]) > self.UserInput.responses['responses_observed_max_covmat_size']:
+                calculate_log_probability_metric_per_value = True
+            else:
+                calculate_log_probability_metric_per_value = False
+                
+            if calculate_log_probability_metric_per_value == False: #The normal case.            
+                try: #try to evaluate, but switch to individual values if there is any problem.
+                    response_log_probability_metric = multivariate_normal.logpdf(mean=simulatedResponses_transformed[responseIndex],x=observedResponses_transformed[responseIndex],cov=comprehensive_responses_covmat[responseIndex])  #comprehensive_responses_covmat has to be 2D or has to be 1D array/list of variances of length equal to x.
+                except:
+                    response_log_probability_metric = float('nan') #this keeps track of failure cases.
+                    calculate_log_probability_metric_per_value = False
+            if calculate_log_probability_metric_per_value == True:
+                if response_log_probability_metric == float('nan'): # if a case failed...
+                    response_log_probability_metric = -1E100 #Just initializing, then will add each probability separately. One for each **value** of this response dimension. The -1E100 is to penalize any cases responses that failed.
+                else: 
+                    response_log_probability_metric = 0 #No penalty if the 'per value' calculation is being done for non-failure reasons, like the number of values being too long to use a covmat directly.
                 for responseValueIndex in range(len(simulatedResponses_transformed[responseIndex])):
                     try:
                         current_log_probability_metric = multivariate_normal.logpdf(mean=simulatedResponses_transformed[responseIndex][responseValueIndex],x=observedResponses_transformed[responseIndex][responseValueIndex],cov=comprehensive_responses_covmat[responseIndex][responseValueIndex])    
