@@ -86,8 +86,9 @@ class Worker(QRunnable):
                 bnds = np.sort(np.log(bnds))  # operate on ln and scale
                 unscaled_bnds['lower'].append(bnds[0])
                 unscaled_bnds['upper'].append(bnds[1])
-                lb.append(bnds[0]/self.x0[i])
-                ub.append(bnds[1]/self.x0[i])
+                scaled_bnds = np.sort(bnds/self.x0[i])
+                lb.append(scaled_bnds[0])
+                ub.append(scaled_bnds[1])
                 
                 i += 1
         
@@ -100,8 +101,8 @@ class Worker(QRunnable):
         self.s = np.divide(rates(), self.x0)
 
         # Correct initial rate guesses if outside bounds
-        np.putmask(self.s, self.s < lb, lb)
-        np.putmask(self.s, self.s > ub, ub)       
+        np.putmask(self.s, self.s < lb, np.array(lb)*1.01)
+        np.putmask(self.s, self.s > ub, np.array(ub)*0.99)
 
     def trim_shocks(self): # trim shocks from zero weighted data
         for n, shock in enumerate(self.shocks2run):
@@ -185,6 +186,7 @@ class Worker(QRunnable):
                     opt.set_local_optimizer(sub_opt)
                 
                 s = opt.optimize(s) # optimize!
+                #s = parent.optimize.HoF['s']
                 
                 obj_fcn, x, shock_output = Scaled_Fit_Fun(s, optimizing=False)
             

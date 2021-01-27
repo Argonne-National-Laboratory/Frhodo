@@ -2757,8 +2757,8 @@ p, li { white-space: pre-wrap; }
                        <rect>
                         <x>0</x>
                         <y>0</y>
-                        <width>252</width>
-                        <height>170</height>
+                        <width>176</width>
+                        <height>125</height>
                        </rect>
                       </property>
                       <attribute name="label">
@@ -2992,7 +2992,7 @@ p, li { white-space: pre-wrap; }
                        <item row="1" column="0">
                         <widget class="QLabel" name="label_31">
                          <property name="toolTip">
-                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Decreasing reduces effect of outliers&lt;/p&gt;&lt;p&gt;An additional multiplier to internal scaling &lt;/p&gt;&lt;p&gt;Internal scaling based on 1.5 IQR rule&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Increasing reduces effect of outliers&lt;/p&gt;&lt;p&gt;An additional multiplier to internal scaling &lt;/p&gt;&lt;p&gt;Internal scaling based on 1.5 IQR rule&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                          </property>
                          <property name="text">
                           <string>c (Scale Parameter)</string>
@@ -3008,7 +3008,7 @@ p, li { white-space: pre-wrap; }
                           <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
                          </property>
                          <property name="minimum">
-                          <double>0.010000000000000</double>
+                          <double>0.100000000000000</double>
                          </property>
                          <property name="maximum">
                           <double>1000.000000000000000</double>

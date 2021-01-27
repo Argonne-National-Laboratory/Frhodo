@@ -161,5 +161,8 @@ def get_consolidated_parameters_arrays(rate_constants_values, rate_constants_low
     return pars_values, pars_lower_bnds, pars_upper_bnds, pars_bnds_exist, unbounded_indices
     
 def remove_unbounded_values(array_to_truncate, unbounded_indices):
+    print("line 164", unbounded_indices, array_to_truncate)
     truncated_array = np.delete(array_to_truncate, unbounded_indices, axis=0)
+    print("line 164", unbounded_indices, truncated_array)
+
     return truncated_array
