@@ -289,6 +289,7 @@ class Multithread_Optimize:
         parent.log.append('\n', alert=False)
         parent.save.chemkin_format(parent.mech.gas, parent.path_set.optimized_mech())
         parent.path_set.mech()  # update mech pulldown choices
+        parent.tree._copy_expanded_tab_rates() # trigger copy rates
 
     def abort_workers(self):
         if hasattr(self, 'worker'):

@@ -909,10 +909,10 @@ class Log:
         self.current_color = self.color['base']
         self.blink_status = False
         self.log.setTabStopWidth(QtGui.QFontMetricsF(self.log.font()).width(' ') * 6)
-        font = QtGui.QFont("Courier New")
-        font.setStyleHint(QtGui.QFont.TypeWriter)
-        self.log.setCurrentFont(font)
-        self.log.setFontPointSize(9)
+        #font = QtGui.QFont("Courier New")
+        #font.setStyleHint(QtGui.QFont.TypeWriter)
+        #self.log.setCurrentFont(font)
+        #self.log.setFontPointSize(9)
         # self.tab_widget.tabBar().setStyleSheet('background-color: yellow')
 
         # Connect Log Functions
