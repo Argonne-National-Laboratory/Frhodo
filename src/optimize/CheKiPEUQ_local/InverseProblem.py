@@ -1,3 +1,4 @@
+
 import numpy as np
 #from mpl_toolkits.mplot3d import Axes3D
 #import scipy
@@ -30,7 +31,7 @@ class parameter_estimation:
     
     
     software_name = "CheKiPEUQ Bayesian Parameter Estimation"
-    software_version = "1.0.0"
+    software_version = "0.6.7"
     software_unique_id = "https://doi.org/10.1002/cctc.202000953"
     software_kwargs = {"version": software_version, "author": ["Aditya Savara", "Eric A. Walker"], "doi": "https://doi.org/10.1002/cctc.202000953", "cite": "Savara, A. and Walker, E.A. (2020), CheKiPEUQ Intro 1: Bayesian Parameter Estimation Considering Uncertainty or Error from both Experiments and Theory. ChemCatChem. Accepted. doi:10.1002/cctc.202000953"} 
     #decorator CiteSoft.after_call_compile_consolidated_log()
@@ -154,26 +155,27 @@ class parameter_estimation:
         #Make sure all objects inside are arrays (if they are lists we convert them). This is needed to apply the heurestic.
         UserInput.responses_abscissa = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_abscissa)
         UserInput.responses_observed = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_observed)
-        
+
         #Now to process responses_observed_uncertainties, there are several options so we need to process it according to the cases.
         #The normal case:
         if isinstance(self.UserInput.responses['responses_observed_uncertainties'], Iterable): #If it's an array or like one, we take it as is. The other options are a none object or a function.
-            UserInput.responses_observed_uncertainties = np.array(nestedObjectsFunctions.makeAtLeast_2dNested(UserInput.responses['responses_observed_uncertainties']))
-            UserInput.responses_observed_uncertainties = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_observed_uncertainties)
+            UserInput.responses_observed_uncertainties = UserInput.responses['responses_observed_uncertainties']
             #Processing of responses_observed_uncertainties for case that a blank list is received and not zeros.
-            if len(UserInput.responses_observed_uncertainties[0]) == 0: 
-                #if the response uncertainties is blank, we will use the heurestic of sigma = 5% of the observed value, with a floor of 2% of the maximum for that response. 
+            if len(UserInput.responses['responses_observed_uncertainties']) == 0:
+                #if the response uncertainties is blank, we will use the heurestic of sigma = 5% of the observed value, and then add an orthogonal uncertainty of 2% of the maximum for that response. 
                 #Note that we are actually checking in index[0], that is because as an atleast_2d array even a blank list / array in it will give a length of 1.
                 UserInput.responses_observed_uncertainties = np.abs( UserInput.responses_observed) * 0.05
                 for responseIndex in range(0,UserInput.num_response_dimensions): #need to cycle through to apply the "minimum" uncertainty of 0.02 times the max value.
-                    maxResponseAbsValue = np.max(np.abs(UserInput.responses_observed[responseIndex])) #Because of the "at_least2D" we actually need to use index 0.
-                    #The below syntax is a bit hard to read, but it is similar to this: a[a==2] = 10 #replace all 2's with 10's
-                    UserInput.responses_observed_uncertainties[responseIndex][UserInput.responses_observed_uncertainties[responseIndex] < maxResponseAbsValue * 0.02] = maxResponseAbsValue * 0.02
-            elif nestedObjectsFunctions.sumNested(UserInput.responses_observed_uncertainties) == 0: #If a 0 (or list summing to 0) is provided, we will make the uncertainties zero.
+                    maxResponseAbsValue = np.max(np.abs(UserInput.responses_observed[responseIndex]))
+                    UserInput.responses_observed_uncertainties[responseIndex] = ( UserInput.responses_observed_uncertainties[responseIndex]**2 + (maxResponseAbsValue*0.02)**2 ) ** 0.5
+                    #The below deprecated syntax is a bit hard to read, but it is similar to this: a[a==2] = 10 #replace all 2's with 10's                    #UserInput.responses_observed_uncertainties[responseIndex][UserInput.responses_observed_uncertainties[responseIndex] < maxResponseAbsValue * 0.02] = maxResponseAbsValue * 0.02
+            elif nestedObjectsFunctions.sumNested(UserInput.responses['responses_observed_uncertainties']) == 0: #If a 0 (or list summing to 0) is provided, we will make the uncertainties zero.
                 UserInput.responses_observed_uncertainties = UserInput.responses_observed * 0.0 #This will work because we've converted the internals to array already.
                 #Below two lines not needed. Should be removed if everythig is working fine after Nov 2020.
                 #for responseIndex in range(0,len(UserInput.responses_observed[0])):
                 #    UserInput.responses_observed_uncertainties[0][responseIndex]= UserInput.responses_observed[0][responseIndex]*0.0
+            UserInput.responses_observed_uncertainties = np.array(nestedObjectsFunctions.makeAtLeast_2dNested(UserInput.responses_observed_uncertainties))
+            UserInput.responses_observed_uncertainties = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_observed_uncertainties)
             #If the feature of self.UserInput.responses['responses_observed_weighting'] has been used, then we need to apply that weighting to the uncertainties.
             if len(self.UserInput.responses['responses_observed_weighting']) > 0:
                 UserInput.responses_observed_weighting = np.array(nestedObjectsFunctions.makeAtLeast_2dNested(UserInput.responses['responses_observed_weighting']))
@@ -183,24 +185,17 @@ class parameter_estimation:
                 #We'll apply it 1 response at a time.
                 for responseIndex, responseWeightingArray in enumerate(UserInput.responses_observed_weighting):
                     if 0 in responseWeightingArray: #we can't have zeros in weights. So if we have any zeros, we will set the weighting of those to 1E6 times less than other values.
-                        minNonZero = np.min(UserInput.responses_observed_weighting[UserInput.responses_observed_weighting>0]) #get array of nonzeros, then take min.
-                        responseWeightingArray[responseWeightingArray==0] = minNonZero/1E6  #set the 0 values to be 1E6 times smaller than minNonZero.
-                        UserInput.responses_observed_weighting[responseIndex] = responseWeightingArray #Make sure the modified array is kept.
+                        #Originally, used minNonZero/1E6. Now, use eps which is the smallest non-zero value allowed.
+                        #minNonZero = np.min(UserInput.responses_observed_weighting[UserInput.responses_observed_weighting>0])
+                        responseWeightingArray[responseWeightingArray==0] = np.finfo(float).eps #minNonZero/1E6  #set the 0 values to be 1E6 times smaller than minNonZero.
+                        UserInput.responses_observed_weighting[responseIndex] = responseWeightingArray 
                 #now calculate and apply the weight coefficients.
                 for responseIndex in range(len(UserInput.responses_observed_weighting)):
                     UserInput.responses_observed_weight_coefficients[responseIndex] = (UserInput.responses_observed_weighting[responseIndex])**(-0.5) #this is analagous to the sigma of a variance weighted heuristic.
-                    # print("line 193", UserInput.responses_observed_uncertainties[responseIndex], UserInput.responses_observed_weight_coefficients[responseIndex])
-                    # print("line 194", UserInput.responses_observed_uncertainties[responseIndex]*UserInput.responses_observed_weight_coefficients[responseIndex])
-                    # multipliedArray = UserInput.responses_observed_uncertainties[responseIndex]*UserInput.responses_observed_weight_coefficients[responseIndex]
-                    # print("response index", responseIndex, "multiplied array", multipliedArray)
-                    # print("before setting multplied array", UserInput.responses_observed_uncertainties[responseIndex])
-                    # print(type(UserInput.responses_observed_uncertainties[responseIndex]))
-                    # UserInput.responses_observed_uncertainties[responseIndex] = multipliedArray*1.0
-                    # print("after setting multplied array", UserInput.responses_observed_uncertainties[responseIndex])
                 UserInput.responses_observed_uncertainties = UserInput.responses_observed_uncertainties*UserInput.responses_observed_weight_coefficients
         else: #The other possibilities are a None object or a function. For either of thtose cases, we simply set UserInput.responses_observed_uncertainties equal to what the user provided.
             UserInput.responses_observed_uncertainties = copy.deepcopy(self.UserInput.responses['responses_observed_uncertainties'])
-            
+
         #Now to process responses_simulation_uncertainties, there are several options so we need to process it according to the cases.
         #The normal case:
         if isinstance(self.UserInput.model['responses_simulation_uncertainties'], Iterable): #If it's an array or like one, we take it as is. The other options are a none object or a function.
@@ -2129,12 +2124,25 @@ class parameter_estimation:
         #If neither of the above return statements have occurred, we should go through the uncertainties per response.
         log_probability_metric = 0 #Initializing since we will be adding to it.
         for responseIndex in range(self.UserInput.num_response_dimensions):
-            try:
-                response_log_probability_metric = multivariate_normal.logpdf(mean=simulatedResponses_transformed[responseIndex],x=observedResponses_transformed[responseIndex],cov=comprehensive_responses_covmat[responseIndex])                
-            except:
-                response_log_probability_metric = 1
-            if response_log_probability_metric == 1:
-                response_log_probability_metric = -1E100 #Just initializing, then will add each probability separately. One for each **value** of this response dimension.
+            #We will check if the response has too many values. If has too many values, then the covmat will be too large and will evaluate each value separately (with only variance, no covariance) in order to achive a linear scaling.
+            if len(simulatedResponses_transformed[responseIndex]) > self.UserInput.responses['responses_observed_max_covmat_size']:
+                calculate_log_probability_metric_per_value = True
+                response_log_probability_metric = 0 #initializing so that can check if it is a 'nan' or not a bit further down below.
+            else:
+                calculate_log_probability_metric_per_value = False
+                #no need oto intialize response_log_probability_metric.
+            #Now try to calculate response_log_probability_metric
+            if calculate_log_probability_metric_per_value == False: #The normal case.            
+                try: #try to evaluate, but switch to individual values if there is any problem.
+                    response_log_probability_metric = multivariate_normal.logpdf(mean=simulatedResponses_transformed[responseIndex],x=observedResponses_transformed[responseIndex],cov=comprehensive_responses_covmat[responseIndex])  #comprehensive_responses_covmat has to be 2D or has to be 1D array/list of variances of length equal to x.
+                except:
+                    response_log_probability_metric = float('nan') #this keeps track of failure cases.
+                    calculate_log_probability_metric_per_value = False
+            if calculate_log_probability_metric_per_value == True:
+                if response_log_probability_metric == float('nan'): # if a case failed...
+                    response_log_probability_metric = -1E100 #Just initializing, then will add each probability separately. One for each **value** of this response dimension. The -1E100 is to penalize any cases responses that failed.
+                else: 
+                    response_log_probability_metric = 0 #No penalty if the 'per value' calculation is being done for non-failure reasons, like the number of values being too long to use a covmat directly.
                 for responseValueIndex in range(len(simulatedResponses_transformed[responseIndex])):
                     try:
                         current_log_probability_metric = multivariate_normal.logpdf(mean=simulatedResponses_transformed[responseIndex][responseValueIndex],x=observedResponses_transformed[responseIndex][responseValueIndex],cov=comprehensive_responses_covmat[responseIndex][responseValueIndex])    

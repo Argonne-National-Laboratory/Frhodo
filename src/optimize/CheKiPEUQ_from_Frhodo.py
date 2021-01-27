@@ -64,8 +64,8 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
     if len(observed_data_lower_bounds) > 0: #assume that both lower and upper bounds exist on data if there is a lower bounds array provided.
         UserInput.responses['responses_observed_uncertainties'] = extract_larger_delta_and_make_sigma_values(UserInput.responses['responses_observed'], observed_data_lower_bounds, observed_data_upper_bounds, sigma_multiple)   
     try:
-        weights_data = np.atleast_2d(weights_data).T
-        UserInput.responses['responses_observed_weighting'] = (weights_data*np.ones(num_responses)).T
+        #weights_data = np.atleast_2d(weights_data).T
+        UserInput.responses['responses_observed_weighting'] = weights_data #(weights_data*np.ones(num_responses)).T
     except:
         print("There was an error in the weightings in CheKiPEUQ_from_Frhodo processing.")
     UserInput.model['InputParameterPriorValues'] = pars_initial_guess
@@ -99,7 +99,7 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
     UserInput.model['InputParameterPriorValues_upperBounds'] = np.array(pars_upper_bnds)
     UserInput.model['InputParameterPriorValues_lowerBounds'] = np.array(pars_lower_bnds)
     UserInput.model['simulateByInputParametersOnlyFunction'] = simulation_function
-    print("line 61", CKPQ.frog)
+    #print("line 61", CKPQ.frog)
     PE_object = CKPQ.parameter_estimation(UserInput)
     return PE_object
 
@@ -164,4 +164,5 @@ def remove_unbounded_values(array_to_truncate, unbounded_indices):
     print("line 164", unbounded_indices, array_to_truncate)
     truncated_array = np.delete(array_to_truncate, unbounded_indices, axis=0)
     print("line 164", unbounded_indices, truncated_array)
+
     return truncated_array
