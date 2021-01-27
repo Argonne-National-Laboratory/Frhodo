@@ -159,14 +159,14 @@ class parameter_estimation:
         #The normal case:
         if isinstance(self.UserInput.responses['responses_observed_uncertainties'], Iterable): #If it's an array or like one, we take it as is. The other options are a none object or a function.
             #Processing of responses_observed_uncertainties for case that a blank list is received and not zeros.
-            if len(UserInput.responses['responses_observed_uncertainties']) == 0 or len(UserInput.responses_observed_uncertainties[0]): 
-                #if the response uncertainties is blank, we will use the heurestic of sigma = 5% of the observed value, with a floor of 2% of the maximum for that response. 
+            if len(UserInput.responses['responses_observed_uncertainties']) == 0 or len(UserInput.responses_observed_uncertainties[0])==0: 
+                #if the response uncertainties is blank, we will use the heurestic of sigma = 5% of the observed value, and then add an orthogonal uncertainty of 2% of the maximum for that response. 
                 #Note that we are actually checking in index[0], that is because as an atleast_2d array even a blank list / array in it will give a length of 1.
                 UserInput.responses_observed_uncertainties = np.abs( UserInput.responses_observed) * 0.05
                 for responseIndex in range(0,UserInput.num_response_dimensions): #need to cycle through to apply the "minimum" uncertainty of 0.02 times the max value.
                     maxResponseAbsValue = np.max(np.abs(UserInput.responses_observed[responseIndex]))
-                    #The below syntax is a bit hard to read, but it is similar to this: a[a==2] = 10 #replace all 2's with 10's
-                    UserInput.responses_observed_uncertainties[responseIndex][UserInput.responses_observed_uncertainties[responseIndex] < maxResponseAbsValue * 0.02] = maxResponseAbsValue * 0.02
+                    UserInput.responses_observed_uncertainties[responseIndex] = ( UserInput.responses_observed_uncertainties[responseIndex]**2 + (maxResponseAbsValue*0.02)**2 ) ** 0.5
+                    #The below deprecated syntax is a bit hard to read, but it is similar to this: a[a==2] = 10 #replace all 2's with 10's                    #UserInput.responses_observed_uncertainties[responseIndex][UserInput.responses_observed_uncertainties[responseIndex] < maxResponseAbsValue * 0.02] = maxResponseAbsValue * 0.02
             elif nestedObjectsFunctions.sumNested(UserInput.responses_observed_uncertainties) == 0: #If a 0 (or list summing to 0) is provided, we will make the uncertainties zero.
                 UserInput.responses_observed_uncertainties = UserInput.responses_observed * 0.0 #This will work because we've converted the internals to array already.
                 #Below two lines not needed. Should be removed if everythig is working fine after Nov 2020.
