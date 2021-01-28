@@ -354,9 +354,6 @@ class Fit_Fun:
             Bayesian_dict['pars_lower_bnds_truncated'] = optimize.CheKiPEUQ_from_Frhodo.remove_unbounded_values( Bayesian_dict['pars_lower_bnds'], Bayesian_dict['unbounded_indices'] )
             Bayesian_dict['pars_upper_bnds_truncated'] = optimize.CheKiPEUQ_from_Frhodo.remove_unbounded_values( Bayesian_dict['pars_upper_bnds'], Bayesian_dict['unbounded_indices'] )
             Bayesian_dict['pars_bnds_exist_truncated'] = optimize.CheKiPEUQ_from_Frhodo.remove_unbounded_values( Bayesian_dict['pars_bnds_exist'], Bayesian_dict['unbounded_indices'] )
-
-
-            
     
     def __call__(self, s, optimizing=True):                                                                    
         def append_output(output_dict, calc_resid_output):
@@ -441,6 +438,7 @@ class Fit_Fun:
                     print("this is line 422! There may be an error occurring!")
                     last_obs_sim_interp = None
                 return last_obs_sim_interp
+            
             Bayesian_dict['simulation_function'] = get_last_obs_sim_interp #using wrapper that just returns the last_obs_sim_interp
             
             if np.size(loss_resid) == 1:  # optimizing single experiment
@@ -452,11 +450,11 @@ class Fit_Fun:
                 exp_loss_weights = loss_exp/SSE # comparison is between selected loss fcn and SSE (L2 loss)
                 Bayesian_dict['weights_data'] = np.concatenate(aggregate_weights*exp_loss_weights, axis=0)
             
-            #Bayesian_dict['weights_data'] /= np.max(Bayesian_dict['weights_data'])  # if we want to normalize by maximum
-
-            #for val in Bayesian_dict['weights_data']:
-            #    print(val)
-
+            # need to normalize weight values between iterations, use first run
+            if self.i == 0:
+                self.Bayesian_dict['initial_weights_data_sum'] = Bayesian_dict['weights_data'].sum()
+            else:
+                Bayesian_dict['weights_data'] = Bayesian_dict['weights_data']/(Bayesian_dict['weights_data'].sum()*self.Bayesian_dict['initial_weights_data_sum'])
            
             #Step 3 of Bayesian:  create a CheKiPEUQ_PE_Object (this is a class object)
             #NOTE: normally, the Bayesian object would be created earlier. However, we are using a non-standard application
