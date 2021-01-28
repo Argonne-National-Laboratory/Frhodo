@@ -450,7 +450,7 @@ class Fit_Fun:
                 SSE = generalized_loss_fcn(loss_resid, mu=loss_min)
                 SSE = rescale_loss_fcn(loss_resid, SSE)
                 exp_loss_weights = loss_exp/SSE # comparison is between selected loss fcn and SSE (L2 loss)
-                Bayesian_dict['weights_data'] = np.concatenate(aggregate_weights*exp_loss_weights, axis=0)
+                Bayesian_dict['weights_data'] = np.concatenate(aggregate_weights*exp_loss_weights, axis=0).flatten()
             
             #Bayesian_dict['weights_data'] /= np.max(Bayesian_dict['weights_data'])  # if we want to normalize by maximum
 
@@ -491,7 +491,6 @@ class Fit_Fun:
             log_posterior_density = optimize.CheKiPEUQ_from_Frhodo.get_log_posterior_density(CheKiPEUQ_PE_object, Bayesian_dict['pars_current_guess_truncated'])
             #Step 5 of Bayesian:  return the objective function and any other metrics desired.
             obj_fcn = -1*log_posterior_density #need neg_logP because minimizing.
-            print("line 481 of fit_fcn, Bayesian obj_fcn", obj_fcn)
            
         # For updating
         self.i += 1
