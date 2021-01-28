@@ -451,7 +451,7 @@ class Fit_Fun:
             if self.i == 0:
                 self.Bayesian_dict['initial_weights_data_sum'] = Bayesian_dict['weights_data'].sum()
             else:
-                Bayesian_dict['weights_data'] = Bayesian_dict['weights_data']/(Bayesian_dict['weights_data'].sum()*self.Bayesian_dict['initial_weights_data_sum'])
+                Bayesian_dict['weights_data'] = Bayesian_dict['weights_data']*(self.Bayesian_dict['initial_weights_data_sum']/Bayesian_dict['weights_data'].sum())
            
             #Step 3 of Bayesian:  create a CheKiPEUQ_PE_Object (this is a class object)
             #NOTE: normally, the Bayesian object would be created earlier. However, we are using a non-standard application
