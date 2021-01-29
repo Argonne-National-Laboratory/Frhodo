@@ -104,7 +104,7 @@ def load_into_CheKiPUEQ(simulation_function, observed_data, pars_initial_guess =
     return PE_object
 
 def get_log_posterior_density(PE_object, parameters):
-    return PE_object.getLogP(parameters)
+    return PE_object.getLogP(parameters, runBoundsCheck=False)  # bounds are already checked prior to this. Differing methods were causing problems. No reason to make them match, just disable
 
 #calculates delta between initial guess and bounds, takes the larger delta, and divides by sigma_multiple to return sigma.
 def extract_larger_delta_and_make_sigma_values(initial_guess, lower_bound, upper_bound, sigma_multiple):

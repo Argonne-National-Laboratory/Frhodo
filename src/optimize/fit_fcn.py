@@ -447,11 +447,8 @@ class Fit_Fun:
                 exp_loss_weights = loss_exp/SSE # comparison is between selected loss fcn and SSE (L2 loss)
                 Bayesian_dict['weights_data'] = np.concatenate(aggregate_weights*exp_loss_weights, axis=0).flatten()
             
-            # need to normalize weight values between iterations, use first iteration
-            if self.i == 0:
-                self.Bayesian_dict['initial_weights_data_sum'] = Bayesian_dict['weights_data'].sum()
-            else:
-                Bayesian_dict['weights_data'] = Bayesian_dict['weights_data']*(self.Bayesian_dict['initial_weights_data_sum']/Bayesian_dict['weights_data'].sum())
+            # need to normalize weight values between iterations
+            Bayesian_dict['weights_data'] = Bayesian_dict['weights_data']/Bayesian_dict['weights_data'].sum()
            
             #Step 3 of Bayesian:  create a CheKiPEUQ_PE_Object (this is a class object)
             #NOTE: normally, the Bayesian object would be created earlier. However, we are using a non-standard application
@@ -485,12 +482,19 @@ class Fit_Fun:
             
             log_posterior_density = CheKiPEUQ.get_log_posterior_density(CheKiPEUQ_PE_object, Bayesian_dict['pars_current_guess_truncated'])
             #Step 5 of Bayesian:  return the objective function and any other metrics desired.
-            obj_fcn = -1*log_posterior_density #need neg_logP because minimizing.
+            #obj_fcn = -1*log_posterior_density #need neg_logP because minimizing.
+            if self.i == 0 and 'obj_fcn_initial' not in Bayesian_dict:
+                Bayesian_dict['obj_fcn_initial'] = -1*log_posterior_density #need neg_logP because minimizing.
+                obj_fcn = 0.0
+            elif log_posterior_density == -np.inf:
+                obj_fcn = np.inf
+            else:
+                obj_fcn = (Bayesian_dict['obj_fcn_initial'] + log_posterior_density)/Bayesian_dict['obj_fcn_initial']*100
            
         # For updating
         self.i += 1
         if not optimizing or self.i % 1 == 0:#5 == 0: # updates plot every 5
-            if obj_fcn == 0:
+            if obj_fcn == 0 and self.opt_settings['obj_fcn_type'] != 'Bayesian':
                 obj_fcn = np.inf
             
             stat_plot = {'shocks2run': self.shocks2run, 'resid': output_dict['resid'], 
