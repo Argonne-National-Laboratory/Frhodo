@@ -1342,9 +1342,9 @@ class parameter_estimation:
                         plotting_functions.makeMeshGridSurfacePlot(XX, YY, ZZ, figure_name = "Info_gain_Meshgrid_modulation_"+str(CheKiPEUQ.parallel_processing.currentProcessorNumber)+plot_suffix)
         else:
             print("At present, createInfoGainPlots and createInfoGainModulationPlots only create plots when the length of  independent_variable_grid_center is 2. We don't currently support creation of other dimensional plots. The infogain data is being exported into the file _____.csv")
-    def getLogP(self, proposal_sample): #The proposal sample is specific parameter vector.
-        [log_likelihood_proposal, simulationOutput_proposal] = self.getLogLikelihood(proposal_sample)
-        log_prior_proposal = self.getLogPrior(proposal_sample)
+    def getLogP(self, proposal_sample, runBoundsCheck=True): #The proposal sample is specific parameter vector.
+        [log_likelihood_proposal, simulationOutput_proposal] = self.getLogLikelihood(proposal_sample, runBoundsCheck=runBoundsCheck)
+        log_prior_proposal = self.getLogPrior(proposal_sample, runBoundsCheck=runBoundsCheck)
         log_numerator_or_denominator = log_likelihood_proposal+log_prior_proposal #Of the Metropolis-Hastings accept/reject ratio
         return log_numerator_or_denominator
         
@@ -1975,13 +1975,16 @@ class parameter_estimation:
             return self.map_logP
 
         
-    def getLogPrior(self,discreteParameterVector):
+    def getLogPrior(self,discreteParameterVector, runBoundsCheck=True):
         if type(self.UserInput.model['custom_logPrior']) != type(None):
             logPrior = self.UserInput.model['custom_logPrior'](discreteParameterVector)
             return logPrior
-        boundsChecksPassed = self.doInputParameterBoundsChecks(discreteParameterVector)
-        if boundsChecksPassed == False: #If false, return a 'zero probability' type result. Else, continue getting log of prior..
-            return float('-inf') #This approximates zero probability.        
+        
+        if runBoundsCheck:
+            boundsChecksPassed = self.doInputParameterBoundsChecks(discreteParameterVector)
+            if boundsChecksPassed == False: #If false, return a 'zero probability' type result. Else, continue getting log of prior..
+                return float('-inf') #This approximates zero probability.        
+        
         if self.UserInput.parameter_estimation_settings['scaling_uncertainties_type'] == "off":
             discreteParameterVector_scaled = np.array(discreteParameterVector)*1.0
         elif self.UserInput.parameter_estimation_settings['scaling_uncertainties_type'] != "off":
@@ -2061,11 +2064,12 @@ class parameter_estimation:
         self.lastSimulatedResponses = copy.deepcopy(simulatedResponses)
         return simulatedResponses
     
-    def getLogLikelihood(self,discreteParameterVector): #The variable discreteParameterVector represents a vector of values for the parameters being sampled. So it represents a single point in the multidimensional parameter space.
+    def getLogLikelihood(self,discreteParameterVector, runBoundsCheck=True): #The variable discreteParameterVector represents a vector of values for the parameters being sampled. So it represents a single point in the multidimensional parameter space.
         #First do upper and lower bounds checks, if such bounds have been provided.
-        boundsChecksPassed = self.doInputParameterBoundsChecks(discreteParameterVector)
-        if boundsChecksPassed == False: #If false, return a 'zero probability' type result. Else, continue getting log likelihood.
-            return float('-inf'), None #This approximates zero probability.
+        if runBoundsCheck:
+            boundsChecksPassed = self.doInputParameterBoundsChecks(discreteParameterVector)
+            if boundsChecksPassed == False: #If false, return a 'zero probability' type result. Else, continue getting log likelihood.
+                return float('-inf'), None #This approximates zero probability.
 
         #Check if user has provided a custom log likelihood function.
         if type(self.UserInput.model['custom_logLikelihood']) != type(None):
@@ -2608,13 +2612,13 @@ def boundsCheck(parameters, parametersBounds, boundsType):
     parametersTruncated = parameters[parametersBounds != None]
     parametersBoundsTruncated = parametersBounds[parametersBounds != None]    
     if boundsType.lower() == 'upper': #we make the input into lower case before proceeding.
-        upperCheck = parametersTruncated < parametersBoundsTruncated #Check if all are smaller.
+        upperCheck = parametersTruncated <= parametersBoundsTruncated #Check if all are smaller.
         if False in upperCheck: #If any of them failed, we return False.
             return False
         else:
             pass #else we do the lower bounds check next.
     if boundsType.lower() == 'lower':
-        lowerCheck = parametersTruncated > parametersBoundsTruncated #Check if all are smaller.
+        lowerCheck = parametersTruncated >= parametersBoundsTruncated #Check if all are smaller.
         if False in lowerCheck: #If any of them failed, we return False.
             return False
         else:
