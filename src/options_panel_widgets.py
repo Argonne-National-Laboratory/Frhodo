@@ -255,7 +255,7 @@ class Directories(QtCore.QObject):
                                 
         self.invalid = deepcopy(invalid)
         for key in key_names:
-            if key is 'path_file':
+            if key == 'path_file':
                 if key in parent.path and os.access(parent.path[key], os.R_OK) and parent.path[key].is_file():
                     eval('parent.' + key + '_label.setPixmap(self.check_icon)')
                 else:
@@ -269,7 +269,7 @@ class Directories(QtCore.QObject):
 
                     eval('parent.' + key + '_label.setPixmap(self.check_icon)')
                 else:
-                    if key is not 'sim_main':    # not invalid if sim folder missing, can create later
+                    if key != 'sim_main':    # not invalid if sim folder missing, can create later
                         self.invalid.append(key)
                     eval('parent.' + key + '_label.setPixmap(self.x_icon)')
             eval('parent.' + key + '_label.show()')

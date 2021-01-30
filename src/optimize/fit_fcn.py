@@ -480,16 +480,17 @@ class Fit_Fun:
             #varying_rate_vals = np.array(output_dict['shock']['rate_val'])[list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
             Bayesian_dict['pars_current_guess_truncated'] = CheKiPEUQ.remove_unbounded_values(Bayesian_dict['pars_current_guess'], Bayesian_dict['unbounded_indices'] ) 
             
-            log_posterior_density = CheKiPEUQ.get_log_posterior_density(CheKiPEUQ_PE_object, Bayesian_dict['pars_current_guess_truncated'])
+            # need neg_logP because minimizing.
+            log_posterior_density = -1*CheKiPEUQ.get_log_posterior_density(CheKiPEUQ_PE_object, Bayesian_dict['pars_current_guess_truncated'])
             #Step 5 of Bayesian:  return the objective function and any other metrics desired.
-            #obj_fcn = -1*log_posterior_density #need neg_logP because minimizing.
+            #obj_fcn = log_posterior_density
             if self.i == 0 and 'obj_fcn_initial' not in Bayesian_dict:
-                Bayesian_dict['obj_fcn_initial'] = -1*log_posterior_density #need neg_logP because minimizing.
+                Bayesian_dict['obj_fcn_initial'] = log_posterior_density 
                 obj_fcn = 0.0
-            elif log_posterior_density == -np.inf:
+            elif log_posterior_density == np.inf:
                 obj_fcn = np.inf
             else:
-                obj_fcn = (Bayesian_dict['obj_fcn_initial'] + log_posterior_density)/Bayesian_dict['obj_fcn_initial']*100
+                obj_fcn = (log_posterior_density - Bayesian_dict['obj_fcn_initial'])/np.abs(Bayesian_dict['obj_fcn_initial'])*100
            
         # For updating
         self.i += 1
