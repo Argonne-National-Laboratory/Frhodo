@@ -450,12 +450,12 @@ class Fit_Fun:
             # need to normalize weight values between iterations
             Bayesian_dict['weights_data'] = Bayesian_dict['weights_data']/Bayesian_dict['weights_data'].sum()
            
-            #Step 3 of Bayesian:  create a CheKiPEUQ_PE_Object (this is a class object)
-            #NOTE: normally, the Bayesian object would be created earlier. However, we are using a non-standard application
-            #where the observed_data uncertainties might change with each simulation.
-            #To gain efficiency, we could cheat and se the feature get_responses_simulation_uncertainties function of CheKiPEUQ, 
-            #or could create a new get_responses_observed_uncertainties function in CheKiPEUQ
-            #for now we will just create a new PE_object each time.
+            # Step 3 of Bayesian:  create a CheKiPEUQ_PE_Object (this is a class object)
+            # NOTE: normally, the Bayesian object would be created earlier. However, we are using a non-standard application
+            # where the observed_data uncertainties might change with each simulation.
+            # To gain efficiency, we could cheat and se the feature get_responses_simulation_uncertainties function of CheKiPEUQ, 
+            # or could create a new get_responses_observed_uncertainties function in CheKiPEUQ
+            # for now we will just create a new PE_object each time.
             if np.shape(Bayesian_dict['weights_data']) != np.shape(Bayesian_dict['observed_data']):
                 sys.exit()
             
@@ -472,24 +472,25 @@ class Fit_Fun:
                 pars_uncertainty_distribution=  Bayesian_dict['pars_uncertainty_distribution'],
                 num_rate_constants_and_rate_constant_parameters = [len(Bayesian_dict['rate_constants_initial_guess']), len(Bayesian_dict['rate_constants_parameters_initial_guess'])]
                 ) #this is assigned in the "__init__" function up above.
-            #Step 4 of Bayesian:  call a function to get the posterior density which will be used as the objective function.
-            #We need to provide the current values of the varying_rate_vals to feed into the function.
-            #print("line 406", varying_rate_vals_indices)
+            
+            # Step 4 of Bayesian:  call a function to get the posterior density which will be used as the objective function.
+            # We need to provide the current values of the varying_rate_vals to feed into the function.
             
             #varying_rate_vals = np.array(output_dict['shock']['rate_val'])[list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
             Bayesian_dict['pars_current_guess_truncated'] = CheKiPEUQ.remove_unbounded_values(Bayesian_dict['pars_current_guess'], Bayesian_dict['unbounded_indices'] ) 
             
             log_posterior_density = CheKiPEUQ.get_log_posterior_density(CheKiPEUQ_PE_object, Bayesian_dict['pars_current_guess_truncated'])
-            #Step 5 of Bayesian:  return the objective function and any other metrics desired.
-            log_posterior_density *= -1 # need neg_logP because minimizing.
-            obj_fcn = log_posterior_density 
+            neg_log_posterior_density = -1*log_posterior_density # need neg_logP because minimizing.
+            
+            # Step 5 of Bayesian:  return the objective function and any other metrics desired.
+            #obj_fcn = neg_log_posterior_density 
             if self.i == 0 and 'obj_fcn_initial' not in Bayesian_dict:
-                Bayesian_dict['obj_fcn_initial'] = log_posterior_density 
+                Bayesian_dict['obj_fcn_initial'] = neg_log_posterior_density 
                 obj_fcn = 0.0
-            elif log_posterior_density == np.inf:
+            elif neg_log_posterior_density == np.inf:
                 obj_fcn = np.inf
             else:
-                obj_fcn = (log_posterior_density - Bayesian_dict['obj_fcn_initial'])/np.abs(Bayesian_dict['obj_fcn_initial'])*100
+                obj_fcn = (neg_log_posterior_density - Bayesian_dict['obj_fcn_initial'])/np.abs(Bayesian_dict['obj_fcn_initial'])*100
            
         # For updating
         self.i += 1
