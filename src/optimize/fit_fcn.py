@@ -11,7 +11,7 @@ from copy import deepcopy
 
 import mech_fcns
 from optimize.fit_coeffs import fit_coeffs
-import optimize.CheKiPEUQ_from_Frhodo as CheKiPEUQ
+from optimize.CheKiPEUQ_from_Frhodo import CheKiPEUQ
 
 mpMech = {}
 
@@ -308,49 +308,8 @@ class Fit_Fun:
         self.__abort = False
 
         if self.opt_settings['obj_fcn_type'] == 'Bayesian': # initialize Bayesian_dictionary if Bayesian selected
-            #Step 1 of Bayesian:  Prepare any variables that need to be passed in for Bayesian PE_object creation.
-            #Step 2 of Bayesian:  populate Bayesian_dict with any variables and uncertainties needed.
-            self.Bayesian_dict = {}
-            self.Bayesian_dict['pars_uncertainty_distribution'] = self.opt_settings['bayes_dist_type']  #options can be 'Auto', 'Gaussian' or 'Uniform'. 
-            self.Bayesian_dict['rate_constants_initial_guess'] = deepcopy(self.x0)
-            self.Bayesian_dict['rate_constants_lower_bnds'] = deepcopy(input_dict['bounds']['lower'])
-            self.Bayesian_dict['rate_constants_upper_bnds'] = deepcopy(input_dict['bounds']['upper'])
-            num_rate_consants = len(self.Bayesian_dict['rate_constants_initial_guess'])
-            self.Bayesian_dict['rate_constants_bnds_exist'] =  np.array(np.ones((num_rate_consants,2)), dtype = bool) #From Jan 2021, we are setting [True True] for each rate_constant.
-
-            self.Bayesian_dict['rate_constants_parameters_changing'] = deepcopy(self.coef_opt)
-            self.Bayesian_dict['rate_constants_parameters_initial_guess'] = []
-            self.Bayesian_dict['rate_constants_parameters_lower_bnds'] = []
-            self.Bayesian_dict['rate_constants_parameters_upper_bnds'] = []
-            self.Bayesian_dict['rate_constants_parameters_bnds_exist'] = []
-            for rxn_coef in self.rxn_coef_opt:
-                self.Bayesian_dict['rate_constants_parameters_initial_guess'].append(deepcopy(rxn_coef['coef_x0'])) 
-                self.Bayesian_dict['rate_constants_parameters_lower_bnds'].append(deepcopy(rxn_coef['coef_bnds']['lower']))
-                self.Bayesian_dict['rate_constants_parameters_upper_bnds'].append(deepcopy(rxn_coef['coef_bnds']['upper']))
-                self.Bayesian_dict['rate_constants_parameters_bnds_exist'].extend(list(deepcopy(rxn_coef['coef_bnds']['exist']))) #we can't use append because this is a list of lists/array, and we want parallel construction.
-            self.Bayesian_dict['rate_constants_parameters_initial_guess'] = np.array(self.Bayesian_dict['rate_constants_parameters_initial_guess']).flatten()
-            self.Bayesian_dict['rate_constants_parameters_lower_bnds'] = np.array(self.Bayesian_dict['rate_constants_parameters_lower_bnds']).flatten()
-            self.Bayesian_dict['rate_constants_parameters_upper_bnds'] = np.array(self.Bayesian_dict['rate_constants_parameters_upper_bnds']).flatten()
-            #self.Bayesian_dict['rate_constants_parameters_bnds_exist'] does not get flattened because it is a list of list/arrays (so we don't want it flattened).
-
-            Bayesian_dict = self.Bayesian_dict            
-            #concatenate all of the initial guesses and bounds. 
-            Bayesian_dict['pars_initial_guess'], Bayesian_dict['pars_lower_bnds'],Bayesian_dict['pars_upper_bnds'], Bayesian_dict['pars_bnds_exist'], Bayesian_dict['unbounded_indices'] = CheKiPEUQ.get_consolidated_parameters_arrays( 
-                Bayesian_dict['rate_constants_initial_guess'],
-                Bayesian_dict['rate_constants_lower_bnds'],
-                Bayesian_dict['rate_constants_upper_bnds'],                
-                Bayesian_dict['rate_constants_bnds_exist'],
-                Bayesian_dict['rate_constants_parameters_initial_guess'],
-                Bayesian_dict['rate_constants_parameters_lower_bnds'],
-                Bayesian_dict['rate_constants_parameters_upper_bnds'],
-                Bayesian_dict['rate_constants_parameters_bnds_exist'],
-                return_unbounded_indices=True
-                )
-            #remove the unbounded values.
-            Bayesian_dict['pars_initial_guess_truncated'] = CheKiPEUQ.remove_unbounded_values(Bayesian_dict['pars_initial_guess'], Bayesian_dict['unbounded_indices'] )
-            Bayesian_dict['pars_lower_bnds_truncated'] = CheKiPEUQ.remove_unbounded_values( Bayesian_dict['pars_lower_bnds'], Bayesian_dict['unbounded_indices'] )
-            Bayesian_dict['pars_upper_bnds_truncated'] = CheKiPEUQ.remove_unbounded_values( Bayesian_dict['pars_upper_bnds'], Bayesian_dict['unbounded_indices'] )
-            Bayesian_dict['pars_bnds_exist_truncated'] = CheKiPEUQ.remove_unbounded_values( Bayesian_dict['pars_bnds_exist'], Bayesian_dict['unbounded_indices'] )
+            input_dict['opt_settings'] = self.opt_settings
+            self.CheKiPEUQ = CheKiPEUQ(input_dict)
     
     def __call__(self, s, optimizing=True):                                                                    
         def append_output(output_dict, calc_resid_output):
@@ -418,79 +377,23 @@ class Fit_Fun:
             obj_fcn = np.median(loss_exp)
 
         elif self.opt_settings['obj_fcn_type'] == 'Bayesian':
-            Bayesian_dict = self.Bayesian_dict                
-            Bayesian_dict['rate_constants_current_guess'] = deepcopy(log_opt_rates)
-            Bayesian_dict['rate_constants_parameters_current_guess'] = deepcopy(x)
-            Bayesian_dict['pars_current_guess'] = np.concatenate( (Bayesian_dict['rate_constants_current_guess'], Bayesian_dict['rate_constants_parameters_current_guess'] ) )
-            Bayesian_dict['last_obs_sim_interp'] = np.concatenate(output_dict['obs_sim_interp'], axis=0)
-            Bayesian_dict['observed_data'] = np.concatenate(output_dict['obs_exp'], axis=0)
-            Bayesian_dict['observed_data_lower_bounds'] = []
-            Bayesian_dict['observed_data_upper_bounds'] = []
-
-            def get_last_obs_sim_interp(varying_rate_vals): #A. Savara added this. It needs to be here.
-                try:
-                    last_obs_sim_interp = Bayesian_dict['last_obs_sim_interp']
-                    last_obs_sim_interp = np.array(last_obs_sim_interp).T
-                except:
-                    print("this is line 422! There may be an error occurring!")
-                    last_obs_sim_interp = None
-                return last_obs_sim_interp
-            
-            Bayesian_dict['simulation_function'] = get_last_obs_sim_interp #using wrapper that just returns the last_obs_sim_interp
-            
             if np.size(loss_resid) == 1:  # optimizing single experiment
-                Bayesian_dict['weights_data'] = np.array(output_dict['aggregate_weights'], dtype=object).flatten()
+                Bayesian_weights = np.array(output_dict['aggregate_weights'], dtype=object).flatten()
             else:
                 aggregate_weights = np.array(output_dict['aggregate_weights'], dtype=object)
                 SSE = generalized_loss_fcn(loss_resid, mu=loss_min)
                 SSE = rescale_loss_fcn(loss_resid, SSE)
                 exp_loss_weights = loss_exp/SSE # comparison is between selected loss fcn and SSE (L2 loss)
-                Bayesian_dict['weights_data'] = np.concatenate(aggregate_weights*exp_loss_weights, axis=0).flatten()
+                Bayesian_weights = np.concatenate(aggregate_weights*exp_loss_weights, axis=0).flatten()
             
             # need to normalize weight values between iterations
-            Bayesian_dict['weights_data'] = Bayesian_dict['weights_data']/Bayesian_dict['weights_data'].sum()
-           
-            # Step 3 of Bayesian:  create a CheKiPEUQ_PE_Object (this is a class object)
-            # NOTE: normally, the Bayesian object would be created earlier. However, we are using a non-standard application
-            # where the observed_data uncertainties might change with each simulation.
-            # To gain efficiency, we could cheat and se the feature get_responses_simulation_uncertainties function of CheKiPEUQ, 
-            # or could create a new get_responses_observed_uncertainties function in CheKiPEUQ
-            # for now we will just create a new PE_object each time.
-            if np.shape(Bayesian_dict['weights_data']) != np.shape(Bayesian_dict['observed_data']):
-                sys.exit()
+            Bayesian_weights = Bayesian_weights/Bayesian_weights.sum()
+
+            CheKiPEUQ_eval_dict = {'log_opt_rates': log_opt_rates, 'x': x, 'output_dict': output_dict, 'loss_resid': loss_resid,
+                                   'bayesian_weights': Bayesian_weights, 'iteration_num': self.i}
             
-            CheKiPEUQ_PE_object = CheKiPEUQ.load_into_CheKiPUEQ(
-                simulation_function=    Bayesian_dict['simulation_function'],
-                observed_data=          Bayesian_dict['observed_data'],
-                pars_initial_guess =    Bayesian_dict['pars_initial_guess_truncated'],
-                pars_lower_bnds =       Bayesian_dict['pars_lower_bnds_truncated'],   
-                pars_upper_bnds =       Bayesian_dict['pars_upper_bnds_truncated'],   
-                pars_bnds_exist =       Bayesian_dict['pars_bnds_exist_truncated'],
-                observed_data_lower_bounds= Bayesian_dict['observed_data_lower_bounds'],
-                observed_data_upper_bounds= Bayesian_dict['observed_data_upper_bounds'],
-                weights_data=               Bayesian_dict['weights_data'],
-                pars_uncertainty_distribution=  Bayesian_dict['pars_uncertainty_distribution'],
-                num_rate_constants_and_rate_constant_parameters = [len(Bayesian_dict['rate_constants_initial_guess']), len(Bayesian_dict['rate_constants_parameters_initial_guess'])]
-                ) #this is assigned in the "__init__" function up above.
-            
-            # Step 4 of Bayesian:  call a function to get the posterior density which will be used as the objective function.
-            # We need to provide the current values of the varying_rate_vals to feed into the function.
-            
-            #varying_rate_vals = np.array(output_dict['shock']['rate_val'])[list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
-            Bayesian_dict['pars_current_guess_truncated'] = CheKiPEUQ.remove_unbounded_values(Bayesian_dict['pars_current_guess'], Bayesian_dict['unbounded_indices'] ) 
-            
-            log_posterior_density = CheKiPEUQ.get_log_posterior_density(CheKiPEUQ_PE_object, Bayesian_dict['pars_current_guess_truncated'])
-            neg_log_posterior_density = -1*log_posterior_density # need neg_logP because minimizing.
-            
-            # Step 5 of Bayesian:  return the objective function and any other metrics desired.
-            #obj_fcn = neg_log_posterior_density 
-            if self.i == 0 and 'obj_fcn_initial' not in Bayesian_dict:
-                Bayesian_dict['obj_fcn_initial'] = neg_log_posterior_density 
-                obj_fcn = 0.0
-            elif neg_log_posterior_density == np.inf:
-                obj_fcn = np.inf
-            else:
-                obj_fcn = (neg_log_posterior_density - Bayesian_dict['obj_fcn_initial'])/np.abs(Bayesian_dict['obj_fcn_initial'])*100
+            obj_fcn = self.CheKiPEUQ.evaluate(CheKiPEUQ_eval_dict)
+
            
         # For updating
         self.i += 1

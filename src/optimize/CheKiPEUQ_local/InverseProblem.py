@@ -1,4 +1,3 @@
-
 import numpy as np
 #from mpl_toolkits.mplot3d import Axes3D
 #import scipy
@@ -13,15 +12,13 @@ from collections.abc import Iterable
 try:
     import CiteSoft
 except:
-    import os #The below lines are to allow CiteSoftLocal to be called regardless of user's working directory.
-    lenOfFileName = len(os.path.basename(__file__)) #This is the name of **this** file.
-    absPathWithoutFileName = os.path.abspath(__file__)[0:-1*lenOfFileName]
-    sys.path.append(absPathWithoutFileName)
+    #import pathlib #The below lines are to allow CiteSoftLocal to be called regardless of user's working directory.
+    #sys.path.append(pathlib.Path(__file__).parent.absolute()) # add directory of **this** file to path
     import CiteSoftLocal as CiteSoft
 try:
     import UnitTesterSG.nestedObjectsFunctions as nestedObjectsFunctions
 except:
-    import CheKiPEUQ_local.nestedObjectsFunctionsLocal as nestedObjectsFunctions
+    import optimize.CheKiPEUQ_local.nestedObjectsFunctionsLocal as nestedObjectsFunctions
 
 class parameter_estimation:
     #Inside this class, a UserInput namespace is provided. This has dictionaries of UserInput choices.
