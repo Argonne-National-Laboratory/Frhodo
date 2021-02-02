@@ -198,9 +198,9 @@ class Base_Plot(QtCore.QObject):
                 if axes.item['sim_data'].raw_data.size > 0:
                     data['x'] = np.append(data['x'], axes.item['sim_data'].raw_data[:,0])
         
-        elif 'weight' in axes.item:
-            data['x'] = axes.item['weight'].get_xdata()
-            data['y'] = axes.item['weight'].get_ydata()
+        elif 'weight_unc_fcn' in axes.item:
+            data['x'] = axes.item['weight_unc_fcn'].get_xdata()
+            data['y'] = axes.item['weight_unc_fcn'].get_ydata()
         
         elif any(key in axes.item for key in ['density', 'qq_data', 'sim_data']):
             name = np.intersect1d(['density', 'qq_data'], list(axes.item.keys()))[0]
