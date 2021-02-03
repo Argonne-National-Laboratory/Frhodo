@@ -152,7 +152,7 @@ def remove_unbounded_values(array_to_truncate, unbounded_indices):
     truncated_array = np.delete(array_to_truncate, unbounded_indices, axis=0)
     return truncated_array
 
-class CheKiPEUQ:
+class CheKiPEUQ_Frhodo_interface:
     def __init__(self, input_dict):
         #Step 1 of Bayesian:  Prepare any variables that need to be passed in for Bayesian PE_object creation.
         #Step 2 of Bayesian:  populate Bayesian_dict with any variables and uncertainties needed.

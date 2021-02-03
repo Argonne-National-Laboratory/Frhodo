@@ -11,7 +11,7 @@ from copy import deepcopy
 
 import mech_fcns
 from optimize.fit_coeffs import fit_coeffs
-from optimize.CheKiPEUQ_from_Frhodo import CheKiPEUQ
+from optimize.CheKiPEUQ_from_Frhodo import CheKiPEUQ_Frhodo_interface
 
 mpMech = {}
 
@@ -309,7 +309,7 @@ class Fit_Fun:
 
         if self.opt_settings['obj_fcn_type'] == 'Bayesian': # initialize Bayesian_dictionary if Bayesian selected
             input_dict['opt_settings'] = self.opt_settings
-            self.CheKiPEUQ = CheKiPEUQ(input_dict)
+            self.CheKiPEUQ_Frhodo_interface = CheKiPEUQ_Frhodo_interface(input_dict)
     
     def __call__(self, s, optimizing=True):                                                                    
         def append_output(output_dict, calc_resid_output):
@@ -392,8 +392,7 @@ class Fit_Fun:
             CheKiPEUQ_eval_dict = {'log_opt_rates': log_opt_rates, 'x': x, 'output_dict': output_dict, 'loss_resid': loss_resid,
                                    'bayesian_weights': Bayesian_weights, 'iteration_num': self.i}
             
-            obj_fcn = self.CheKiPEUQ.evaluate(CheKiPEUQ_eval_dict)
-
+            obj_fcn = self.CheKiPEUQ_Frhodo_interface.evaluate(CheKiPEUQ_eval_dict)
            
         # For updating
         self.i += 1

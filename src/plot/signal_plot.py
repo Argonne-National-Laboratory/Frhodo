@@ -66,8 +66,10 @@ class Plot(Base_Plot):
         self.ax[0].item['weight_unc_fcn'] = self.ax[0].add_line(mpl.lines.Line2D([],[], c = '#800000', zorder=1))
         markers = {'weight_shift': {'marker': 'o',               'markersize': 7}, 
                    'weight_k':     {'marker': '$'+'\u2194'+'$',  'markersize': 12}, 
-                   'weight_min':   {'marker': '$'+u'\u2195'+'$', 'markersize': 12},
-                   'weight_max':   {'marker': '$'+u'\u2195'+'$', 'markersize': 12}}
+                   'weight_extrema':   {'marker': '$'+u'\u2195'+'$', 'markersize': 12},
+                   'unc_shift': {'marker': 'o',               'markersize': 7}, 
+                   'unc_k':     {'marker': '$'+'\u2194'+'$',  'markersize': 12}, 
+                   'unc_extrema':   {'marker': '$'+u'\u2195'+'$', 'markersize': 12}}
 
         for name, attr in markers.items():
             self.ax[0].item[name] = self.ax[0].add_line(mpl.lines.Line2D([],[], marker=attr['marker'], 
@@ -114,18 +116,15 @@ class Plot(Base_Plot):
         self._set_scale('y', 'abslog', self.ax[1])  # set Signal/SIM y axis to abslog
         
         # Add draggable lines
-        draggable_items = [[0, 'weight_shift'], [0, 'weight_k'], [0, 'weight_min'],
-                           [0, 'weight_max'], [1, 'sim_data']]
+        draggable_items = [[0, 'weight_shift'], [0, 'weight_k'], [0, 'weight_extrema'],
+                           [1, 'sim_data']]
         for pair in draggable_items:
             n, name = pair  # n is the axis number, name is the item key
-            items = self.ax[n].item[name]   
-            if not isinstance(items, list):     # check if the type is a list
-                items = [self.ax[n].item[name]]
-            for item in items:    
-                update_fcn = lambda x, y, item=item: self.draggable_update_fcn(item, x, y)
-                press_fcn = lambda x, y, item=item: self.draggable_press_fcn(item, x, y)
-                release_fcn = lambda item=item: self.draggable_release_fcn(item)
-                item.draggable = Draggable(self, item, update_fcn, press_fcn, release_fcn)       
+            item = self.ax[n].item[name]  
+            update_fcn = lambda x, y, item=item: self.draggable_update_fcn(item, x, y)
+            press_fcn = lambda x, y, item=item: self.draggable_press_fcn(item, x, y)
+            release_fcn = lambda item=item: self.draggable_release_fcn(item)
+            item.draggable = Draggable(self, item, update_fcn, press_fcn, release_fcn)       
     
     def set_history_lines(self):
         old_num_hist_lines = len(self.ax[1].item['history_data'])
@@ -155,8 +154,8 @@ class Plot(Base_Plot):
         xy_OoM = 10**OoM(xy_press)
 
         # calculate distance from press and points, don't need sqrt for comparison, divide by OoM for large differences in x/y OoM
-        distance_cmp = np.sum(np.subtract(xy_data/xy_OoM, xy_press/xy_OoM)**2, axis=1)        
-        item.draggable.nearest_index = np.argmin(distance_cmp) # choose closest point to press
+        distance_cmp = np.sum(np.subtract(xy_data/xy_OoM, xy_press/xy_OoM)**2, axis=1)
+        item.draggable.nearest_index = np.nanargmin(distance_cmp) # choose closest point to press
     
     def draggable_release_fcn(self, item):
         item.draggable.nearest_index = 0                       # reset nearest_index
@@ -217,29 +216,28 @@ class Plot(Base_Plot):
             
             parent.weight.boxes['weight_k'][i].setValue(sigma_new)
             
-        elif item is self.ax[0].item['weight_min']:
+        elif item is self.ax[0].item['weight_extrema']:
+            xy_data = item.get_xydata()
             n = item.draggable.nearest_index
-
-            min_new = ynew[n]
-            # Must be greater than 0 and less than 0.99
-            if min_new < 0:
-                min_new = 0   # Let the GUI decide low end
-            elif min_new > 1:
-                min_new = 1
             
-            parent.weight.boxes['weight_min'][n].setValue(min_new*100)
+            if n != 1:
+                weight_type = 'weight_min'
+                i = n // 2
+            else:
+                weight_type = 'weight_max'
+                i = 0
 
-        elif item is self.ax[0].item['weight_max']:
-            n = item.draggable.nearest_index
+            extrema_new = ynew[n]
 
-            max_new = ynew[n]
+            GUI_max = parent.display_shock[weight_type][i]/100
+            extrema_new = ynew[n] + GUI_max - xy_data[n][1]    # account for fcn not reaching maximum
             # Must be greater than 0 and less than 0.99
-            if max_new < 0:
-                max_new = 0   # Let the GUI decide low end
-            elif max_new > 1:
-                max_new = 1
+            if extrema_new < 0:
+                extrema_new = 0   # Let the GUI decide low end
+            elif extrema_new > 1:
+                extrema_new = 1
             
-            parent.weight.boxes['weight_max'][n].setValue(max_new*100)     
+            parent.weight.boxes[weight_type][i].setValue(extrema_new*100) 
 
         # Update plot if data exists
         if exp_data.size > 0:
@@ -264,8 +262,8 @@ class Plot(Base_Plot):
         #weight_shift = np.array(parent.display_shock['weight_shift'])*t_conv
         weight_shift = np.array(parent.display_shock['weight_shift'])/100*(t[-1] - t[0]) + t[0]
         weight_k = np.array(parent.display_shock['weight_k'])*self.parent.var['reactor']['t_unit_conv']
-        weight_min = np.array(parent.display_shock['weight_min'])/100
-        weight_max = np.array(parent.display_shock['weight_max'])/100
+        weight_extrema = np.array(parent.display_shock['weight_min'])/100
+        weight_extrema = np.insert(weight_extrema, 1, np.array(parent.display_shock['weight_max'])/100)
         
         weight_fcn = parent.series.weights
         weights = parent.display_shock['weights'] = weight_fcn(t)
@@ -278,8 +276,15 @@ class Plot(Base_Plot):
         self.ax[0].item['weight_unc_fcn'].set_xdata(t)
         self.ax[0].item['weight_unc_fcn'].set_ydata(weights)
         
+        # calculate mu markers
         mu = weight_shift
         f_mu = weight_fcn(mu, calcIntegral=False)
+
+        # calculate extrema markers
+        t_range = np.max(t) - np.min(t)
+        t_extrema = np.array([np.min(t), np.mean(mu), np.max(t)]) + np.array([0.0125, 0, -0.025])*t_range  # put arrow at 95% of x data
+        
+        # calculate sigma markers
         ones_shape = (np.shape(f_mu)[0], 2)
         sigma = np.ones(ones_shape)*mu + (np.ones(ones_shape)*np.array([-1, 1])).T*weight_k
         sigma = sigma.T  # sort may be unnecessary
@@ -291,20 +296,23 @@ class Plot(Base_Plot):
             perc = 0.1824
             f_sigma[i] = [(1-perc)*f[0] + perc*f[1], perc*f[0] + (1-perc)*f[1]]
 
+        sigma = sigma.flatten()
+        f_sigma = f_sigma.flatten()
+        if sigma[1] >= 0.80*t_extrema[1] + 0.20*mu[0]: # hide sigma symbols if too close to center extrema
+            sigma[1] = np.nan
+        if sigma[2] <= 0.75*t_extrema[1] + 0.25*mu[1]:
+            sigma[2] = np.nan
+        
+        # Set markers
         self.ax[0].item['weight_shift'].set_xdata(mu)
         self.ax[0].item['weight_shift'].set_ydata(f_mu)
-            
+        
         self.ax[0].item['weight_k'].set_xdata(sigma.flatten())
         self.ax[0].item['weight_k'].set_ydata(f_sigma.flatten())
-        
-        t_range = np.max(t) - np.min(t)
-        x_weight_min = np.array([np.min(t), np.max(t)]) + np.array([0.0125, -0.025])*t_range  # put arrow at 95% of x data
-        self.ax[0].item['weight_min'].set_xdata(x_weight_min)
-        self.ax[0].item['weight_min'].set_ydata(weight_min)
 
-        self.ax[0].item['weight_max'].set_xdata((sigma[0,1] + sigma[1,0])/2)
-        self.ax[0].item['weight_max'].set_ydata(weight_max)
-              
+        self.ax[0].item['weight_extrema'].set_xdata(t_extrema)
+        self.ax[0].item['weight_extrema'].set_ydata(weight_fcn(t_extrema, calcIntegral=False))
+
         self.update_info_text()
         
         if update_lim:

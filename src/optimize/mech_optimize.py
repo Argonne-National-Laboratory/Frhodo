@@ -222,7 +222,7 @@ class Multithread_Optimize:
 
     def update(self, result, writeLog=True):
         obj_fcn_str = f"{result['obj_fcn']:.3e}"
-        replace_strs = [['e+', 'e'], ['e0', 'e'], ['e0', ''], ['e-0', 'e-']]
+        replace_strs = [['e+', 'e'], ['e0', 'e'], ['e-0', 'e-']]
         for pair in replace_strs:
             obj_fcn_str = obj_fcn_str.replace(pair[0], pair[1])
         result['obj_fcn_str'] = obj_fcn_str
