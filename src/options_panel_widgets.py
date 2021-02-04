@@ -798,8 +798,8 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
         # TODO: Change to saved variables
         self.boxes = {'unc_max': [], 'unc_min': [], 'unc_shift': [], 'unc_k': [], 'unc_cutoff': []}
         self.prop = {'start': {'unc_max':    {'value': 0,     'singleStep': 1,                    'row': 0,
-                                              'minimum': 0,   'decimals': 3},
-                               'unc_min':    {'value': 0,     'singleStep': 1,    'maximum': 100, 'row': 1,
+                                              'minimum': 0,   'decimals': 3,      'suffix': '%'},
+                               'unc_min':    {'value': 0,     'singleStep': 1,                    'row': 1,
                                               'minimum': 0,   'decimals': 3,      'suffix': '%'},
                                'unc_shift':  {'value': 4.5,   'singleStep': 0.1,  'maximum': 100, 'row': 2,
                                               'minimum': 0,   'decimals': 3,      'suffix': '%'},              
@@ -808,7 +808,7 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
                                'unc_cutoff': {'value': 4.5,   'singleStep': 0.1,  'maximum': 100, 'row': 4,
                                               'minimum': 0,   'decimals': 3,      'suffix': '%'}},
                      'end':   {'unc_max':    {'value': 0,     'singleStep': 1,                    'row': 0,
-                                              'minimum': 0,   'decimals': 3},
+                                              'minimum': 0,   'decimals': 3,      'suffix': '%'},
                                'unc_shift':  {'value': 36.0,  'singleStep': 0.1,  'maximum': 100, 'row': 2,
                                               'minimum': 0,   'decimals': 3,      'suffix': '%'},
                                'unc_k':      {'value': 0.3,   'singleStep': 0.01, 'decimals': 3,  'row': 3,
@@ -859,12 +859,10 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
         
         for param in list(self.boxes.keys()):
             shock[param] = [box.value() for box in self.boxes[param]]
-          
-        # WORKING HERE, NEED TO CHANGE PLOT, SETTINGS, AND OPTIMIZATION
 
-        #if parent.display_shock['exp_data'].size > 0 and update_plot: # If exp_data exists
-        #    parent.plot.signal.update(update_lim=False)
-        #    parent.plot.signal.canvas.draw()
+        if parent.display_shock['exp_data'].size > 0 and update_plot: # If exp_data exists
+            parent.plot.signal.update(update_lim=False)
+            parent.plot.signal.canvas.draw()
 
          
 class Tables_Tab(QtCore.QObject):
@@ -1079,7 +1077,8 @@ class Optimization(QtCore.QObject):
         settings['bayes_unc_sigma'] = parent.bayes_unc_sigma_box.value()
 
         # Hides and unhides the Bayesian page depending upon selection. Is this better than disabling though?
-        if sender is parent.obj_fcn_type_box or event is None: 
+        if sender is parent.obj_fcn_type_box or event is None:
+            parent.plot.signal.switch_weight_unc_plot()    # update weight/uncertainty plot
             stackWidget = parent.weight_unc_parameters_stacked_widget
             if settings['type'] == 'Residual':
                 parent.obj_fcn_tab_widget.removeTab(parent.obj_fcn_tab_widget.indexOf(parent.Bayesian_tab))

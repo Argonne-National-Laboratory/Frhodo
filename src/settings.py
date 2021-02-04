@@ -319,6 +319,7 @@ class Path:
         if self.parent.path['mech_main'].is_dir(): 
             self.fs_watcher.addPath(str(self.parent.path['mech_main']))
 
+
 class experiment:
     def __init__(self, parent):
         self.parent = parent
@@ -494,7 +495,41 @@ class experiment:
         
         return data.values()
 
+
+def double_sigmoid(x, A, k, x0):    # A = extrema, k = inverse growth rate, x0 = shifts
+    def sig(x):     # Numerically stable sigmoid function
+        # return np.where(x >= 0, 1/(1 + np.exp(-x)),   # should work, doesn't
+                                # np.exp(x)/(1 + np.exp(x)))
+        eval = np.empty_like(x)
+        pos_val_f = np.exp(-x[x >= 0])
+        eval[x >= 0] = 1/(1 + pos_val_f)
+        neg_val_f = np.exp(x[x < 0])
+        eval[x < 0] = neg_val_f/(1 + neg_val_f)
+        return eval
         
+    def b_eval(x, k, x0):
+        if k == 0:             # assign values if k = 0 aka infinite growth rate
+            b = np.ones_like(x)*np.inf
+            if isinstance(x,(list,np.ndarray)):
+                b[x < x0] *= -1
+            elif x <= x0:
+                b *= -1             
+        else:
+            b = 1.5/k*(x - x0)
+            
+        return b
+
+    b = [[],[]]
+    for i in range(0,2):
+        b[i] = b_eval(x, k[i], x0[i])
+        
+    if not np.isfinite(b).any():                                # if all infinity, don't use mean
+        a = (A[2] - A[0])*sig(b[0]) + A[0]          # a is the changing minimum
+    else:
+        a = (A[2] - A[0])*sig(np.mean(b,0)) + A[0]  # a is the changing minimum
+        
+    return (A[1] - a)*sig(b[0])*sig(-b[1]) + a
+
 class series:
     def __init__(self, parent):
         self.parent = parent
@@ -577,6 +612,7 @@ class series:
                 'exp_data': np.array([]),
                 'weights': np.array([]),
                 'normalized_weights': np.array([]),
+                'uncertainties': np.array([]),
                 'SIM': np.array([]),
                 
                 # Load error
@@ -646,28 +682,6 @@ class series:
         
 
     def weights(self, time, shock=[], calcIntegral=True):
-        def sig(x):     # Numerically stable sigmoid function
-            # return np.where(x >= 0, 1/(1 + np.exp(-x)),   # should work, doesn't
-                                    # np.exp(x)/(1 + np.exp(x)))
-            eval = np.empty_like(x)
-            pos_val_f = np.exp(-x[x >= 0])
-            eval[x >= 0] = 1/(1 + pos_val_f)
-            neg_val_f = np.exp(x[x < 0])
-            eval[x < 0] = neg_val_f/(1 + neg_val_f)
-            return eval
-        
-        def b_eval(x, k, x0):
-            if k == 0:             # assign values if k = 0 aka infinite growth rate
-                b = np.ones_like(x)*np.inf
-                if isinstance(x,(list,np.ndarray)):
-                    b[x < x0] *= -1
-                elif x <= x0:
-                    b *= -1             
-            else:
-                b = 1.5/k*(x - x0)
-            
-            return b
-                    
         if not shock:
             shock = self.shock[self.idx][self.shock_idx]    # sets parameters based on selected shock
             
@@ -685,19 +699,9 @@ class series:
         k         = np.array(shock['weight_k'])*t_conv
         w_min     = np.array(shock['weight_min'])/100
         w_max     = shock['weight_max'][0]/100
+        A = np.insert(w_min, 1, w_max)
 
-        # weights are based a general logistic function scaled 0-1
-        x0 = shift
-        b = [[],[]]
-        for i in range(0,2):
-            b[i] = b_eval(time, k[i], x0[i])
-        
-        if not np.isfinite(b).any():                                # if all infinity, don't use mean
-            a = (w_min[1] - w_min[0])*sig(b[0]) + w_min[0]          # a is the changing minimum
-        else:
-            a = (w_min[1] - w_min[0])*sig(np.mean(b,0)) + w_min[0]  # a is the changing minimum
-        
-        weights = (w_max - a)*sig(b[0])*sig(-b[1]) + a
+        weights = double_sigmoid(time, A, k, shift)
 
         if calcIntegral:    # using trapazoidal method for efficiency, no simple analytical integral
             integral = integrate.cumtrapz(weights, time)[-1] # based on weights at data points
@@ -721,6 +725,42 @@ class series:
         
         return integral
     
+    def uncertainties(self, time, shock=[], calcWeights=False):
+        if not shock:
+            shock = self.shock[self.idx][self.shock_idx]    # sets parameters based on selected shock
+            
+        if len(shock['exp_data']) == 0: return np.array([])
+        
+        parameters = [shock[key] for key in ['unc_max', 'unc_min', 'unc_shift', 'unc_k']]
+        if np.isnan(np.hstack(parameters)).any():  # if weight parameters aren't set, default to gui
+            self.parent.exp_unc.update()
+        
+        t_conv = self.parent.var['reactor']['t_unit_conv']
+        t0 = shock['exp_data'][ 0, 0]
+        tf = shock['exp_data'][-1, 0]
+
+        shift     = np.array(shock['unc_shift'])/100*(tf-t0) + t0
+        k         = np.array(shock['unc_k'])*t_conv
+        unc_min     = np.array(shock['unc_min'])/100
+        unc_max     = np.array(shock['unc_max'])/100
+        A = np.insert(unc_max, 1, unc_min)
+        unc_cutoff  = np.array(shock['unc_cutoff'])/100*(tf-t0) + t0
+
+        uncertainties = double_sigmoid(time, A, k, shift)
+
+        if calcWeights:
+            weights = shock['weights'] = double_sigmoid(time, [0, 1, 0], [0, 0], unc_cutoff)
+            integral = integrate.cumtrapz(weights, time)[-1] # based on weights at data points
+
+            if integral == 0.0:
+                shock['normalized_weights'] = np.zeros_like(weights)
+            else:
+                # normalize by the integral and then by the t_unit_conv
+                # TODO: normalizing by the t_unit_conv could cause a problem if the scale changes?
+                weights_norm = weights.copy()/(integral/t_conv)
+                shock['normalized_weights'] = weights_norm
+        return uncertainties
+
     def set(self, key, val=[]):
         parent = self.parent
         if key == 'exp_data':
@@ -873,12 +913,18 @@ class series:
             self.set('zone', shock['zone'])
         
         # if weights not set, set them otherwise load
-        parameters = [shock[key] for key in ['weight_max', 'weight_min', 'weight_shift', 
-                      'weight_k']]
+        parameters = [shock[key] for key in ['weight_max', 'weight_min', 'weight_shift', 'weight_k']]
         if np.isnan(np.hstack(parameters)).any():  # if weight parameters aren't set, create from gui
             parent.weight.update()
         else:                           # set weights if they're set upon reloading shock
             parent.weight.set_boxes()
+
+        # if uncertainties not set, set them otherwise load
+        parameters = [shock[key] for key in ['unc_max', 'unc_min', 'unc_shift', 'unc_k', 'unc_cutoff']]
+        if np.isnan(np.hstack(parameters)).any():  # if weight parameters aren't set, create from gui
+            parent.exp_unc.update()
+        else:                           # set weights if they're set upon reloading shock
+            parent.exp_unc.set_boxes()
         
         # Set rate bnds if unassigned
         if not shock['rate_bnds']:

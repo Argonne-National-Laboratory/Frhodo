@@ -82,8 +82,8 @@ class Plot(Base_Plot):
         self.ax[0].set_ylim(-0.1, 1.1)
         self.ax[0].tick_params(labelbottom=False)
         
-        self.ax[0].text(.5,.95,'Weight Function', fontsize='large',
-            horizontalalignment='center', verticalalignment='top', transform=self.ax[0].transAxes)
+        self.ax[0].item['title'] = self.ax[0].text(.5,.95,'Weighting', fontsize='large',
+                horizontalalignment='center', verticalalignment='top', transform=self.ax[0].transAxes)
         
         self.fig.subplots_adjust(left=0.06, bottom=0.065, right=0.98,
                         top=0.98, hspace=0, wspace=0.12)
@@ -95,6 +95,8 @@ class Plot(Base_Plot):
             linewidth=0.5, alpha = 0.85)
         self.ax[1].item['sim_data'] = self.ax[1].add_line(mpl.lines.Line2D([],[], c='#0C94FC'))
         self.ax[1].item['history_data'] = []
+        self.ax[1].item['cutoff_line'] = [self.ax[1].axvline(x=np.nan, ls='--', c='#BF0000'), 
+                                          self.ax[1].axvline(x=np.nan, ls='--', c='#BF0000')]
         self.lastRxnNum = None
         
         self.ax[1].text(.5,.98,'Observable', fontsize='large',
@@ -117,14 +119,18 @@ class Plot(Base_Plot):
         
         # Add draggable lines
         draggable_items = [[0, 'weight_shift'], [0, 'weight_k'], [0, 'weight_extrema'],
-                           [1, 'sim_data']]
+                           [0, 'unc_shift'], [0, 'unc_k'], [0, 'unc_extrema'],
+                           [1, 'sim_data'], [1, 'cutoff_line']]
         for pair in draggable_items:
             n, name = pair  # n is the axis number, name is the item key
-            item = self.ax[n].item[name]  
-            update_fcn = lambda x, y, item=item: self.draggable_update_fcn(item, x, y)
-            press_fcn = lambda x, y, item=item: self.draggable_press_fcn(item, x, y)
-            release_fcn = lambda item=item: self.draggable_release_fcn(item)
-            item.draggable = Draggable(self, item, update_fcn, press_fcn, release_fcn)       
+            items = self.ax[n].item[name]
+            if not isinstance(items, list):     # check if the type is a list
+                items = [self.ax[n].item[name]]
+            for item in items:
+                update_fcn = lambda x, y, item=item: self.draggable_update_fcn(item, x, y)
+                press_fcn = lambda x, y, item=item: self.draggable_press_fcn(item, x, y)
+                release_fcn = lambda item=item: self.draggable_release_fcn(item)
+                item.draggable = Draggable(self, item, update_fcn, press_fcn, release_fcn)
     
     def set_history_lines(self):
         old_num_hist_lines = len(self.ax[1].item['history_data'])
@@ -179,8 +185,27 @@ class Plot(Base_Plot):
             
             parent.tree._copy_expanded_tab_rates()  # update rates/time offset autocopy
             self.update_sim(parent.SIM.independent_var, parent.SIM.observable)
+
+        elif item in self.ax[1].item['cutoff_line']:
+            for n in range(0,2):
+                if item is self.ax[1].item['cutoff_line'][n]:
+                    break
+
+            t_conv = parent.var['reactor']['t_unit_conv']
+            t = exp_data[:,0]
+            t_min = np.min(t)
+
+            cutoff_perc = 100*(xnew*t_conv- t_min)/(np.max(t) - t_min)
+            parent.exp_unc.boxes['unc_cutoff'][n].setValue(cutoff_perc)
                 
-        elif item is self.ax[0].item['weight_shift']:
+        elif item is self.ax[0].item['weight_shift'] or item is self.ax[0].item['unc_shift']:
+            if item is self.ax[0].item['weight_shift']:
+                plot_type = 'weight'
+                box_type = plot_type
+            elif item is self.ax[0].item['unc_shift']:
+                plot_type = 'unc'
+                box_type = 'exp_unc'
+
             t_conv = parent.var['reactor']['t_unit_conv']
             n = item.draggable.nearest_index
 
@@ -189,22 +214,29 @@ class Plot(Base_Plot):
             if n == 0:
                 if xnew < 0.0:
                     xnew = 0.0
-                elif xnew > parent.display_shock['weight_shift'][1]:
-                    xnew = parent.display_shock['weight_shift'][1]
+                elif xnew > parent.display_shock[f'{plot_type}_shift'][1]:
+                    xnew = parent.display_shock[f'{plot_type}_shift'][1]
             elif n == 1:
-                if xnew < parent.display_shock['weight_shift'][0]:
-                    xnew = parent.display_shock['weight_shift'][0]
+                if xnew < parent.display_shock[f'{plot_type}_shift'][0]:
+                    xnew = parent.display_shock[f'{plot_type}_shift'][0]
                 elif xnew > 100:
                     xnew = 100
             
-            parent.weight.boxes['weight_shift'][n].setValue(xnew)
+            eval(f'parent.{box_type}.boxes["{plot_type}_shift"][n].setValue(xnew)')
             
-        elif item is self.ax[0].item['weight_k']:   # save n on press, erase on release
+        elif item is self.ax[0].item['weight_k'] or item is self.ax[0].item['unc_k']:   # save n on press, erase on release
+            if item is self.ax[0].item['weight_k']:
+                plot_type = 'weight'
+                box_type = plot_type
+            elif item is self.ax[0].item['unc_k']:
+                plot_type = 'unc'
+                box_type = 'exp_unc'
+
             xy_data = item.get_xydata()
             n = item.draggable.nearest_index
             i = n // 2
 
-            shift = parent.display_shock['weight_shift'][i]
+            shift = parent.display_shock[f'{plot_type}_shift'][i]
             shift = shift/100*(exp_data[-1,0] - exp_data[0,0]) + exp_data[0,0]
             shift /= parent.var['reactor']['t_unit_conv']
             
@@ -214,30 +246,47 @@ class Plot(Base_Plot):
             if sigma_new < 0:   # Sigma must be greater than 0
                 sigma_new = 0
             
-            parent.weight.boxes['weight_k'][i].setValue(sigma_new)
+            eval(f'parent.{box_type}.boxes["{plot_type}_k"][i].setValue(sigma_new)')
             
-        elif item is self.ax[0].item['weight_extrema']:
+        elif item is self.ax[0].item['weight_extrema'] or item is self.ax[0].item['unc_extrema']:   # TODO: FIX SCALE NOT CHANGING WHEN ALTERING THROUGH PLOT
             xy_data = item.get_xydata()
             n = item.draggable.nearest_index
             
-            if n != 1:
-                weight_type = 'weight_min'
-                i = n // 2
-            else:
-                weight_type = 'weight_max'
-                i = 0
+            if item is self.ax[0].item['weight_extrema']:
+                plot_type = 'weight'
+                box_type = plot_type
+
+                if n != 1:
+                    weight_type = 'weight_min'
+                    i = n // 2
+                else:
+                    weight_type = 'weight_max'
+                    i = 0
+
+            elif item is self.ax[0].item['unc_extrema']:
+                plot_type = 'unc'
+                box_type = 'exp_unc'
+
+                if n != 1:
+                    weight_type = 'unc_max'
+                    i = n // 2
+                else:
+                    weight_type = 'unc_min'
+                    i = 0
+            
+            box = eval(f'parent.{box_type}.boxes["{weight_type}"][i]')
 
             extrema_new = ynew[n]
 
             GUI_max = parent.display_shock[weight_type][i]/100
             extrema_new = ynew[n] + GUI_max - xy_data[n][1]    # account for fcn not reaching maximum
             # Must be greater than 0 and less than 0.99
-            if extrema_new < 0:
-                extrema_new = 0   # Let the GUI decide low end
-            elif extrema_new > 1:
-                extrema_new = 1
+            if extrema_new < box.minimum():
+                extrema_new = box.minimum()   # Let the GUI decide low end
+            elif extrema_new > box.maximum():
+                extrema_new = box.maximum()
             
-            parent.weight.boxes[weight_type][i].setValue(extrema_new*100) 
+            box.setValue(extrema_new*100)
 
         # Update plot if data exists
         if exp_data.size > 0:
@@ -254,30 +303,47 @@ class Plot(Base_Plot):
     
     def update(self, update_lim=False):
         def shape_data(t,x): return np.transpose(np.vstack((t, x)))
-        
+
         parent = self.parent
+        if parent.display_shock['exp_data'].size == 0: return
 
         t = parent.display_shock['exp_data'][:,0]
         data = parent.display_shock['exp_data'][:,1]
-        #weight_shift = np.array(parent.display_shock['weight_shift'])*t_conv
-        weight_shift = np.array(parent.display_shock['weight_shift'])/100*(t[-1] - t[0]) + t[0]
-        weight_k = np.array(parent.display_shock['weight_k'])*self.parent.var['reactor']['t_unit_conv']
-        weight_extrema = np.array(parent.display_shock['weight_min'])/100
-        weight_extrema = np.insert(weight_extrema, 1, np.array(parent.display_shock['weight_max'])/100)
+        
+        # Update upper plot
+        obj_fcn_type = parent.obj_fcn_type_box.currentText()
+        if obj_fcn_type == 'Residual':
+            self.update_weight_plot()
+        else:
+            self.update_uncertainty_plot()      # TODO: NEED TO UPDATE WEIGHTS TO RETURN 0 1 FOR BAYESIAN CASE
+
+        # Update lower plot
+        weights = parent.display_shock['weights']
+        self.ax[1].item['exp_data'].set_offsets(shape_data(t, data))
+        self.ax[1].item['exp_data'].set_facecolor(np.char.mod('%f', 1-weights))
+
+        self.update_info_text()
+        
+        if update_lim:
+            self.update_xylim(self.ax[1])
+    
+    def update_weight_plot(self):
+        parent = self.parent
+        if parent.display_shock['exp_data'].size == 0: return
+
+        t = parent.display_shock['exp_data'][:,0]
+
+        shift = np.array(parent.display_shock['weight_shift'])/100*(t[-1] - t[0]) + t[0]
+        inv_growth_rate = np.array(parent.display_shock['weight_k'])*self.parent.var['reactor']['t_unit_conv']
         
         weight_fcn = parent.series.weights
         weights = parent.display_shock['weights'] = weight_fcn(t)
-        
-        # Update lower plot
-        self.ax[1].item['exp_data'].set_offsets(shape_data(t, data))
-        self.ax[1].item['exp_data'].set_facecolor(np.char.mod('%f', 1-weights))
-        
-        # Update upper plot
+
         self.ax[0].item['weight_unc_fcn'].set_xdata(t)
         self.ax[0].item['weight_unc_fcn'].set_ydata(weights)
         
         # calculate mu markers
-        mu = weight_shift
+        mu = shift
         f_mu = weight_fcn(mu, calcIntegral=False)
 
         # calculate extrema markers
@@ -286,11 +352,11 @@ class Plot(Base_Plot):
         
         # calculate sigma markers
         ones_shape = (np.shape(f_mu)[0], 2)
-        sigma = np.ones(ones_shape)*mu + (np.ones(ones_shape)*np.array([-1, 1])).T*weight_k
+        sigma = np.ones(ones_shape)*mu + (np.ones(ones_shape)*np.array([-1, 1])).T*inv_growth_rate
         sigma = sigma.T  # sort may be unnecessary
         f_sigma = np.reshape(weight_fcn(sigma.flatten(), calcIntegral=False), ones_shape)
 
-        for i in np.argwhere(weight_k == 0.0):
+        for i in np.argwhere(inv_growth_rate == 0.0):
             f = weight_fcn(np.array([(1.0-1E-3), (1.0+1E-3)])*mu[i], calcIntegral=False)   
             f_mu[i] = np.mean(f)
             perc = 0.1824
@@ -313,11 +379,92 @@ class Plot(Base_Plot):
         self.ax[0].item['weight_extrema'].set_xdata(t_extrema)
         self.ax[0].item['weight_extrema'].set_ydata(weight_fcn(t_extrema, calcIntegral=False))
 
-        self.update_info_text()
+    def update_uncertainty_plot(self):
+        parent = self.parent
+        if parent.display_shock['exp_data'].size == 0: return
+
+        t = parent.display_shock['exp_data'][:,0]
+
+        shift = np.array(parent.display_shock['unc_shift'])/100*(t[-1] - t[0]) + t[0]
+        inv_growth_rate = np.array(parent.display_shock['unc_k'])*self.parent.var['reactor']['t_unit_conv']
+
+        unc_fcn = parent.series.uncertainties
+        uncertainties = unc_fcn(t, calcWeights=True)
+        parent.display_shock['uncertainties'] = uncertainties
+
+        self.ax[0].item['weight_unc_fcn'].set_xdata(t)
+        self.ax[0].item['weight_unc_fcn'].set_ydata(uncertainties)
         
-        if update_lim:
-            self.update_xylim(self.ax[1])
-    
+        # calculate mu markers
+        mu = shift
+        f_mu = unc_fcn(mu)
+
+        # calculate extrema markers
+        t_min =np.min(t)
+        t_max =np.max(t)
+        t_range = t_max - t_min
+        t_extrema = np.array([t_min, np.mean(mu), t_max]) + np.array([0.0125, 0, -0.025])*t_range  # put arrow at 95% of x data
+        
+        # calculate sigma markers
+        ones_shape = (np.shape(f_mu)[0], 2)
+        sigma = np.ones(ones_shape)*mu + (np.ones(ones_shape)*np.array([-1, 1])).T*inv_growth_rate
+        sigma = sigma.T  # sort may be unnecessary
+        f_sigma = np.reshape(unc_fcn(sigma.flatten()), ones_shape)
+
+        for i in np.argwhere(inv_growth_rate == 0.0):
+            f = unc_fcn(np.array([(1.0-1E-3), (1.0+1E-3)])*mu[i])   
+            f_mu[i] = np.mean(f)
+            perc = 0.1824
+            f_sigma[i] = [(1-perc)*f[0] + perc*f[1], perc*f[0] + (1-perc)*f[1]]
+
+        sigma = sigma.flatten()
+        f_sigma = f_sigma.flatten()
+        if sigma[1] >= 0.80*t_extrema[1] + 0.20*mu[0]: # hide sigma symbols if too close to center extrema
+            sigma[1] = np.nan
+        if sigma[2] <= 0.75*t_extrema[1] + 0.25*mu[1]:
+            sigma[2] = np.nan
+
+        # Set markers
+        self.ax[0].item['unc_shift'].set_xdata(mu)
+        self.ax[0].item['unc_shift'].set_ydata(f_mu)
+        
+        self.ax[0].item['unc_k'].set_xdata(sigma.flatten())
+        self.ax[0].item['unc_k'].set_ydata(f_sigma.flatten())
+
+        unc_extrema = unc_fcn(t_extrema)
+        self.ax[0].item['unc_extrema'].set_xdata(t_extrema)
+        self.ax[0].item['unc_extrema'].set_ydata(unc_extrema)
+
+        if np.max(unc_extrema) > 1.0:
+            self.update_xylim(self.ax[0], xlim=self.ax[0].get_xlim(), force_redraw=False)
+        else:
+            self.update_xylim(self.ax[0], xlim=self.ax[0].get_xlim(), ylim=[-0.1, 1.1], force_redraw=False)
+        
+        # Set cutoff lines
+        unc_cutoff = np.array(parent.display_shock['unc_cutoff'])*t_range/100 + t_min
+        for i in range(0,2):
+                self.ax[1].item['cutoff_line'][i].set_xdata(unc_cutoff[i])
+
+    def switch_weight_unc_plot(self):
+        parent = self.parent
+        # Clear upper plot values
+        for item in self.ax[0].item.values():
+            if hasattr(item, 'set_xdata') and hasattr(item, 'set_ydata'):
+                item.set_xdata([np.nan, np.nan])
+                item.set_ydata([np.nan, np.nan])
+        
+        obj_fcn_type = parent.obj_fcn_type_box.currentText()
+        if obj_fcn_type == 'Residual':
+            self.ax[0].item['title'].set_text('Weighting')   # set title
+            self.update_xylim(self.ax[0], xlim=self.ax[0].get_xlim(),  ylim=[-0.1, 1.1], force_redraw=False)
+            for i in range(0,2):
+                self.ax[1].item['cutoff_line'][i].set_xdata([np.nan])
+        else:
+            self.ax[0].item['title'].set_text('Uncertainty')   # set title
+        
+        self.update()
+        self._draw_items_artist()
+
     def update_info_text(self, redraw=False):
         self.ax[0].item['sim_info_text'].set_text(self.info_table_text())
         if redraw:
@@ -400,4 +547,3 @@ class Plot(Base_Plot):
         hist['rxnNum'] = rxnHist[-1]
         hist['line'].set_xdata(self.ax[1].item['sim_data'].get_xdata())
         hist['line'].set_ydata(self.ax[1].item['sim_data'].get_ydata())    
-        

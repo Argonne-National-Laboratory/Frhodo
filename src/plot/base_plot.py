@@ -153,7 +153,7 @@ class Base_Plot(QtCore.QObject):
         if ylim != axes.get_ylim():   # if ylim changes, update
             axes.set_ylim(ylim)
     
-    def update_xylim(self, axes, xlim=[], ylim=[]):
+    def update_xylim(self, axes, xlim=[], ylim=[], force_redraw=True):
         data = self._get_data(axes)         
 
         # on creation, there is no data, don't update
@@ -182,7 +182,8 @@ class Base_Plot(QtCore.QObject):
                           xycoords='axes fraction')
             '''
         
-        self._draw_event()  # force a draw
+        if force_redraw:
+            self._draw_event()  # force a draw
     
     def _get_data(self, axes):      # NOT Generic
         # get experimental data for axes

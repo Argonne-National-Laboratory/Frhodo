@@ -128,6 +128,13 @@ class GUI_Config(yaml.YAML):
                                 'time location': [4.5, 35.0],
                                 'inverse growth rate': [0, 0.7],
                                 },
+                            'uncertainty function': {
+                                'max': [5.0, 20.0],
+                                'min': 5.0,
+                                'time location': [4.5, 35.0],
+                                'inverse growth rate': [0, 0.7],
+                                'cutoff location': [0.0, 100],
+                                },
                             },
                          'Plot Settings': {
                             'x-scale': 'linear',
@@ -146,6 +153,10 @@ class GUI_Config(yaml.YAML):
         toFlowList = [['Optimization Settings', 'weight function', 'min'],
                       ['Optimization Settings', 'weight function', 'time location'],
                       ['Optimization Settings', 'weight function', 'inverse growth rate'],
+                      ['Optimization Settings', 'uncertainty function', 'max'],
+                      ['Optimization Settings', 'uncertainty function', 'time location'],
+                      ['Optimization Settings', 'uncertainty function', 'inverse growth rate'],
+                      ['Optimization Settings', 'uncertainty function', 'cutoff location']
                      ]
         for FlowType, toFlow in {'Map': toFlowMap, 'List': toFlowList}.items():
             for keys in toFlow:
@@ -266,7 +277,16 @@ class GUI_settings:
         shock['weight_k'] = settings['opt']['weight function']['inverse growth rate']
 
         parent.weight.set_boxes()
-        
+
+        # Update uncertainty function
+        shock['unc_max'] = settings['opt']['uncertainty function']['max']
+        shock['unc_min'] = [settings['opt']['uncertainty function']['min']]
+        shock['unc_shift'] = settings['opt']['uncertainty function']['time location']
+        shock['unc_k'] = settings['opt']['uncertainty function']['inverse growth rate']
+        shock['unc_cutoff'] = settings['opt']['uncertainty function']['cutoff location']
+
+        parent.exp_unc.set_boxes()
+
         ## Set Plot Settings ##
         parent.plot.signal._set_scale('x', settings['plot']['x-scale'], parent.plot.signal.ax[1], True)
         parent.plot.signal._set_scale('y', settings['plot']['y-scale'], parent.plot.signal.ax[1], True)
@@ -345,6 +365,13 @@ class GUI_settings:
         settings['opt']['weight function']['time location'] = shock['weight_shift']
         settings['opt']['weight function']['inverse growth rate'] = shock['weight_k']
         
+        # Update uncertainty function
+        settings['opt']['uncertainty function']['max'] = shock['unc_max']
+        settings['opt']['uncertainty function']['min'] = shock['unc_min'][0]
+        settings['opt']['uncertainty function']['time location'] = shock['unc_shift']
+        settings['opt']['uncertainty function']['inverse growth rate'] = shock['unc_k']
+        settings['opt']['uncertainty function']['cutoff location'] = shock['unc_cutoff']
+
         ## Set Plot Settings ##
         settings['plot']['x-scale'] = parent.plot.signal.ax[1].get_xscale()
         settings['plot']['y-scale'] = parent.plot.signal.ax[1].get_yscale()

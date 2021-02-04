@@ -2306,7 +2306,7 @@ p, li { white-space: pre-wrap; }
                          <property name="maximumSize">
                           <size>
                            <width>16777215</width>
-                           <height>135</height>
+                           <height>136</height>
                           </size>
                          </property>
                          <property name="selectionMode">
@@ -2524,8 +2524,8 @@ p, li { white-space: pre-wrap; }
                        <rect>
                         <x>0</x>
                         <y>0</y>
-                        <width>252</width>
-                        <height>170</height>
+                        <width>223</width>
+                        <height>144</height>
                        </rect>
                       </property>
                       <attribute name="label">

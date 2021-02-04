@@ -81,13 +81,26 @@ class Multithread_Optimize:
         if len(self.shocks2run) == 0: return    # if no shocks to run return, not sure if necessary anymore
 
         # Initialize variables in shocks if need be
-        for shock in self.shocks2run:      
+        opt_options = self.parent.optimization_settings.settings
+        weight_fcn = parent.series.weights
+        unc_fcn = parent.series.uncertainties
+        for shock in self.shocks2run:      # TODO NEED TO UPDATE THIS FOR UNCERTAINTIES AND WEIGHTS
             # if weight variables aren't set, update
-            weight_var = [shock[key] for key in ['weight_max', 'weight_min', 'weight_shift', 'weight_k']]
-            if np.isnan(np.hstack(weight_var)).any():
-                parent.weight.update(shock=shock)
-                shock['weights'] = parent.series.weights(shock['exp_data'][:,0], shock)
-                
+            if opt_options['obj_fcn']['type'] == 'Residual':
+                weight_var = [shock[key] for key in ['weight_max', 'weight_min', 'weight_shift', 'weight_k']]
+                if np.isnan(np.hstack(weight_var)).any():
+                    parent.weight.update(shock=shock)
+                    shock['weights'] = weight_fcn(shock['exp_data'][:,0], shock)
+            else: # otherwise bayesian
+                unc_var = [shock[key] for key in ['unc_max', 'unc_min', 'unc_shift', 'unc_k', 'unc_cutoff']]
+                if np.isnan(np.hstack(unc_var)).any():
+                    parent.exp_unc.update(shock=shock)
+                    shock['uncertainties'] = unc_fcn(shock['exp_data'][:,0], shock, calcWeights=True)
+
+                exp_data = shock['exp_data'][:,1]
+                unc_perc = shock['uncertainties']
+                shock['abs_uncertainties'] = np.sort([exp_data/(1+unc_perc), exp_data*(1+unc_perc)], axis=0).T
+
             # if reactor temperature and pressure aren't set, update
             if np.isnan([shock['T_reactor'], shock['P_reactor']]).any():
                 parent.series.set('zone', shock['zone'])

@@ -37,6 +37,7 @@ Engines:
 Main Plot:
 ****  need to be able to display multiple observables at a time (single pulse)
 ***   add ability to plot multiple experiments at once (this is useful for single pulse experiments)
+**    add uncertainty shading over data: https://stackoverflow.com/questions/46016782/how-to-shade-under-curve-in-matplotlib-but-with-variable-color-alpha
 **    link sim on plot with reactions in tables (colored legend for reaction history)
 **    delete history lines in a better way (last used or empty line)
 *     intercept home from toolbar and make it rescale instead

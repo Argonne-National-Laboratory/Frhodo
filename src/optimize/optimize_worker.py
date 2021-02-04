@@ -112,6 +112,8 @@ class Worker(QRunnable):
             exp_bounds = np.nonzero(weights)[0]
             shock['weights_trim'] = weights[exp_bounds]
             shock['exp_data_trim'] = shock['exp_data'][exp_bounds,:]
+            if 'abs_uncertainties' in shock:
+                shock['abs_uncertainties_trim'] = shock['abs_uncertainties'][exp_bounds,:]
     
     def optimize_coeffs(self, debug=False):
         debug = True  # shows error message in command window. Does not close program

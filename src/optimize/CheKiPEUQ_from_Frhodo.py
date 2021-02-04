@@ -205,8 +205,9 @@ class CheKiPEUQ_Frhodo_interface:
         Bayesian_dict['pars_current_guess'] = np.concatenate( (Bayesian_dict['rate_constants_current_guess'], Bayesian_dict['rate_constants_parameters_current_guess'] ) )
         Bayesian_dict['last_obs_sim_interp'] = np.concatenate(CheKiPEUQ_eval_dict['output_dict']['obs_sim_interp'], axis=0)
         Bayesian_dict['observed_data'] = np.concatenate(CheKiPEUQ_eval_dict['output_dict']['obs_exp'], axis=0)
-        Bayesian_dict['observed_data_lower_bounds'] = []
-        Bayesian_dict['observed_data_upper_bounds'] = []
+        obs_data_bnds = np.concatenate(CheKiPEUQ_eval_dict['obs_data_bounds'], axis=0).T
+        Bayesian_dict['observed_data_lower_bounds'] = obs_data_bnds[0]
+        Bayesian_dict['observed_data_upper_bounds'] = obs_data_bnds[1]
         Bayesian_dict['weights_data'] = CheKiPEUQ_eval_dict['bayesian_weights']
 
         def get_last_obs_sim_interp(varying_rate_vals): #A. Savara added this. It needs to be here.

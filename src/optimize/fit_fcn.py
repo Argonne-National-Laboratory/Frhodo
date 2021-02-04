@@ -169,6 +169,7 @@ def calculate_residuals(args_list):
                                                     
         elif scale == 'Log':
             ind = np.argwhere(((obs_exp!=0.0)&(obs_sim_interp!=0.0)))
+            exp_bounds = exp_bounds[ind]
             weights = weights[ind].flatten()
             m = np.divide(obs_exp[ind], obs_sim_interp[ind])
             resid = np.log10(np.abs(m)).flatten()
@@ -198,6 +199,7 @@ def calculate_residuals(args_list):
                 SSE = rescale_loss_fcn(np.abs(resid), SSE, resid_outlier, weights)
                 loss_weights = loss/SSE # comparison is between selected loss fcn and SSE (L2 loss)
                 output['aggregate_weights'] = weights*loss_weights
+                output['ind_used'] = exp_bounds
 
             return output
                                                                                                                             
@@ -377,6 +379,10 @@ class Fit_Fun:
             obj_fcn = np.median(loss_exp)
 
         elif self.opt_settings['obj_fcn_type'] == 'Bayesian':
+            obs_data_bounds = []
+            for i, shock in enumerate(self.shocks2run):
+                obs_data_bounds.append(shock['abs_uncertainties_trim'][output_dict['ind_used'][i], :])
+            
             if np.size(loss_resid) == 1:  # optimizing single experiment
                 Bayesian_weights = np.array(output_dict['aggregate_weights'], dtype=object).flatten()
             else:
@@ -384,13 +390,14 @@ class Fit_Fun:
                 SSE = generalized_loss_fcn(loss_resid, mu=loss_min)
                 SSE = rescale_loss_fcn(loss_resid, SSE)
                 exp_loss_weights = loss_exp/SSE # comparison is between selected loss fcn and SSE (L2 loss)
-                Bayesian_weights = np.concatenate(aggregate_weights*exp_loss_weights, axis=0).flatten()
+                Bayesian_weights = np.concatenate(aggregate_weights.T*exp_loss_weights, axis=0).flatten()
             
             # need to normalize weight values between iterations
             Bayesian_weights = Bayesian_weights/Bayesian_weights.sum()
 
-            CheKiPEUQ_eval_dict = {'log_opt_rates': log_opt_rates, 'x': x, 'output_dict': output_dict, 'loss_resid': loss_resid,
-                                   'bayesian_weights': Bayesian_weights, 'iteration_num': self.i}
+            CheKiPEUQ_eval_dict = {'log_opt_rates': log_opt_rates, 'x': x, 'output_dict': output_dict, 
+                                   'loss_resid': loss_resid, 'bayesian_weights': Bayesian_weights, 
+                                   'obs_data_bounds': obs_data_bounds, 'iteration_num': self.i}
             
             obj_fcn = self.CheKiPEUQ_Frhodo_interface.evaluate(CheKiPEUQ_eval_dict)
            
