@@ -143,7 +143,7 @@ def update_mech_coef_opt(mech, coef_opt, x):
         mech.modify_reactions(mech.coeffs)  # Update mechanism with new coefficients
   
 def calculate_residuals(args_list):                                                                                                                                                                 
-    def time_adjust_func(t_offset, t_adjust, t_sim, obs_sim, t_exp, obs_exp, weights, 
+    def time_adjust_func(t_offset, t_adjust, t_sim, obs_sim, t_exp, obs_exp, weights, obs_bounds=[],
                          loss_alpha=2, loss_c=1, scale='Linear', DoF=1, opt_type='Residual', 
                          verbose=False):
 
@@ -160,6 +160,8 @@ def calculate_residuals(args_list):
         # Compare SIM Density Grad vs. Experimental
         exp_bounds = calc_exp_bounds(t_sim_shifted, t_exp)
         t_exp, obs_exp, weights = t_exp[exp_bounds], obs_exp[exp_bounds], weights[exp_bounds]
+        if opt_type == 'Bayesian':
+            obs_bounds = obs_bounds[exp_bounds]
         
         f_interp = CubicSpline(t_sim_shifted.flatten(), obs_sim.flatten())
         obs_sim_interp = f_interp(t_exp)
@@ -173,6 +175,10 @@ def calculate_residuals(args_list):
             weights = weights[ind].flatten()
             m = np.divide(obs_exp[ind], obs_sim_interp[ind])
             resid = np.log10(np.abs(m)).flatten()
+            if verbose and opt_type == 'Bayesian':
+                obs_exp = np.log10(np.abs(obs_exp[ind])).squeeze() # squeeze to remove extra dim
+                obs_sim_interp = np.log10(np.abs(obs_sim_interp[ind])).squeeze()
+                obs_bounds = np.log10(np.abs(obs_bounds[ind])).squeeze()    
         
         resid_outlier = outlier(resid, a=loss_alpha, c=loss_c, weights=weights)
         loss = generalized_loss_fcn(resid, a=loss_alpha, c=resid_outlier)
@@ -199,7 +205,7 @@ def calculate_residuals(args_list):
                 SSE = rescale_loss_fcn(np.abs(resid), SSE, resid_outlier, weights)
                 loss_weights = loss/SSE # comparison is between selected loss fcn and SSE (L2 loss)
                 output['aggregate_weights'] = weights*loss_weights
-                output['ind_used'] = exp_bounds
+                output['obs_bounds'] = obs_bounds
 
             return output
                                                                                                                             
@@ -243,6 +249,9 @@ def calculate_residuals(args_list):
     
     weights = shock['weights_trim']
     obs_exp = shock['exp_data_trim']
+    obs_bounds = []
+    if var['obj_fcn_type'] == 'Bayesian':
+        obs_bounds = shock['abs_uncertainties_trim']
     
     if not np.any(var['t_unc']):
         t_unc = 0
@@ -250,14 +259,14 @@ def calculate_residuals(args_list):
         t_unc_OoM = np.mean(OoM(var['t_unc']))  # Do at higher level in code? (computationally efficient)
         # calculate time adjust with mse (loss_alpha = 2, loss_c =1)                                                                         
         time_adj_decorator = lambda t_adjust: time_adjust_func(shock['time_offset'], t_adjust*10**t_unc_OoM, 
-                ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], weights, scale=var['scale'], 
+                ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], weights, obs_bounds, scale=var['scale'], 
                 DoF=len(coef_opt), opt_type=var['obj_fcn_type'])
         
         res = minimize_scalar(time_adj_decorator, bounds=var['t_unc']/10**t_unc_OoM, method='bounded')
         t_unc = res.x*10**t_unc_OoM
     
     output = time_adjust_func(shock['time_offset'], t_unc, ind_var, obs_sim, obs_exp[:,0], obs_exp[:,1], 
-                              weights, loss_alpha=var['loss_alpha'], loss_c=var['loss_c'], 
+                              weights, obs_bounds, loss_alpha=var['loss_alpha'], loss_c=var['loss_c'], 
                               scale=var['scale'], DoF=len(coef_opt), opt_type=var['obj_fcn_type'], 
                               verbose=True)  
 
@@ -379,10 +388,6 @@ class Fit_Fun:
             obj_fcn = np.median(loss_exp)
 
         elif self.opt_settings['obj_fcn_type'] == 'Bayesian':
-            obs_data_bounds = []
-            for i, shock in enumerate(self.shocks2run):
-                obs_data_bounds.append(shock['abs_uncertainties_trim'][output_dict['ind_used'][i], :])
-            
             if np.size(loss_resid) == 1:  # optimizing single experiment
                 Bayesian_weights = np.array(output_dict['aggregate_weights'], dtype=object).flatten()
             else:
@@ -396,8 +401,7 @@ class Fit_Fun:
             Bayesian_weights = Bayesian_weights/Bayesian_weights.sum()
 
             CheKiPEUQ_eval_dict = {'log_opt_rates': log_opt_rates, 'x': x, 'output_dict': output_dict, 
-                                   'loss_resid': loss_resid, 'bayesian_weights': Bayesian_weights, 
-                                   'obs_data_bounds': obs_data_bounds, 'iteration_num': self.i}
+                                   'bayesian_weights': Bayesian_weights, 'iteration_num': self.i}
             
             obj_fcn = self.CheKiPEUQ_Frhodo_interface.evaluate(CheKiPEUQ_eval_dict)
            

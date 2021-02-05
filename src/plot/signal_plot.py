@@ -195,8 +195,8 @@ class Plot(Base_Plot):
             t = exp_data[:,0]
             t_min = np.min(t)
 
-            cutoff_perc = 100*(xnew*t_conv- t_min)/(np.max(t) - t_min)
-            parent.exp_unc.boxes['unc_cutoff'][n].setValue(cutoff_perc)
+            cutoff_perc = (xnew*t_conv- t_min)/(np.max(t) - t_min)
+            parent.exp_unc.boxes['unc_cutoff'][n].setValue(cutoff_perc*100)
                 
         elif item is self.ax[0].item['weight_shift'] or item is self.ax[0].item['unc_shift']:
             if item is self.ax[0].item['weight_shift']:

@@ -852,11 +852,16 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
     
     def update(self, event=None, shock=None):
         parent = self.parent()
+        sender = self.sender()
         update_plot = False
         if shock is None:           # if no shock given, must be from widgets
             shock = parent.display_shock
             update_plot = True
         
+        if sender in self.boxes['unc_cutoff']:
+            self.boxes['unc_cutoff'][0].setMaximum(self.boxes['unc_cutoff'][1].value())
+            self.boxes['unc_cutoff'][1].setMinimum(self.boxes['unc_cutoff'][0].value())
+
         for param in list(self.boxes.keys()):
             shock[param] = [box.value() for box in self.boxes[param]]
 
