@@ -6,10 +6,14 @@ from tabulate import tabulate
 
 import matplotlib as mpl
 import numpy as np
+from scipy import stats
 
 from plot.base_plot import Base_Plot
 from plot.draggable import Draggable
 
+
+def shape_data(x, y): 
+    return np.transpose(np.vstack((x, y)))
 
 def OoM(x):
     if not isinstance(x, np.ndarray):
@@ -20,6 +24,8 @@ def OoM(x):
 class Plot(Base_Plot):
     def __init__(self, parent, widget, mpl_layout):
         super().__init__(parent, widget, mpl_layout)
+
+        self.show_unc_shading = False
 
         # Connect Signals
         self.canvas.mpl_connect('resize_event', self._resize_event)
@@ -92,11 +98,12 @@ class Plot(Base_Plot):
         self.ax.append(self.fig.add_subplot(4,1,(2,4), sharex = self.ax[0]))
         self.ax[1].item = {}
         self.ax[1].item['exp_data'] = self.ax[1].scatter([],[], color='0', facecolors='0',
-            linewidth=0.5, alpha = 0.85)
-        self.ax[1].item['sim_data'] = self.ax[1].add_line(mpl.lines.Line2D([],[], c='#0C94FC'))
+            linewidth=0.5, alpha = 0.85, zorder=2)
+        self.ax[1].item['sim_data'] = self.ax[1].add_line(mpl.lines.Line2D([],[], c='#0C94FC', zorder=4))
         self.ax[1].item['history_data'] = []
-        self.ax[1].item['cutoff_line'] = [self.ax[1].axvline(x=np.nan, ls='--', c='#BF0000'), 
-                                          self.ax[1].axvline(x=np.nan, ls='--', c='#BF0000')]
+        self.ax[1].item['cutoff_line'] = [self.ax[1].axvline(x=np.nan, ls='--', c='#BF0000', zorder=5), 
+                                          self.ax[1].axvline(x=np.nan, ls='--', c='#BF0000', zorder=5)]
+        self.ax[1].item['unc_shading'] = []
         self.lastRxnNum = None
         
         self.ax[1].text(.5,.98,'Observable', fontsize='large',
@@ -142,7 +149,7 @@ class Plot(Base_Plot):
         elif old_num_hist_lines < num_hist_lines:
             for n in range(old_num_hist_lines, old_num_hist_lines+numDiff):
                 line = mpl.lines.Line2D([],[])
-                self.ax[1].item['history_data'].append({'line': self.ax[1].add_line(line), 'rxnNum': None})
+                self.ax[1].item['history_data'].append({'line': self.ax[1].add_line(line), 'rxnNum': None}, zorder=3)
         
         color = mpl.cm.nipy_spectral(np.linspace(0.05, 0.95, num_hist_lines)[::-1])
         for n, item in enumerate(self.ax[1].item['history_data']):
@@ -302,8 +309,6 @@ class Plot(Base_Plot):
         self.fig.clear()
     
     def update(self, update_lim=False):
-        def shape_data(t,x): return np.transpose(np.vstack((t, x)))
-
         parent = self.parent
         if parent.display_shock['exp_data'].size == 0: return
 
@@ -315,7 +320,9 @@ class Plot(Base_Plot):
         if obj_fcn_type == 'Residual':
             self.update_weight_plot()
         else:
-            self.update_uncertainty_plot()      # TODO: NEED TO UPDATE WEIGHTS TO RETURN 0 1 FOR BAYESIAN CASE
+            self.update_uncertainty_plot()
+            if self.show_unc_shading:
+                self.update_uncertainty_shading()
 
         # Update lower plot
         weights = parent.display_shock['weights']
@@ -444,6 +451,38 @@ class Plot(Base_Plot):
         unc_cutoff = np.array(parent.display_shock['unc_cutoff'])*t_range/100 + t_min
         for i in range(0,2):
                 self.ax[1].item['cutoff_line'][i].set_xdata(unc_cutoff[i])
+
+    def update_uncertainty_shading(self):
+        parent = self.parent
+
+        numsteps = 20 # how many steps to take in shading
+
+        # how many sigma to go out
+        sigma = parent.optimization_settings.settings['obj_fcn']['bayes_unc_sigma']
+
+        t = self.ax[1].item['sim_data'].get_xdata()
+        mu = obs_sim = self.ax[1].item['sim_data'].get_ydata()
+        unc_perc = parent.series.uncertainties(t)
+        abs_unc = obs_sim*unc_perc
+
+        if len(self.ax[1].item['unc_shading']) == 0:
+            for i in range(1, numsteps+1):
+                top = mu + abs_unc*i/numsteps
+                bottom = mu - abs_unc*i/numsteps
+                item = self.ax[1].fill_between(t, bottom, top, color='#0C94FC', alpha=0.5/numsteps, zorder=0)
+
+                self.ax[1].item['unc_shading'].append(item)
+
+        else:
+            for i in range(0, numsteps):
+                top = mu + abs_unc*(i+1)/numsteps
+                bottom = mu - abs_unc*(i+1)/numsteps
+
+                dummy = self.ax[1].fill_between(t, bottom, top)
+                verts = [path._vertices for path in dummy.get_paths()]
+                codes = [path._codes for path in dummy.get_paths()]
+                dummy.remove()
+                self.ax[1].item['unc_shading'][i].set_verts_and_codes(verts, codes)
 
     def switch_weight_unc_plot(self):
         parent = self.parent

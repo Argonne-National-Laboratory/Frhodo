@@ -791,6 +791,7 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
         
         self.create_boxes()
         self.table.itemChanged.connect(self.update)
+        parent.unc_shading_box.stateChanged.connect(self.update)
     
     def create_boxes(self):
         parent = self.parent()
@@ -858,6 +859,8 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
             shock = parent.display_shock
             update_plot = True
         
+        parent.plot.signal.show_unc_shading = parent.unc_shading_box.isChecked()
+
         if sender in self.boxes['unc_cutoff']:
             self.boxes['unc_cutoff'][0].setMaximum(self.boxes['unc_cutoff'][1].value())
             self.boxes['unc_cutoff'][1].setMinimum(self.boxes['unc_cutoff'][0].value())

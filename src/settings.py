@@ -746,8 +746,8 @@ class series:
         A = np.insert(unc_max, 1, unc_min)
         unc_cutoff  = np.array(shock['unc_cutoff'])/100*(tf-t0) + t0
 
-        uncertainties = double_sigmoid(time, A, k, shift)
-
+        unc = double_sigmoid(time, A, k, shift)
+        
         if calcWeights:
             weights = shock['weights'] = double_sigmoid(time, [0, 1, 0], [0, 0], unc_cutoff)
             integral = integrate.cumtrapz(weights, time)[-1] # based on weights at data points
@@ -759,7 +759,12 @@ class series:
                 # TODO: normalizing by the t_unit_conv could cause a problem if the scale changes?
                 weights_norm = weights.copy()/(integral/t_conv)
                 shock['normalized_weights'] = weights_norm
-        return uncertainties
+
+                # also calculate absolute uncertainties
+                obs_data = shock['exp_data'][:,1]
+                shock['abs_uncertainties'] = np.sort([obs_data/(1+unc), obs_data*(1+unc)], axis=0).T
+
+        return unc
 
     def set(self, key, val=[]):
         parent = self.parent

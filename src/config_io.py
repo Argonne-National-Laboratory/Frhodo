@@ -134,6 +134,7 @@ class GUI_Config(yaml.YAML):
                                 'time location': [4.5, 35.0],
                                 'inverse growth rate': [0, 0.7],
                                 'cutoff location': [0.0, 100],
+                                'shading': True,
                                 },
                             },
                          'Plot Settings': {
@@ -156,7 +157,7 @@ class GUI_Config(yaml.YAML):
                       ['Optimization Settings', 'uncertainty function', 'max'],
                       ['Optimization Settings', 'uncertainty function', 'time location'],
                       ['Optimization Settings', 'uncertainty function', 'inverse growth rate'],
-                      ['Optimization Settings', 'uncertainty function', 'cutoff location']
+                      ['Optimization Settings', 'uncertainty function', 'cutoff location'],
                      ]
         for FlowType, toFlow in {'Map': toFlowMap, 'List': toFlowList}.items():
             for keys in toFlow:
@@ -287,6 +288,8 @@ class GUI_settings:
 
         parent.exp_unc.set_boxes()
 
+        parent.unc_shading_box.setChecked(settings['opt']['uncertainty function']['shading'])
+
         ## Set Plot Settings ##
         parent.plot.signal._set_scale('x', settings['plot']['x-scale'], parent.plot.signal.ax[1], True)
         parent.plot.signal._set_scale('y', settings['plot']['y-scale'], parent.plot.signal.ax[1], True)
@@ -371,6 +374,7 @@ class GUI_settings:
         settings['opt']['uncertainty function']['time location'] = shock['unc_shift']
         settings['opt']['uncertainty function']['inverse growth rate'] = shock['unc_k']
         settings['opt']['uncertainty function']['cutoff location'] = shock['unc_cutoff']
+        settings['opt']['uncertainty function']['shading'] = parent.unc_shading_box.isChecked()
 
         ## Set Plot Settings ##
         settings['plot']['x-scale'] = parent.plot.signal.ax[1].get_xscale()

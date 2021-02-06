@@ -97,10 +97,6 @@ class Multithread_Optimize:
                     parent.exp_unc.update(shock=shock)
                     shock['uncertainties'] = unc_fcn(shock['exp_data'][:,0], shock, calcWeights=True)
 
-                exp_data = shock['exp_data'][:,1]
-                unc_perc = shock['uncertainties']
-                shock['abs_uncertainties'] = np.sort([exp_data/(1+unc_perc), exp_data*(1+unc_perc)], axis=0).T
-
             # if reactor temperature and pressure aren't set, update
             if np.isnan([shock['T_reactor'], shock['P_reactor']]).any():
                 parent.series.set('zone', shock['zone'])
