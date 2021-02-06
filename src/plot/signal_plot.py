@@ -100,10 +100,14 @@ class Plot(Base_Plot):
         self.ax[1].item['exp_data'] = self.ax[1].scatter([],[], color='0', facecolors='0',
             linewidth=0.5, alpha = 0.85, zorder=2)
         self.ax[1].item['sim_data'] = self.ax[1].add_line(mpl.lines.Line2D([],[], c='#0C94FC', zorder=4))
+        nan_array = [np.nan, np.nan]
+        self.ax[1].item['unc_shading'] = self.ax[1].fill_between(nan_array, nan_array, nan_array, 
+                                                                 color='#0C94FC', alpha=0.2, linewidth=0, zorder=0)
+        self.ax[1].item['unc_shading'].empty_verts = [path._vertices for path in self.ax[1].item['unc_shading'].get_paths()]
+        self.ax[1].item['unc_shading'].empty_codes = [path._codes for path in self.ax[1].item['unc_shading'].get_paths()]
         self.ax[1].item['history_data'] = []
         self.ax[1].item['cutoff_line'] = [self.ax[1].axvline(x=np.nan, ls='--', c='#BF0000', zorder=5), 
                                           self.ax[1].axvline(x=np.nan, ls='--', c='#BF0000', zorder=5)]
-        self.ax[1].item['unc_shading'] = []
         self.lastRxnNum = None
         
         self.ax[1].text(.5,.98,'Observable', fontsize='large',
@@ -321,8 +325,7 @@ class Plot(Base_Plot):
             self.update_weight_plot()
         else:
             self.update_uncertainty_plot()
-            if self.show_unc_shading:
-                self.update_uncertainty_shading()
+            self.update_uncertainty_shading()
 
         # Update lower plot
         weights = parent.display_shock['weights']
@@ -451,38 +454,32 @@ class Plot(Base_Plot):
         unc_cutoff = np.array(parent.display_shock['unc_cutoff'])*t_range/100 + t_min
         for i in range(0,2):
                 self.ax[1].item['cutoff_line'][i].set_xdata(unc_cutoff[i])
+    
+    def enable_unc_shading(self, show_unc_shading):
+        self.show_unc_shading = show_unc_shading
+
+        if show_unc_shading:
+             self.update_uncertainty_shading()
+        else:
+            verts = self.ax[1].item['unc_shading'].empty_verts
+            codes = self.ax[1].item['unc_shading'].empty_codes
+            self.ax[1].item['unc_shading'].set_verts_and_codes(verts, codes)
 
     def update_uncertainty_shading(self):
         parent = self.parent
 
-        numsteps = 20 # how many steps to take in shading
+        if self.show_unc_shading:
+            t = self.ax[1].item['sim_data'].get_xdata()
+            obs_sim = self.ax[1].item['sim_data'].get_ydata()
+            unc_perc = parent.series.uncertainties(t)
+            abs_unc = [obs_sim/(1+unc_perc), obs_sim*(1+unc_perc)]
 
-        # how many sigma to go out
-        sigma = parent.optimization_settings.settings['obj_fcn']['bayes_unc_sigma']
+            dummy = self.ax[1].fill_between(t, abs_unc[0], abs_unc[1])
+            verts = [path._vertices for path in dummy.get_paths()]
+            codes = [path._codes for path in dummy.get_paths()]
+            dummy.remove()
 
-        t = self.ax[1].item['sim_data'].get_xdata()
-        mu = obs_sim = self.ax[1].item['sim_data'].get_ydata()
-        unc_perc = parent.series.uncertainties(t)
-        abs_unc = obs_sim*unc_perc
-
-        if len(self.ax[1].item['unc_shading']) == 0:
-            for i in range(1, numsteps+1):
-                top = mu + abs_unc*i/numsteps
-                bottom = mu - abs_unc*i/numsteps
-                item = self.ax[1].fill_between(t, bottom, top, color='#0C94FC', alpha=0.5/numsteps, zorder=0)
-
-                self.ax[1].item['unc_shading'].append(item)
-
-        else:
-            for i in range(0, numsteps):
-                top = mu + abs_unc*(i+1)/numsteps
-                bottom = mu - abs_unc*(i+1)/numsteps
-
-                dummy = self.ax[1].fill_between(t, bottom, top)
-                verts = [path._vertices for path in dummy.get_paths()]
-                codes = [path._codes for path in dummy.get_paths()]
-                dummy.remove()
-                self.ax[1].item['unc_shading'][i].set_verts_and_codes(verts, codes)
+            self.ax[1].item['unc_shading'].set_verts_and_codes(verts, codes)
 
     def switch_weight_unc_plot(self):
         parent = self.parent
@@ -536,6 +533,8 @@ class Plot(Base_Plot):
         self.ax[1].item['sim_data'].set_xdata(t + time_offset)
         self.ax[1].item['sim_data'].set_ydata(observable)
         
+        self.update_uncertainty_shading()
+
         if exp_data.size == 0 and not np.isnan(t).any(): # if exp data doesn't exist rescale
             self.set_xlim(self.ax[1], [t[0], t[-1]])
             if np.count_nonzero(observable) > 0:    # only update ylim if not all values are zero
