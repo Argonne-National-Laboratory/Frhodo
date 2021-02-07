@@ -3,13 +3,15 @@
 # directory for license and copyright information.
 
 import numpy as np
-import nlopt, pathlib, os
+from scipy.optimize import minimize
+import nlopt, pathlib, os, sys
 import mech_widget, misc_widget, thermo_widget, series_viewer_widget, shock_fcns, save_output
 from optimize.mech_optimize import Multithread_Optimize
 from qtpy.QtWidgets import *
 from qtpy import QtWidgets, QtGui, QtCore
 from copy import deepcopy
 
+from settings import double_sigmoid
 
 class Initialize(QtCore.QObject):
     def __init__(self, parent):
@@ -765,6 +767,8 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
         super().__init__(parent)
         self.table = self.parent().unc_fcn_table
 
+        self.unc_type = parent.unc_type_box.currentText()
+
         stylesheet = ["QHeaderView::section{",  # stylesheet because windows 10 doesn't show borders on the bottom
             "border-top:0px solid #D8D8D8;",
             "border-left:0px solid #D8D8D8;",
@@ -792,6 +796,7 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
         self.create_boxes()
         self.table.itemChanged.connect(self.update)
         parent.unc_shading_box.stateChanged.connect(self.update)
+        parent.unc_type_box.currentTextChanged.connect(self.update)
     
     def create_boxes(self):
         parent = self.parent()
@@ -859,6 +864,9 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
             shock = parent.display_shock
             update_plot = True
         
+        if sender is parent.unc_type_box:
+            self.switch_unc_type()
+
         if sender is parent.unc_shading_box:
             parent.plot.signal.enable_unc_shading(parent.unc_shading_box.isChecked())
 
@@ -872,6 +880,76 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
         if parent.display_shock['exp_data'].size > 0 and update_plot: # If exp_data exists
             parent.plot.signal.update(update_lim=False)
             parent.plot.signal.canvas.draw()
+
+    def switch_unc_type(self):
+        parent = self.parent()
+        shock = parent.display_shock
+        
+        t = parent.SIM.independent_var
+        sim_obs = parent.SIM.observable
+        old_unc = parent.series.uncertainties(t)
+
+        t_conv = parent.var['reactor']['t_unit_conv']
+        t0 = shock['exp_data'][ 0, 0]
+        tf = shock['exp_data'][-1, 0]
+
+        shift   = np.array(shock['unc_shift'])/100*(tf-t0) + t0
+        k       = np.array(shock['unc_k'])*t_conv
+        unc_min = np.array(shock['unc_min'])
+        unc_max = np.array(shock['unc_max'])
+        A = np.insert(unc_max, 1, unc_min)
+
+        self.unc_type = parent.unc_type_box.currentText()
+        
+        # TODO: Switching could use some more work but good enough for now
+        if self.unc_type == '%':
+            abs_unc = old_unc
+
+            x0 = [A[0]/sim_obs[0], A[1]/np.median(sim_obs), A[2]/sim_obs[-1], *k, *shift]
+            bnds = np.ones((7, 2))*[0, np.inf]
+            bnds[3:5, :] = [t0, tf]
+
+            zero = lambda x: np.sum((double_sigmoid(t, x[0:3], x[3:5], x[5:7])*sim_obs - abs_unc)**2)
+            res = minimize(zero, x0, bounds=bnds)
+            new_vals = {'unc_min': [res.x[1]*100], 'unc_max': [res.x[0]*100, res.x[2]*100],
+                        'unc_k': res.x[3:5]/t_conv, 'unc_shift': (res.x[5:7] - t0)*100/(tf-t0)}
+        else:
+            abs_unc = sim_obs*old_unc
+
+            # calculate new absolute uncertainty extents
+            x0 = [abs_unc[0], A[1]/100*np.median(sim_obs), abs_unc[-1], *k, *shift]
+            bnds = np.ones((7, 2))*[0, np.inf]
+            bnds[3:5, :] = [t0, tf]
+
+            zero = lambda x: np.sum((double_sigmoid(t, x[0:3], x[3:5], x[5:7]) - abs_unc)**2)
+            res = minimize(zero, x0, bounds=bnds)
+            new_vals = {'unc_min': [res.x[1]], 'unc_max': [res.x[0], res.x[2]],
+                        'unc_k': res.x[3:5]/t_conv, 'unc_shift': (res.x[5:7] - t0)*100/(tf-t0)}
+        
+        for j, col in enumerate(['start', 'end']):
+            for row in new_vals.keys():
+                if len(self.boxes[row]) <= j: continue
+                box = self.boxes[row][j]
+                if self.unc_type == '%':
+                    box.setSingleIntStep(self.prop[col][row]['singleStep'])
+                    box.setStrDecimals(self.prop[col][row]['decimals'])
+                    if 'suffix' in self.prop[col][row]:
+                        box.setSuffix(self.prop[col][row]['suffix'])
+                    if 'maximum' in self.prop[col][row]:
+                        box.setMaximum(self.prop[col][row]['maximum'])
+                else:
+                    if row in ['unc_min', 'unc_max']:
+                        box.setSingleIntStep(0.1)
+                        if 'suffix' in self.prop[col][row]:
+                            box.setSuffix('')
+                        if 'maximum' in self.prop[col][row]:
+                            box.setMaximum(sys.float_info.max)
+                    
+                box.blockSignals(True)
+                box.setValue(new_vals[row][j])
+                box.blockSignals(False)
+              
+        box.setValue(new_vals[row][j])
 
          
 class Tables_Tab(QtCore.QObject):

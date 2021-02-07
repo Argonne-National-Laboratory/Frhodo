@@ -741,10 +741,13 @@ class series:
 
         shift     = np.array(shock['unc_shift'])/100*(tf-t0) + t0
         k         = np.array(shock['unc_k'])*t_conv
-        unc_min     = np.array(shock['unc_min'])/100
-        unc_max     = np.array(shock['unc_max'])/100
+        unc_min     = np.array(shock['unc_min'])
+        unc_max     = np.array(shock['unc_max'])
         A = np.insert(unc_max, 1, unc_min)
         unc_cutoff  = np.array(shock['unc_cutoff'])/100*(tf-t0) + t0
+
+        if self.parent.exp_unc.unc_type == '%':
+            A /= 100
 
         unc = double_sigmoid(time, A, k, shift)
         
@@ -762,7 +765,11 @@ class series:
 
                 # also calculate absolute uncertainties
                 obs_data = shock['exp_data'][:,1]
+            
+            if self.parent.exp_unc.unc_type == '%':
                 shock['abs_uncertainties'] = np.sort([obs_data/(1+unc), obs_data*(1+unc)], axis=0).T
+            else:
+                shock['abs_uncertainties'] = np.sort([obs_data - unc, obs_data + unc], axis=0).T
 
         return unc
 

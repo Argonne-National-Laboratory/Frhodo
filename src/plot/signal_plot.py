@@ -289,15 +289,21 @@ class Plot(Base_Plot):
 
             extrema_new = ynew[n]
 
-            GUI_max = parent.display_shock[weight_type][i]/100
-            extrema_new = ynew[n] + GUI_max - xy_data[n][1]    # account for fcn not reaching maximum
-            # Must be greater than 0 and less than 0.99
-            if extrema_new < box.minimum():
-                extrema_new = box.minimum()   # Let the GUI decide low end
-            elif extrema_new > box.maximum():
-                extrema_new = box.maximum()
-            
-            box.setValue(extrema_new*100)
+            if self.parent.exp_unc.unc_type == '%':
+                GUI_max = parent.display_shock[weight_type][i]/100
+                extrema_new = ynew[n] + GUI_max - xy_data[n][1]    # account for fcn not reaching maximum
+                # Must be greater than 0 and less than 0.99
+                if extrema_new < box.minimum():
+                    extrema_new = box.minimum()   # Let the GUI decide low end
+                elif extrema_new > box.maximum():
+                    extrema_new = box.maximum()
+
+                box.setValue(extrema_new*100)
+            else:
+                GUI_max = parent.display_shock[weight_type][i]
+                extrema_new = ynew[n] + GUI_max - xy_data[n][1]    # account for fcn not reaching maximum
+
+                box.setValue(extrema_new)
 
         # Update plot if data exists
         if exp_data.size > 0:
@@ -445,10 +451,10 @@ class Plot(Base_Plot):
         self.ax[0].item['unc_extrema'].set_xdata(t_extrema)
         self.ax[0].item['unc_extrema'].set_ydata(unc_extrema)
 
-        if np.max(unc_extrema) > 1.0:
-            self.update_xylim(self.ax[0], xlim=self.ax[0].get_xlim(), force_redraw=False)
-        else:
-            self.update_xylim(self.ax[0], xlim=self.ax[0].get_xlim(), ylim=[-0.1, 1.1], force_redraw=False)
+        #if np.max(unc_extrema) > 1.0:
+        self.update_xylim(self.ax[0], xlim=self.ax[0].get_xlim(), force_redraw=False)
+        #else:
+        #    self.update_xylim(self.ax[0], xlim=self.ax[0].get_xlim(), ylim=[-0.1, 1.1], force_redraw=False)
         
         # Set cutoff lines
         unc_cutoff = np.array(parent.display_shock['unc_cutoff'])*t_range/100 + t_min
@@ -471,8 +477,12 @@ class Plot(Base_Plot):
         if self.show_unc_shading:
             t = self.ax[1].item['sim_data'].get_xdata()
             obs_sim = self.ax[1].item['sim_data'].get_ydata()
-            unc_perc = parent.series.uncertainties(t)
-            abs_unc = [obs_sim/(1+unc_perc), obs_sim*(1+unc_perc)]
+            unc = parent.series.uncertainties(t)
+
+            if self.parent.exp_unc.unc_type == '%':
+                abs_unc = [obs_sim/(1+unc), obs_sim*(1+unc)]
+            else:
+                abs_unc = [obs_sim - unc, obs_sim + unc]
 
             dummy = self.ax[1].fill_between(t, abs_unc[0], abs_unc[1])
             verts = [path._vertices for path in dummy.get_paths()]
