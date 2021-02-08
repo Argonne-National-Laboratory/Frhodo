@@ -48,6 +48,8 @@ class Base_Plot(QtCore.QObject):
         
         # AutoScale
         self.autoScale = [True, True]
+
+        self.i = 0
         
         # Connect Signals
         self._draw_event_signal = self.canvas.mpl_connect('draw_event', self._draw_event)
@@ -297,6 +299,8 @@ class Base_Plot(QtCore.QObject):
  
     def _animate_items(self, bool=True):
         for axis in self.ax:
+            axis.xaxis.set_animated(bool)
+            axis.yaxis.set_animated(bool)
             if axis.get_legend() is not None:
                 axis.get_legend().set_animated(bool)
             
@@ -313,6 +317,8 @@ class Base_Plot(QtCore.QObject):
     def _draw_items_artist(self):
         self.canvas.restore_region(self.background_data)           
         for axis in self.ax:
+            axis.draw_artist(axis.xaxis)
+            axis.draw_artist(axis.yaxis)
             for item in axis.item.values():
                 if isinstance(item, list):
                     for subItem in item:
