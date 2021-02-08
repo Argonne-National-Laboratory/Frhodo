@@ -5,15 +5,12 @@
 import numpy as np
 import cantera as ct
 import warnings
+from copy import deepcopy
 from scipy.optimize import curve_fit, OptimizeWarning, approx_fprime
 from timeit import default_timer as timer
 
 Ru = ct.gas_constant
 # Ru = 1.98720425864083
-
-min_neg_system_value = np.finfo(float).min*(1E-20) # Don't push the limits too hard
-min_pos_system_value = np.finfo(float).eps*(1.1)
-max_pos_system_value = np.finfo(float).max*(1E-20)
 
 default_arrhenius_coefNames = ['activation_energy', 'pre_exponential_factor', 'temperature_exponent']
 
@@ -178,35 +175,13 @@ def fit_generic(rates, T, P, X, coefNames, rxnIdx, mech, x0, bnds):
     
     return coeffs
 
-def fit_coeffs(rates, T, P, X, coefNames, rxnIdx, mech):
+
+def fit_coeffs(rates, T, P, X, coefNames, rxnIdx, x0, bnds, mech):
     if len(coefNames) == 0: return # if not coefs being optimized in rxn, return 
-        
-    rxn = mech.gas.reaction(rxnIdx)
-    x0 = []
-    lower_bnd = []
-    upper_bnd = []
-    for n, coefName in enumerate(coefNames):
-        # if coef['rxnIdx'] != rxnIdx: continue   # ignore reaction not specified
-        x0.append(mech.coeffs_bnds[rxnIdx][coefName]['resetVal'])
-        coef_limits = mech.coeffs_bnds[rxnIdx][coefName]['limits']()
-        if np.isnan(coef_limits).any():
-            if coefName == 'pre_exponential_factor':
-                lower_bnd.append(min_pos_system_value)             # A should be positive
-            elif coefName == 'activation_energy' and x0[n] > 0:
-                lower_bnd.append(0)                                # Ea shouldn't change sign
-            else:
-                lower_bnd.append(min_neg_system_value)
-            
-            if coefName == 'activation_energy' and x0[n] < 0:   # Ea shouldn't change sign
-                upper_bnd.append(0)
-            else:
-                upper_bnd.append(max_pos_system_value)
-        else:
-            lower_bnd.append(coef_limits[0])
-            upper_bnd.append(coef_limits[1])
     
-    bnds = [lower_bnd, upper_bnd]
-    
+    x0 = deepcopy(x0)
+    bnds = deepcopy(bnds)
+
     return fit_generic(rates, T, P, X, coefNames, rxnIdx, mech, x0, bnds)
     
 

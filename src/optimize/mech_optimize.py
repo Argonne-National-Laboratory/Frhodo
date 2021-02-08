@@ -13,10 +13,15 @@ from optimize.optimize_worker import Worker
 from optimize.fit_fcn import initialize_parallel_worker, update_mech_coef_opt
 
 
+min_neg_system_value = np.finfo(float).min*(1E-20) # Don't push the limits too hard
+min_pos_system_value = np.finfo(float).eps*(1.1)
+max_pos_system_value = np.finfo(float).max*(1E-20)
+
+
 class Multithread_Optimize:
     def __init__(self, parent):
         self.parent = parent
-        
+
         # Initialize Threads
         parent.optimize_running = False
         # parent.threadpool = QThreadPool()
@@ -76,14 +81,22 @@ class Multithread_Optimize:
         if len(self.shocks2run) == 0: return    # if no shocks to run return, not sure if necessary anymore
 
         # Initialize variables in shocks if need be
-        for shock in self.shocks2run:      
+        opt_options = self.parent.optimization_settings.settings
+        weight_fcn = parent.series.weights
+        unc_fcn = parent.series.uncertainties
+        for shock in self.shocks2run:      # TODO NEED TO UPDATE THIS FOR UNCERTAINTIES AND WEIGHTS
             # if weight variables aren't set, update
-            weight_var = [shock[key] for key in ['weight_max', 'weight_min', 'weight_shift', 
-                    'weight_k']]
-            if np.isnan(np.hstack(weight_var)).any():
-                parent.weight.update(shock=shock)
-                shock['weights'] = parent.series.weights(shock['exp_data'][:,0], shock)
-                
+            if opt_options['obj_fcn']['type'] == 'Residual':
+                weight_var = [shock[key] for key in ['weight_max', 'weight_min', 'weight_shift', 'weight_k']]
+                if np.isnan(np.hstack(weight_var)).any():
+                    parent.weight.update(shock=shock)
+                    shock['weights'] = weight_fcn(shock['exp_data'][:,0], shock)
+            else: # otherwise bayesian
+                unc_var = [shock[key] for key in ['unc_max', 'unc_min', 'unc_shift', 'unc_k', 'unc_cutoff']]
+                if np.isnan(np.hstack(unc_var)).any():
+                    parent.exp_unc.update(shock=shock)
+                    shock['uncertainties'] = unc_fcn(shock['exp_data'][:,0], shock, calcWeights=True)
+
             # if reactor temperature and pressure aren't set, update
             if np.isnan([shock['T_reactor'], shock['P_reactor']]).any():
                 parent.series.set('zone', shock['zone'])
@@ -132,11 +145,14 @@ class Multithread_Optimize:
         # Optimization plot
         parent.plot.opt.clear_plot()
 
+        # Reset Hall of Fame
+        self.HoF = []   # hall of fame for tracking the best result so far
+
         # Create Progress Bar
         # parent.create_progress_bar()
                 
         if not parent.abort:
-            s = 'Optimization starting\n\n   Iteration\t\t   Avg Std Residual'
+            s = 'Optimization starting\n\n   Iteration\t\t Objective Func\tBest Objetive Func'
             parent.log.append(s, alert=False)
             parent.threadpool.start(self.worker)
     
@@ -174,21 +190,74 @@ class Multithread_Optimize:
         invT_bnds = np.divide(10000, T_bnds)
         P_bnds = [np.min(shock_conditions['P_reactor']), np.max(shock_conditions['P_reactor'])]
         for rxn_coef in rxn_coef_opt:
+            # Set coefficient initial values and bounds
+            rxnIdx = rxn_coef['rxnIdx']
+            rxn_coef['coef_x0'] = []
+            rxn_coef['coef_bnds'] = {'lower': [], 'upper': [], 'exist': []}
+            
+            for coefName in rxn_coef['coefName']:
+                coef_x0 = mech.coeffs_bnds[rxnIdx][coefName]['resetVal']
+                rxn_coef['coef_x0'].append(coef_x0)
+
+                coef_limits = mech.coeffs_bnds[rxnIdx][coefName]['limits']()
+                if np.isnan(coef_limits).any():
+                    if coefName == 'pre_exponential_factor':
+                        rxn_coef['coef_bnds']['lower'].append(min_pos_system_value)             # A should be positive
+                    elif coefName == 'activation_energy' and coef_x0 > 0:
+                        rxn_coef['coef_bnds']['lower'].append(0)                                # Ea shouldn't change sign
+                    else:
+                        rxn_coef['coef_bnds']['lower'].append(min_neg_system_value)
+            
+                    if coefName == 'activation_energy' and coef_x0 < 0:   # Ea shouldn't change sign
+                        rxn_coef['coef_bnds']['upper'].append(0)
+                    else:
+                        rxn_coef['coef_bnds']['upper'].append(max_pos_system_value)
+                else:
+                    rxn_coef['coef_bnds']['lower'].append(coef_limits[0])
+                    rxn_coef['coef_bnds']['upper'].append(coef_limits[1])
+
+            lb_exist = [x != min_neg_system_value for x in rxn_coef['coef_bnds']['lower']]
+            ub_exist = [x != max_pos_system_value for x in rxn_coef['coef_bnds']['upper']]
+            rxn_coef['coef_bnds']['exist'] = np.array((lb_exist, ub_exist)).T
+            
+            # Set evaluation rate conditions
             n_coef = len(rxn_coef['coefIdx'])
             rxn_coef['invT'] = np.linspace(*invT_bnds, n_coef)
             rxn_coef['T'] = np.divide(10000, rxn_coef['invT'])
             rxn_coef['P'] = np.linspace(*P_bnds, n_coef)
             rxn_coef['X'] = shock_conditions['thermo_mix'][0]   # TODO: IF MIXTURE COMPOSITION FOR DUMMY RATES MATTER CHANGE HERE
-                      
+            
         return rxn_coef_opt
 
-    def update(self, result):
-        loss_str = f"{result['loss']:.3e}"
-        replace_strs = [['e+', 'e'], ['e0', 'e'], ['e0', ''], ['e-0', 'e-']]
+    def update(self, result, writeLog=True):
+        obj_fcn_str = f"{result['obj_fcn']:.3e}"
+        replace_strs = [['e+', 'e'], ['e0', 'e'], ['e-0', 'e-']]
         for pair in replace_strs:
-            loss_str = loss_str.replace(pair[0], pair[1])
-        self.parent.log.append('\t{:s} {:^5d}\t\t\t{:^s}'.format(
-            result['type'][0].upper(), result['i'], loss_str), alert=False)
+            obj_fcn_str = obj_fcn_str.replace(pair[0], pair[1])
+        result['obj_fcn_str'] = obj_fcn_str
+
+        # Update Hall of Fame
+        if not self.HoF:
+            self.HoF = result
+        elif result['obj_fcn'] < self.HoF['obj_fcn']:
+            self.HoF = result
+        
+        if writeLog:
+            if result['i'] > 999:
+                obj_fcn_space = '\t\t'
+            else:
+                obj_fcn_space = '\t\t\t'
+            
+            if 'inf' in obj_fcn_str:
+                obj_fcn_str_space = '\t\t\t\t\t'
+            elif len(obj_fcn_str) < 6:
+                obj_fcn_str_space = '\t\t\t\t'
+            else:
+                obj_fcn_str_space = '\t\t\t'
+
+            self.parent.log.append('\t{:s} {:^5d}{:s}{:^s}{:s}{:^s}'.format(
+                result['type'][0].upper(), result['i'], obj_fcn_space, obj_fcn_str, 
+                obj_fcn_str_space, self.HoF['obj_fcn_str']), alert=False)
         self.parent.tree.update_coef_rate_from_opt(result['coef_opt'], result['x'])
         
         # if displayed shock isn't in shocks being optimized, calculate the new plot
@@ -229,9 +298,12 @@ class Multithread_Optimize:
         parent.log.append('\n', alert=False)
         parent.save.chemkin_format(parent.mech.gas, parent.path_set.optimized_mech())
         parent.path_set.mech()  # update mech pulldown choices
+        parent.tree._copy_expanded_tab_rates() # trigger copy rates
 
     def abort_workers(self):
         if hasattr(self, 'worker'):
             self.worker.signals.abort.emit()
             self.parent.abort = True
+            if self.HoF:
+                self.update(self.HoF, writeLog=False)
             # self.parent.update_progress(100, '00:00:00') # This turns off the progress bar

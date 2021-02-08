@@ -6,13 +6,7 @@ import re, sys
 import numpy as np
 from qtpy.QtWidgets import *
 from qtpy import QtWidgets, QtGui, QtCore
-        
-def OoM(x):
-    x = np.copy(x)
-    if not isinstance(x, np.ndarray):
-        x = np.array(x)
-    x[x==0] = 1                       # if zero, make OoM 0
-    return np.floor(np.log10(np.abs(x)))
+from convert_units import OoM
     
 # Regular expression to find floats. Match groups are the whole string, the
 # whole coefficient, the decimal part of the coefficient, and the exponent
@@ -54,6 +48,8 @@ class ScientificDoubleSpinBox(QtWidgets.QDoubleSpinBox):
         self.setMaximum(sys.float_info.max)
         self.setDecimals(int(np.floor(np.log10(sys.float_info.max))))   # big for setting value
         self.setSingleStep(0.1)
+        self.setSingleIntStep(1)
+        self.setSingleExpStep(0.1)
         self.setAccelerated(True)
         # self.installEventFilter(self)
         
@@ -104,6 +100,12 @@ class ScientificDoubleSpinBox(QtWidgets.QDoubleSpinBox):
     def setStrDecimals(self, value: int):
         self.strDecimals = value
     
+    def setSingleIntStep(self, value: float):
+        self.singleIntStep = value
+
+    def setSingleExpStep(self, value: float):
+        self.singleExpStep = value
+
     def _set_reset_value(self, value):
         self.reset_value = value
         self.resetValueChanged.emit(self.reset_value)
@@ -138,13 +140,16 @@ class ScientificDoubleSpinBox(QtWidgets.QDoubleSpinBox):
 
     def textFromValue(self, value):
         """Modified form of the 'g' format specifier."""
-        if 'g' in self.numFormat: 
-            string = "{:.{dec}{numFormat}}".format(value, dec=self.strDecimals, 
-                                                   numFormat=self.numFormat)
+        if 'g' in self.numFormat:
+            # if full number showing and number decimals less than str, switch to number decimals
+            if abs(OoM(value)) < self.strDecimals and self.decimals() < self.strDecimals:
+                string = "{:.{dec}{numFormat}}".format(value, dec=int(abs(OoM(value)))+1+self.decimals(), numFormat=self.numFormat)
+            else:
+                string = "{:.{dec}{numFormat}}".format(value, dec=self.strDecimals, numFormat=self.numFormat)
         elif 'e' in self.numFormat:
-            string = "{:.{dec}{numFormat}}".format(value, dec=self.strDecimals, 
-                                                   numFormat=self.numFormat)
+            string = "{:.{dec}{numFormat}}".format(value, dec=self.strDecimals, numFormat=self.numFormat)
         string = re.sub("e(-?)0*(\d+)", r"e\1\2", string.replace("e+", "e"))
+
         return string
     
     def stepBy(self, steps):
@@ -154,20 +159,19 @@ class ScientificDoubleSpinBox(QtWidgets.QDoubleSpinBox):
             text = self.cleanText()
         
         old_val = float(text)
-        if self.numFormat == 'g' and OoM(old_val) <= self.strDecimals:    # my own custom g
-            val = old_val + self.singleStep()*steps
-            new_string = "{:.{dec}f}".format(val, dec=self.strDecimals)
+        if self.numFormat == 'g' and abs(OoM(old_val)) < self.strDecimals:    # my own custom g
+            val = old_val + self.singleIntStep*steps
         else:
             old_OoM = OoM(old_val)
-            val = old_val + np.power(10, old_OoM)*self.singleStep()*steps
+            val = old_val + np.power(10, old_OoM)*self.singleExpStep*steps
             new_OoM = OoM(val)
             if old_OoM > new_OoM:   # needed to step down by new amount 1E5 -> 9.9E6
-                val = old_val + np.power(10, new_OoM)*self.singleStep()*steps
-                
-            new_string = "{:.{dec}e}".format(val, dec=self.strDecimals)
+                if self.numFormat == 'g' and abs(new_OoM) < self.strDecimals:
+                    val = old_val + self.singleIntStep*steps
+                else:
+                    val = old_val + np.power(10, new_OoM)*self.singleExpStep*steps
 
-        self.lineEdit().setText(new_string)
-        self.setValue(float(new_string))
+        self.setValue(val)
 
         
 class SearchComboBox(QComboBox):

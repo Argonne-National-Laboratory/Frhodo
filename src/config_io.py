@@ -107,20 +107,35 @@ class GUI_Config(yaml.YAML):
                             },
                          'Optimization Settings': {
                             'time uncertainty': 0.0,
-                            'loss function scale': 'Linear',
+                            'objective function type': 'Residual',
+                            'objective function scale': 'Linear',
                             'loss function alpha': -2.00,
                             'loss function c': 1.00,
+                            'Bayesian distribution type': 'Automatic',
+                            'Bayesian uncertainty sigma': 2.0,
                             'multiprocessing': True,
-                            'enabled':                  {'global': True,                             'local': True},
-                            'algorithm':                {'global': 'CRS (Controlled Random Search)', 'local': 'Subplex'},
-                            'initial step':             {'global': 5.0E-2,                           'local': 1.0E-3},
-                            'relative x tolerance':     {'global': 1.0E-3,                           'local': 1.0E-4},
-                            'relative fcn tolerance':   {'global': 5.0E-2,                           'local': 1.0E-3},
+                            'enabled':                       {'global': True,                             'local': True},
+                            'algorithm':                     {'global': 'CRS (Controlled Random Search)', 'local': 'Subplex'},
+                            'initial step':                  {'global': 5.0E-2,                           'local': 1.0E-3},
+                            'stop criteria type':            {'global': 'Iteration Maximum',              'local': 'Iteration Maximum'},
+                            'stop criteria value':           {'global': 2500,                             'local': 2500},
+                            'relative x tolerance':          {'global': 1.0E-3,                           'local': 1.0E-4},
+                            'relative fcn tolerance':        {'global': 5.0E-2,                           'local': 1.0E-3},
+                            'initial population multiplier': {'global': 1.0},
                             'weight function': {
                                 'max': 100.0,
                                 'min': [0.0, 0.0],
                                 'time location': [4.5, 35.0],
                                 'inverse growth rate': [0, 0.7],
+                                },
+                            'uncertainty function': {
+                                'type': '%',
+                                'max': [5.0, 20.0],
+                                'min': 5.0,
+                                'time location': [4.5, 35.0],
+                                'inverse growth rate': [0, 0.7],
+                                'cutoff location': [0.0, 100],
+                                'shading': True,
                                 },
                             },
                          'Plot Settings': {
@@ -140,6 +155,10 @@ class GUI_Config(yaml.YAML):
         toFlowList = [['Optimization Settings', 'weight function', 'min'],
                       ['Optimization Settings', 'weight function', 'time location'],
                       ['Optimization Settings', 'weight function', 'inverse growth rate'],
+                      ['Optimization Settings', 'uncertainty function', 'max'],
+                      ['Optimization Settings', 'uncertainty function', 'time location'],
+                      ['Optimization Settings', 'uncertainty function', 'inverse growth rate'],
+                      ['Optimization Settings', 'uncertainty function', 'cutoff location'],
                      ]
         for FlowType, toFlow in {'Map': toFlowMap, 'List': toFlowList}.items():
             for keys in toFlow:
@@ -226,22 +245,29 @@ class GUI_settings:
 
         ## Set Optimization Settings ##
         parent.time_unc_box.setValue(settings['opt']['time uncertainty'])
-        parent.resid_scale_box.setCurrentIndex(parent.resid_scale_box.findText(settings['opt']['loss function scale']))
+        parent.obj_fcn_type_box.setCurrentIndex(parent.obj_fcn_type_box.findText(settings['opt']['objective function type']))
+        parent.obj_fcn_scale_box.setCurrentIndex(parent.obj_fcn_scale_box.findText(settings['opt']['objective function scale']))
         parent.loss_alpha_box.setValue(settings['opt']['loss function alpha'])
         parent.loss_c_box.setValue(settings['opt']['loss function c'])
+        parent.bayes_dist_type_box.setCurrentIndex(parent.bayes_dist_type_box.findText(settings['opt']['Bayesian distribution type']))
+        parent.bayes_unc_sigma_box.setValue(settings['opt']['Bayesian uncertainty sigma'])
         parent.multiprocessing_box.setChecked(settings['opt']['multiprocessing'])
         
         # Update Global and Local Settings
         for opt_type in ['global', 'local']:
+            widget = parent.optimization_settings.widgets[opt_type]
+
             if opt_type == 'global':
                 parent.global_opt_enable_box.setChecked(settings['opt']['enabled'][opt_type])
                 parent.global_opt_choice_box.setCurrentText(settings['opt']['algorithm'][opt_type])
+                widget['initial_pop_multiplier'].setValue(settings['opt']['initial population multiplier'][opt_type])
             else:
                 parent.local_opt_enable_box.setChecked(settings['opt']['enabled'][opt_type])
                 parent.local_opt_choice_box.setCurrentText(settings['opt']['algorithm'][opt_type])
                 
-            widget = parent.optimization_settings.widgets[opt_type]
             widget['initial_step'].setValue(settings['opt']['initial step'][opt_type])
+            widget['stop_criteria_type'].setCurrentText(settings['opt']['stop criteria type'][opt_type])
+            widget['stop_criteria_val'].setValue(settings['opt']['stop criteria value'][opt_type])
             widget['xtol_rel'].setValue(settings['opt']['relative x tolerance'][opt_type])
             widget['ftol_rel'].setValue(settings['opt']['relative fcn tolerance'][opt_type])
         
@@ -253,7 +279,19 @@ class GUI_settings:
         shock['weight_k'] = settings['opt']['weight function']['inverse growth rate']
 
         parent.weight.set_boxes()
-        
+
+        # Update uncertainty function
+        parent.unc_type_box.setCurrentText(settings['opt']['uncertainty function']['type'])
+        shock['unc_max'] = settings['opt']['uncertainty function']['max']
+        shock['unc_min'] = [settings['opt']['uncertainty function']['min']]
+        shock['unc_shift'] = settings['opt']['uncertainty function']['time location']
+        shock['unc_k'] = settings['opt']['uncertainty function']['inverse growth rate']
+        shock['unc_cutoff'] = settings['opt']['uncertainty function']['cutoff location']
+
+        parent.exp_unc.set_boxes()
+
+        parent.unc_shading_box.setChecked(settings['opt']['uncertainty function']['shading'])
+
         ## Set Plot Settings ##
         parent.plot.signal._set_scale('x', settings['plot']['x-scale'], parent.plot.signal.ax[1], True)
         parent.plot.signal._set_scale('y', settings['plot']['y-scale'], parent.plot.signal.ax[1], True)
@@ -299,22 +337,29 @@ class GUI_settings:
 
         ## Set Optimization Settings ##
         settings['opt']['time uncertainty'] = parent.time_unc_box.value()
-        settings['opt']['loss function scale'] = parent.resid_scale_box.currentText()
+        settings['opt']['objective function type'] = parent.obj_fcn_type_box.currentText()
+        settings['opt']['objective function scale'] = parent.obj_fcn_scale_box.currentText()
         settings['opt']['loss function alpha'] = parent.loss_alpha_box.value()
         settings['opt']['loss function c'] = parent.loss_c_box.value()
+        settings['opt']['Bayesian distribution type'] = parent.bayes_dist_type_box.currentText()
+        settings['opt']['Bayesian uncertainty sigma'] = parent.bayes_unc_sigma_box.value()
         settings['opt']['multiprocessing'] = parent.multiprocessing_box.isChecked()
-        
+
         # Update Global and Local Settings
         for opt_type in ['global', 'local']:
+            widget = parent.optimization_settings.widgets[opt_type]
+
             if opt_type == 'global':
                 settings['opt']['enabled'][opt_type] = parent.global_opt_enable_box.isChecked()
                 settings['opt']['algorithm'][opt_type] = parent.global_opt_choice_box.currentText()
+                settings['opt']['initial population multiplier'][opt_type] = widget['initial_pop_multiplier'].value()
             else:
                 settings['opt']['enabled'][opt_type] = parent.local_opt_enable_box.isChecked()
                 settings['opt']['algorithm'][opt_type] = parent.local_opt_choice_box.currentText()
                 
-            widget = parent.optimization_settings.widgets[opt_type]
             settings['opt']['initial step'][opt_type] = widget['initial_step'].value()
+            settings['opt']['stop criteria type'][opt_type] = widget['stop_criteria_type'].currentText()
+            settings['opt']['stop criteria value'][opt_type] = widget['stop_criteria_val'].value()
             settings['opt']['relative x tolerance'][opt_type] = widget['xtol_rel'].value()
             settings['opt']['relative fcn tolerance'][opt_type] = widget['ftol_rel'].value()
         
@@ -325,6 +370,15 @@ class GUI_settings:
         settings['opt']['weight function']['time location'] = shock['weight_shift']
         settings['opt']['weight function']['inverse growth rate'] = shock['weight_k']
         
+        # Update uncertainty function
+        settings['opt']['uncertainty function']['type'] = parent.unc_type_box.currentText()
+        settings['opt']['uncertainty function']['max'] = shock['unc_max']
+        settings['opt']['uncertainty function']['min'] = shock['unc_min'][0]
+        settings['opt']['uncertainty function']['time location'] = shock['unc_shift']
+        settings['opt']['uncertainty function']['inverse growth rate'] = shock['unc_k']
+        settings['opt']['uncertainty function']['cutoff location'] = shock['unc_cutoff']
+        settings['opt']['uncertainty function']['shading'] = parent.unc_shading_box.isChecked()
+
         ## Set Plot Settings ##
         settings['plot']['x-scale'] = parent.plot.signal.ax[1].get_xscale()
         settings['plot']['y-scale'] = parent.plot.signal.ax[1].get_yscale()

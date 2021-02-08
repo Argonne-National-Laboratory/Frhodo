@@ -11,6 +11,12 @@ conv2ct = {'Torr': 101325/760, 'kPa': 1E3, 'atm': 101325, 'bar': 100000,
            'ft/s': 1/3.28084, 'in/s': 1/39.37007874, 'mph': 1609.344/60**2,
            'kcal': 1/4184, 'cal': 1/4.184}
 
+def OoM(x):
+    if not isinstance(x, np.ndarray):
+        x = np.array(x)
+    x[x==0] = 1                       # if zero, make OoM 0
+    return np.floor(np.log10(np.abs(x)))
+
 class Convert_Units:
     def __init__(self, parent):
         self.parent = parent

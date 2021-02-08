@@ -48,6 +48,8 @@ class Base_Plot(QtCore.QObject):
         
         # AutoScale
         self.autoScale = [True, True]
+
+        self.i = 0
         
         # Connect Signals
         self._draw_event_signal = self.canvas.mpl_connect('draw_event', self._draw_event)
@@ -153,7 +155,7 @@ class Base_Plot(QtCore.QObject):
         if ylim != axes.get_ylim():   # if ylim changes, update
             axes.set_ylim(ylim)
     
-    def update_xylim(self, axes, xlim=[], ylim=[]):
+    def update_xylim(self, axes, xlim=[], ylim=[], force_redraw=True):
         data = self._get_data(axes)         
 
         # on creation, there is no data, don't update
@@ -182,7 +184,8 @@ class Base_Plot(QtCore.QObject):
                           xycoords='axes fraction')
             '''
         
-        self._draw_event()  # force a draw
+        if force_redraw:
+            self._draw_event()  # force a draw
     
     def _get_data(self, axes):      # NOT Generic
         # get experimental data for axes
@@ -198,9 +201,9 @@ class Base_Plot(QtCore.QObject):
                 if axes.item['sim_data'].raw_data.size > 0:
                     data['x'] = np.append(data['x'], axes.item['sim_data'].raw_data[:,0])
         
-        elif 'weight' in axes.item:
-            data['x'] = axes.item['weight'].get_xdata()
-            data['y'] = axes.item['weight'].get_ydata()
+        elif 'weight_unc_fcn' in axes.item:
+            data['x'] = axes.item['weight_unc_fcn'].get_xdata()
+            data['y'] = axes.item['weight_unc_fcn'].get_ydata()
         
         elif any(key in axes.item for key in ['density', 'qq_data', 'sim_data']):
             name = np.intersect1d(['density', 'qq_data'], list(axes.item.keys()))[0]
@@ -296,6 +299,8 @@ class Base_Plot(QtCore.QObject):
  
     def _animate_items(self, bool=True):
         for axis in self.ax:
+            axis.xaxis.set_animated(bool)
+            axis.yaxis.set_animated(bool)
             if axis.get_legend() is not None:
                 axis.get_legend().set_animated(bool)
             
@@ -312,6 +317,8 @@ class Base_Plot(QtCore.QObject):
     def _draw_items_artist(self):
         self.canvas.restore_region(self.background_data)           
         for axis in self.ax:
+            axis.draw_artist(axis.xaxis)
+            axis.draw_artist(axis.yaxis)
             for item in axis.item.values():
                 if isinstance(item, list):
                     for subItem in item:
