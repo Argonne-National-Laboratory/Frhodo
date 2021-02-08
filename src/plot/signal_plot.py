@@ -8,18 +8,13 @@ import matplotlib as mpl
 import numpy as np
 from scipy import stats
 
+from convert_units import OoM
 from plot.base_plot import Base_Plot
 from plot.draggable import Draggable
 
 
 def shape_data(x, y): 
     return np.transpose(np.vstack((x, y)))
-
-def OoM(x):
-    if not isinstance(x, np.ndarray):
-        x = np.array(x)
-    x[x==0] = 1                       # if zero, make OoM 0
-    return np.floor(np.log10(np.abs(x)))
 
 class Plot(Base_Plot):
     def __init__(self, parent, widget, mpl_layout):
@@ -461,10 +456,11 @@ class Plot(Base_Plot):
         for i in range(0,2):
                 self.ax[1].item['cutoff_line'][i].set_xdata(unc_cutoff[i])
     
-    def enable_unc_shading(self, show_unc_shading):
-        self.show_unc_shading = show_unc_shading
+    def set_unc_shading(self, show_unc_shading=True):
+        parent = self.parent
+        obj_fcn_type = parent.obj_fcn_type_box.currentText()
 
-        if show_unc_shading:
+        if show_unc_shading and obj_fcn_type == 'Bayesian':
              self.update_uncertainty_shading()
         else:
             verts = self.ax[1].item['unc_shading'].empty_verts
@@ -508,6 +504,7 @@ class Plot(Base_Plot):
         else:
             self.ax[0].item['title'].set_text('Uncertainty')   # set title
         
+        self.set_unc_shading()
         self.update()
         self._draw_items_artist()
 

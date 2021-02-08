@@ -10,6 +10,7 @@ from scipy import stats
 from copy import deepcopy
 
 import mech_fcns
+from convert_units import OoM
 from optimize.fit_coeffs import fit_coeffs
 from optimize.CheKiPEUQ_from_Frhodo import CheKiPEUQ_Frhodo_interface
 
@@ -220,12 +221,6 @@ def calculate_residuals(args_list):
         bw = 0.9*A*len(data)**(-1./(dim+4))
 
         return stats.gaussian_kde(data, bw_method=bw)(x)
-        
-    def OoM(x):
-        if not isinstance(x, np.ndarray):
-            x = np.array(x)
-        x[x==0] = 1                       # if zero, make OoM 0
-        return np.floor(np.log10(np.abs(x)))
                                                                                                                                                                                                                                                                                                 
     var, coef_opt, x, shock = args_list
     mech = mpMech['obj']

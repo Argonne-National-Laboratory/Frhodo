@@ -11,6 +11,7 @@ from qtpy.QtWidgets import *
 from qtpy import QtWidgets, QtGui, QtCore
 from copy import deepcopy
 
+from convert_units import OoM
 from settings import double_sigmoid
 
 class Initialize(QtCore.QObject):
@@ -868,7 +869,8 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
             self.switch_unc_type()
 
         if sender is parent.unc_shading_box:
-            parent.plot.signal.enable_unc_shading(parent.unc_shading_box.isChecked())
+            parent.plot.signal.show_unc_shading = parent.unc_shading_box.isChecked()
+            parent.plot.signal.set_unc_shading(parent.plot.signal.show_unc_shading)
 
         if sender in self.boxes['unc_cutoff']:
             self.boxes['unc_cutoff'][0].setMaximum(self.boxes['unc_cutoff'][1].value())
@@ -885,6 +887,13 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
         parent = self.parent()
         shock = parent.display_shock
         
+        # for loading, if a sim hasn't been run
+        if not hasattr(parent.SIM, 'independent_var') and parent.unc_type_box.currentText() != '%':
+           self.unc_type = parent.unc_type_box.currentText()
+           for box in [*self.boxes['unc_max'], *self.boxes['unc_min']]:
+                box.setSuffix('')
+           return
+
         t = parent.SIM.independent_var
         sim_obs = parent.SIM.observable
         old_unc = parent.series.uncertainties(t)
@@ -925,25 +934,22 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
             res = minimize(zero, x0, bounds=bnds)
             new_vals = {'unc_min': [res.x[1]], 'unc_max': [res.x[0], res.x[2]],
                         'unc_k': res.x[3:5]/t_conv, 'unc_shift': (res.x[5:7] - t0)*100/(tf-t0)}
-        
+
+            newSingleIntStep = 10**(OoM(np.min(res.x[0:3])))
+
         for j, col in enumerate(['start', 'end']):
             for row in new_vals.keys():
                 if len(self.boxes[row]) <= j: continue
                 box = self.boxes[row][j]
                 if self.unc_type == '%':
                     box.setSingleIntStep(self.prop[col][row]['singleStep'])
-                    box.setStrDecimals(self.prop[col][row]['decimals'])
                     if 'suffix' in self.prop[col][row]:
                         box.setSuffix(self.prop[col][row]['suffix'])
-                    if 'maximum' in self.prop[col][row]:
-                        box.setMaximum(self.prop[col][row]['maximum'])
                 else:
                     if row in ['unc_min', 'unc_max']:
-                        box.setSingleIntStep(0.1)
+                        box.setSingleIntStep(newSingleIntStep)
                         if 'suffix' in self.prop[col][row]:
                             box.setSuffix('')
-                        if 'maximum' in self.prop[col][row]:
-                            box.setMaximum(sys.float_info.max)
                     
                 box.blockSignals(True)
                 box.setValue(new_vals[row][j])

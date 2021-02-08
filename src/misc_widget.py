@@ -6,13 +6,7 @@ import re, sys
 import numpy as np
 from qtpy.QtWidgets import *
 from qtpy import QtWidgets, QtGui, QtCore
-        
-def OoM(x):
-    x = np.copy(x)
-    if not isinstance(x, np.ndarray):
-        x = np.array(x)
-    x[x==0] = 1                       # if zero, make OoM 0
-    return np.floor(np.log10(np.abs(x)))
+from convert_units import OoM
     
 # Regular expression to find floats. Match groups are the whole string, the
 # whole coefficient, the decimal part of the coefficient, and the exponent

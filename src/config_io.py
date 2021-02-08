@@ -129,6 +129,7 @@ class GUI_Config(yaml.YAML):
                                 'inverse growth rate': [0, 0.7],
                                 },
                             'uncertainty function': {
+                                'type': '%',
                                 'max': [5.0, 20.0],
                                 'min': 5.0,
                                 'time location': [4.5, 35.0],
@@ -280,6 +281,7 @@ class GUI_settings:
         parent.weight.set_boxes()
 
         # Update uncertainty function
+        parent.unc_type_box.setCurrentText(settings['opt']['uncertainty function']['type'])
         shock['unc_max'] = settings['opt']['uncertainty function']['max']
         shock['unc_min'] = [settings['opt']['uncertainty function']['min']]
         shock['unc_shift'] = settings['opt']['uncertainty function']['time location']
@@ -369,6 +371,7 @@ class GUI_settings:
         settings['opt']['weight function']['inverse growth rate'] = shock['weight_k']
         
         # Update uncertainty function
+        settings['opt']['uncertainty function']['type'] = parent.unc_type_box.currentText()
         settings['opt']['uncertainty function']['max'] = shock['unc_max']
         settings['opt']['uncertainty function']['min'] = shock['unc_min'][0]
         settings['opt']['uncertainty function']['time location'] = shock['unc_shift']
