@@ -260,6 +260,8 @@ class Chemical_Mechanism:
                 
                 rate_bnds.append({'value': np.nan, 'limits': None, 'type': 'F', 'opt': False})
                 rate_bnds[-1]['limits'] = Uncertainty('rate', rxnNum, rate_bnds=rate_bnds)
+            #elif hasattr(rxn, 'rates'):
+            #    print(rxn.rates[0])
             else:
                 coeffs.append({})
                 coeffs_bnds.append({})

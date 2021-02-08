@@ -181,6 +181,8 @@ class Multithread_Optimize:
             else:
                 rxn_coef_opt[-1]['coefIdx'].append(coef['coefIdx'])
                 rxn_coef_opt[-1]['coefName'].append(coef['coefName'])
+        
+        print(rxn_coef_opt)
 
         T_bnds = np.array([np.min(shock_conditions['T_reactor']), np.max(shock_conditions['T_reactor'])])
         if T_bnds[1] - T_bnds[0] < min_T_range:  # if T_range isn't large enough increase it

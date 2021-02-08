@@ -83,12 +83,12 @@ class Plot(Base_Plot):
         x0, xpress, xnew, xpressnew = x['0'], x['press'], x['new'], x['press_new']
         y0, ypress, ynew, ypressnew = y['0'], y['press'], y['new'], y['press_new']
         
-        if name is 'start_divider':
+        if name == 'start_divider':
             self.start_ind = np.argmin(np.abs(self.t - xnew))
             if self.start_ind < 3:
                 self.start_ind = 3
             
-        elif name is 'end_divider':
+        elif name == 'end_divider':
             self.end_ind = np.argmin(np.abs(self.t - xnew))
 
         self.update(estimate_ind=False)

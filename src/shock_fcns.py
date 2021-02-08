@@ -323,7 +323,7 @@ class Properties():
         
         zero = []
         for var, val in zip(vars['known'], knownVals):
-            if var is not 'T1':
+            if var != 'T1':
                 zero.append(shockVarDict[var] - val)
         
         return zero
@@ -337,7 +337,7 @@ class Properties():
         P1 = zone[1]['P'] = shockVarDict['P1']
         self._set_gas(zone[1]['T'], zone[1]['P'], zone[1]['X'])
         h1 = self.gas.enthalpy_mass
-        if type is 'jac':
+        if type == 'jac':
             cp1 = self.gas.cp_mass
         zone[1]['rho'] = self.gas.density
         v1 = 1/zone[1]['rho']
@@ -346,7 +346,7 @@ class Properties():
         P2 = zone[2]['P'] = shockVarDict['P2']
         self._set_gas(zone[2]['T'], zone[2]['P'], zone[2]['X'])
         h2 = self.gas.enthalpy_mass
-        if type is 'jac':
+        if type == 'jac':
             cp2 = self.gas.cp_mass
         zone[2]['rho'] = self.gas.density
         v2 = 1/zone[2]['rho']
@@ -356,7 +356,7 @@ class Properties():
         P5 = zone[5]['P'] = shockVarDict['P5']
         self._set_gas(zone[5]['T'], zone[5]['P'], zone[5]['X'])
         h5 = self.gas.enthalpy_mass
-        if type is 'jac':
+        if type == 'jac':
             cp5 = self.gas.cp_mass
         zone[5]['rho'] = self.gas.density
         v5 = 1/zone[5]['rho']
@@ -367,7 +367,7 @@ class Properties():
         u1_m_u2 = (u1-u2)
         u1_m_u2_s = u1_m_u2**2
         
-        if type is 'fcn':
+        if type == 'fcn':
             v2_v1 = v2/v1
             v2s_v1s = v2_v1**2
             
@@ -376,7 +376,7 @@ class Properties():
                     (P5/P2-1) + (u1_m_u2_s/(P2*(v5-v2))),          # Conservation of Momentum, ref shock
                     ((h5-h2)/(0.5*u1_m_u2_s)) + ((v5+v2)/(v5-v2))] # Conservation of Energy, ref shock
         
-        elif type is 'jac':
+        elif type == 'jac':
             R = Ru/self.gas.mean_molecular_weight   # Since we're assuming frozen chemistry, it doesn't change
             a = P2*T5 - T2*P5
             for i, var in enumerate(vars['unknown']):   # Sets partials in jacobian according to unknowns

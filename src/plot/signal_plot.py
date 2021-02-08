@@ -456,21 +456,11 @@ class Plot(Base_Plot):
         for i in range(0,2):
                 self.ax[1].item['cutoff_line'][i].set_xdata(unc_cutoff[i])
     
-    def set_unc_shading(self, show_unc_shading=True):
+    def update_uncertainty_shading(self):
         parent = self.parent
         obj_fcn_type = parent.obj_fcn_type_box.currentText()
 
-        if show_unc_shading and obj_fcn_type == 'Bayesian':
-             self.update_uncertainty_shading()
-        else:
-            verts = self.ax[1].item['unc_shading'].empty_verts
-            codes = self.ax[1].item['unc_shading'].empty_codes
-            self.ax[1].item['unc_shading'].set_verts_and_codes(verts, codes)
-
-    def update_uncertainty_shading(self):
-        parent = self.parent
-
-        if self.show_unc_shading:
+        if self.show_unc_shading and obj_fcn_type == 'Bayesian':
             t = self.ax[1].item['sim_data'].get_xdata()
             obs_sim = self.ax[1].item['sim_data'].get_ydata()
             unc = parent.series.uncertainties(t)
@@ -484,8 +474,11 @@ class Plot(Base_Plot):
             verts = [path._vertices for path in dummy.get_paths()]
             codes = [path._codes for path in dummy.get_paths()]
             dummy.remove()
+        else:
+            verts = self.ax[1].item['unc_shading'].empty_verts
+            codes = self.ax[1].item['unc_shading'].empty_codes
 
-            self.ax[1].item['unc_shading'].set_verts_and_codes(verts, codes)
+        self.ax[1].item['unc_shading'].set_verts_and_codes(verts, codes)
 
     def switch_weight_unc_plot(self):
         parent = self.parent
@@ -504,7 +497,7 @@ class Plot(Base_Plot):
         else:
             self.ax[0].item['title'].set_text('Uncertainty')   # set title
         
-        self.set_unc_shading()
+        self.update_uncertainty_shading()
         self.update()
         self._draw_items_artist()
 

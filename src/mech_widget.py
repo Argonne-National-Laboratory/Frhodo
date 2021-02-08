@@ -198,7 +198,7 @@ class Tree(QtCore.QObject):
         # clear rows of qstandarditem (L1)
         L1.removeRows(0, L1.rowCount())
 
-        if rxn['type'] == 'Arrhenius':
+        if rxn['type'] in 'Arrhenius':
             widget = set_rate_widget(unc={'type': parent.mech.rate_bnds[rxnNum]['type'],
                                           'value': parent.mech.rate_bnds[rxnNum]['value']})
             widget.uncValBox.valueChanged.connect(self.update_uncertainties)       # no update between F and %
@@ -244,6 +244,15 @@ class Tree(QtCore.QObject):
                 L1.appendRow([L1.info['row'][-1]['item']])
                 mIndex = self.proxy_model.mapFromSource(L1.info['row'][-1]['item'].index())
                 tree.setIndexWidget(mIndex, L1.info['row'][-1]['widget'])
+        
+        elif rxn['type'] in ['Plog Reaction', 'Falloff Reaction']:
+            widget = set_rate_widget(unc={'type': parent.mech.rate_bnds[rxnNum]['type'],
+                                          'value': parent.mech.rate_bnds[rxnNum]['value']})
+            widget.uncValBox.valueChanged.connect(self.update_uncertainties)       # no update between F and %
+
+            tree.rxn[rxnNum].update({'coef': rxn['coeffs'], 'rateBox': widget.valueBox, 
+                                     'formulaBox': [None], 'valueBox': [None], 
+                                     'uncBox': [widget.uncValBox]})
 
         else:   # if not Arrhenius, show rate only
             widget = set_rate_widget()
@@ -412,7 +421,7 @@ class Tree(QtCore.QObject):
         
         for rxnNum in rxnNumRange:  # update all rate uncertainties
             rxn = parent.mech_tree.rxn[rxnNum]
-            if 'Arrhenius' not in rxn['rxnType']:   # skip if not Arrhenius
+            if rxn['rxnType'] not in ['Arrhenius', 'Plog Reaction', 'Falloff Reaction']:   # skip if not allowable type
                 mech.rate_bnds[rxnNum]['opt'] = False
                 continue
             if 'uncBox' not in rxn:
@@ -545,7 +554,7 @@ class Tree(QtCore.QObject):
                 sender.info['hasExpanded'] = True
                 self._set_mech_widgets(sender)
         
-            if 'Arrhenius' in sender.info['rxnType']:
+            if sender.info['rxnType'] in ['Arrhenius', 'Plog Reaction', 'Falloff Reaction']:
                 for box in parent.mech_tree.rxn[rxnNum]['uncBox']:
                     # box.blockSignals(True)
                     box.setValue(-1)
@@ -597,7 +606,7 @@ class Tree(QtCore.QObject):
         self.run_sim_on_change = False
         mech = parent.mech
         for rxn in parent.mech_tree.rxn:
-            if ('Arrhenius' not in rxn['rxnType'] 
+            if (rxn['rxnType'] not in ['Arrhenius', 'Plog Reaction', 'Falloff Reaction']
                 or 'valueBox' not in rxn): continue # only reset Arrhenius boxes
 
             for spinbox in rxn['valueBox']:

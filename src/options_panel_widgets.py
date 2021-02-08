@@ -870,7 +870,7 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
 
         if sender is parent.unc_shading_box:
             parent.plot.signal.show_unc_shading = parent.unc_shading_box.isChecked()
-            parent.plot.signal.set_unc_shading(parent.plot.signal.show_unc_shading)
+            parent.plot.signal.update_uncertainty_shading()
 
         if sender in self.boxes['unc_cutoff']:
             self.boxes['unc_cutoff'][0].setMaximum(self.boxes['unc_cutoff'][1].value())
@@ -954,8 +954,8 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
                 box.blockSignals(True)
                 box.setValue(new_vals[row][j])
                 box.blockSignals(False)
-              
-        box.setValue(new_vals[row][j])
+        
+        box.valueChanged.emit(box.value())
 
          
 class Tables_Tab(QtCore.QObject):
