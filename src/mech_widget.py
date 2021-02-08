@@ -861,7 +861,7 @@ class rxnRate(QWidget):
         layout.addItem(spacer, 0, 1)
         layout.addWidget(self.valueBox, 0, 2)
         
-        if 'Arrhenius' in rxnType:
+        if rxnType in ['Arrhenius', 'Plog Reaction', 'Falloff Reaction']:
             info['mainValueBox'] = self.valueBox
 
             if 'unc_value' in kwargs and 'unc_type' in kwargs:
