@@ -1,3 +1,4 @@
+***** clicking arrows on shock increments by 2 sometimes
 ***** see Engines
 ***** Address mplcairo for non windows systems
 ***** see Recast Reaction Rate Eqns

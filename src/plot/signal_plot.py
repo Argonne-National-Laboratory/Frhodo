@@ -8,7 +8,7 @@ import matplotlib as mpl
 import numpy as np
 from scipy import stats
 
-from convert_units import OoM
+from calculate.convert_units import OoM
 from plot.base_plot import Base_Plot
 from plot.draggable import Draggable
 
@@ -20,12 +20,28 @@ class Plot(Base_Plot):
     def __init__(self, parent, widget, mpl_layout):
         super().__init__(parent, widget, mpl_layout)
 
-        self.show_unc_shading = False
+        self.unc_shading = 'Simulation'
+        self.wavelet_levels = 4 # used for smoothing experimental signal with wavelet filter
 
         # Connect Signals
         self.canvas.mpl_connect('resize_event', self._resize_event)
         parent.num_sim_lines_box.valueChanged.connect(self.set_history_lines)
+        parent.plot_tab_widget.currentChanged.connect(self.tab_changed)
     
+    def tab_changed(self, idx): # Run simulation is tab changed to Sim Explorer
+        if self.parent.plot_tab_widget.tabText(idx) == 'Signal/Sim':
+            self._draw_event()
+    
+    def _draw_items_artist(self):   # only draw if tab is open
+        idx = self.parent.plot_tab_widget.currentIndex()
+        if self.parent.plot_tab_widget.tabText(idx) == 'Signal/Sim':
+            super()._draw_items_artist()
+
+    def _draw_event(self, event=None):   # only draw if tab is open
+        idx = self.parent.plot_tab_widget.currentIndex()
+        if self.parent.plot_tab_widget.tabText(idx) == 'Signal/Sim':
+            super()._draw_event(event)
+
     def info_table_text(self):
         parent = self.parent
         # TODO: Fix variables when implementing zone 2 and 5 option
@@ -92,14 +108,12 @@ class Plot(Base_Plot):
         ## Set lower plots ##
         self.ax.append(self.fig.add_subplot(4,1,(2,4), sharex = self.ax[0]))
         self.ax[1].item = {}
+        init_array = [0, 1]
+        self.ax[1].item['unc_shading'] = self.ax[1].fill_between(init_array, init_array, init_array, 
+                                                                 color='#0C94FC', alpha=0.2, linewidth=0, zorder=0)
         self.ax[1].item['exp_data'] = self.ax[1].scatter([],[], color='0', facecolors='0',
             linewidth=0.5, alpha = 0.85, zorder=2)
         self.ax[1].item['sim_data'] = self.ax[1].add_line(mpl.lines.Line2D([],[], c='#0C94FC', zorder=4))
-        nan_array = [np.nan, np.nan]
-        self.ax[1].item['unc_shading'] = self.ax[1].fill_between(nan_array, nan_array, nan_array, 
-                                                                 color='#0C94FC', alpha=0.2, linewidth=0, zorder=0)
-        self.ax[1].item['unc_shading'].empty_verts = [path._vertices for path in self.ax[1].item['unc_shading'].get_paths()]
-        self.ax[1].item['unc_shading'].empty_codes = [path._codes for path in self.ax[1].item['unc_shading'].get_paths()]
         self.ax[1].item['history_data'] = []
         self.ax[1].item['cutoff_line'] = [self.ax[1].axvline(x=np.nan, ls='--', c='#BF0000', zorder=5), 
                                           self.ax[1].axvline(x=np.nan, ls='--', c='#BF0000', zorder=5)]
@@ -122,6 +136,7 @@ class Plot(Base_Plot):
         # Create canvas from Base
         super().create_canvas()
         self._set_scale('y', 'abslog', self.ax[1])  # set Signal/SIM y axis to abslog
+        self.ax[0].animateAxisLabels = True # set weight/unc plot to have animated axis labels
         
         # Add draggable lines
         draggable_items = [[0, 'weight_shift'], [0, 'weight_k'], [0, 'weight_extrema'],
@@ -460,25 +475,58 @@ class Plot(Base_Plot):
         parent = self.parent
         obj_fcn_type = parent.obj_fcn_type_box.currentText()
 
-        if self.show_unc_shading and obj_fcn_type == 'Bayesian':
+        len_exp_data = len(parent.display_shock['exp_data'])
+
+        # if any of these occur, remove shading and do not continue
+        if self.unc_shading == 'None' or obj_fcn_type != 'Bayesian' or len_exp_data == 0:
+            self.ax[1].item['unc_shading'].set_visible(False)
+            return
+        
+        smoothed_signal_shading = False
+        if self.unc_shading == 'Smoothed Signal':
+            try:
+                parent.series.set('exp_data_smoothed')
+                smoothed_signal_shading = True
+            except:
+                pass
+
+            if len(parent.display_shock['exp_data_smoothed']) == 0:
+                smoothed_signal_shading = False
+        
+        if smoothed_signal_shading:
+            t = parent.display_shock['exp_data_smoothed'][:,0]
+            if len(t) == 0 or np.isnan(t).any():
+                self.ax[1].item['unc_shading'].set_visible(False)
+                return
+
+            center = parent.display_shock['exp_data_smoothed'][:,1]
+            unc = parent.series.uncertainties(t)
+        else:
             t = self.ax[1].item['sim_data'].get_xdata()
-            obs_sim = self.ax[1].item['sim_data'].get_ydata()
+            if len(t) == 0 or np.isnan(t).any():
+                self.ax[1].item['unc_shading'].set_visible(False)
+                return
+            
+            center = self.ax[1].item['sim_data'].get_ydata()
             unc = parent.series.uncertainties(t)
 
-            if self.parent.exp_unc.unc_type == '%':
-                abs_unc = [obs_sim/(1+unc), obs_sim*(1+unc)]
-            else:
-                abs_unc = [obs_sim - unc, obs_sim + unc]
-
-            dummy = self.ax[1].fill_between(t, abs_unc[0], abs_unc[1])
-            verts = [path._vertices for path in dummy.get_paths()]
-            codes = [path._codes for path in dummy.get_paths()]
-            dummy.remove()
+        if self.parent.exp_unc.unc_type == '%':
+            abs_unc = [center/(1+unc), center*(1+unc)]
         else:
-            verts = self.ax[1].item['unc_shading'].empty_verts
-            codes = self.ax[1].item['unc_shading'].empty_codes
+            abs_unc = [center - unc, center + unc]
 
-        self.ax[1].item['unc_shading'].set_verts_and_codes(verts, codes)
+        # # this is causing a disappearing unc shading if a bad experiment is selected. Not sure why
+        #dummy = self.ax[1].fill_between(t, abs_unc[0], abs_unc[1])
+        #verts = [path._vertices for path in dummy.get_paths()]
+        #codes = [path._codes for path in dummy.get_paths()]
+        #dummy.remove()
+
+        #self.ax[1].item['unc_shading'].set_verts_and_codes(verts, codes)
+        #self.ax[1].item['unc_shading'].set_visible(True)
+
+        self.ax[1].item['unc_shading'].remove()
+        self.ax[1].item['unc_shading'] = self.ax[1].fill_between(t, abs_unc[0], abs_unc[1], 
+                                                                 color='#0C94FC', alpha=0.2, linewidth=0, zorder=0)
 
     def switch_weight_unc_plot(self):
         parent = self.parent
@@ -533,7 +581,8 @@ class Plot(Base_Plot):
         self.ax[1].item['sim_data'].set_xdata(t + time_offset)
         self.ax[1].item['sim_data'].set_ydata(observable)
         
-        self.update_uncertainty_shading()
+        if self.unc_shading == 'Simulation':
+            self.update_uncertainty_shading()
 
         if exp_data.size == 0 and not np.isnan(t).any(): # if exp data doesn't exist rescale
             self.set_xlim(self.ax[1], [t[0], t[-1]])

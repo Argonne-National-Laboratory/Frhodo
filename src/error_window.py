@@ -14,7 +14,7 @@ from qtpy import uic, QtCore, QtGui
 path = {}
 
 class Error_Window(QDialog):
-    def __init__(self, path, error_text):
+    def __init__(self, app, path, error_text):
         super().__init__()
         uic.loadUi(str(path['main']/'UI'/'error_window.ui'), self)
         self.setWindowIcon(QtGui.QIcon(str(path['main']/'UI'/'graphics'/'main_icon.png')))
@@ -28,6 +28,8 @@ class Error_Window(QDialog):
         self.close_button.clicked.connect(self.closeEvent)
         self.installEventFilter(self)
         
+        self.app = app
+
         self.exec_()
     
     def copy(self):
@@ -49,10 +51,11 @@ class Error_Window(QDialog):
                     
         return super().eventFilter(obj, event)
     
-    def closeEvent(self, event):
-        QApplication.quit() # some errors can be recovered from, maybe I shouldn't autoclose the program
+    def closeEvent(self, event):    # TODO: Not closing the program properly
+        #QApplication.quit() # some errors can be recovered from, maybe I shouldn't autoclose the program
+        self.app.quit() # some errors can be recovered from, maybe I shouldn't autoclose the program
 
-def excepthookDecorator(parent_path, shut_down):
+def excepthookDecorator(app, parent_path, shut_down):
     path = parent_path
     
     def excepthook(type, value, tback):
@@ -78,6 +81,6 @@ def excepthookDecorator(parent_path, shut_down):
         # call the default handler
         sys.__excepthook__(type, value, tback)
         
-        Error_Window(path, text)    
+        Error_Window(app, path, text)    
         
     return excepthook

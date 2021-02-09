@@ -6,7 +6,7 @@ import re, sys
 import numpy as np
 from qtpy.QtWidgets import *
 from qtpy import QtWidgets, QtGui, QtCore
-from convert_units import OoM
+from calculate.convert_units import OoM
     
 # Regular expression to find floats. Match groups are the whole string, the
 # whole coefficient, the decimal part of the coefficient, and the exponent

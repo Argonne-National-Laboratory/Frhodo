@@ -5,9 +5,8 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level 
 # directory for license and copyright information.
 
-version = '1.2.6'
-
-import os, sys, platform, multiprocessing, pathlib
+version = '1.3.0'
+import os, sys, platform, multiprocessing, pathlib, ctypes
 # os.environ['QT_API'] = 'pyside2'        # forces pyside2
 
 from qtpy.QtWidgets import QMainWindow, QApplication, QMessageBox
@@ -18,8 +17,9 @@ import numpy as np
 
 from plot.plot_main import All_Plots as plot
 from misc_widget import MessageWindow
-import appdirs, options_panel_widgets, convert_units, sim_explorer_widget
-import mech_fcns, settings, config_io, save_widget, error_window, help_menu
+from calculate import mech_fcns, reactors, convert_units
+import appdirs, options_panel_widgets, sim_explorer_widget
+import settings, config_io, save_widget, error_window, help_menu
     
 if os.environ['QT_API'] == 'pyside2': # Silence warning: "Qt WebEngine seems to be initialized from a plugin."
     QApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
@@ -40,7 +40,7 @@ path['appdata'].mkdir(parents=True, exist_ok=True) # Make path if it doesn't exi
 shut_down = {'bool': False}
 
 class Main(QMainWindow):
-    def __init__(self, path, app):
+    def __init__(self, app, path):
         super().__init__()
         self.app = app
         self.path_set = settings.Path(self, path)
@@ -60,7 +60,7 @@ class Main(QMainWindow):
         self.clipboard = QApplication.clipboard()
         
         self.var = {'reactor': {'t_unit_conv': 1}}
-        self.SIM = mech_fcns.Simulation_Result()
+        self.SIM = reactors.Simulation_Result()
         self.mech_loaded = False
         self.run_block = True
         self.convert_units = convert_units.Convert_Units(self)
@@ -118,7 +118,7 @@ class Main(QMainWindow):
                 line = f.readline()
                 if '!' in line[0:2]:
                     continue
-                if 'thermo' in line.split('!')[0].strip().lower():
+                if 'ther' in line.split('!')[0].strip().lower():
                     return True
                 
                 if not line:
@@ -137,14 +137,21 @@ class Main(QMainWindow):
         
         # Check use thermo box viability
         if mechhasthermo(self.path['mech']):
-            self.use_thermo_file_box.setEnabled(True)
+            if self.thermo_select_comboBox.count() == 0:
+                self.use_thermo_file_box.setDisabled(True) # disable checkbox if no thermo in mech file
+            else:
+                self.use_thermo_file_box.setEnabled(True)
             # Autoselect checkbox off if thermo exists in mech
-            if self.sender() is None or 'use_thermo_file_box' not in self.sender().objectName(): 
-                self.use_thermo_file_box.setChecked(False)      
+            if self.sender() is None or 'use_thermo_file_box' not in self.sender().objectName():
+                self.use_thermo_file_box.blockSignals(True)           # stop set from sending signal, causing double load
+                self.use_thermo_file_box.setChecked(False)    
+                self.use_thermo_file_box.blockSignals(False)          # allow signals again
         else:
+            self.use_thermo_file_box.blockSignals(True)           # stop set from sending signal, causing double load
             self.use_thermo_file_box.setChecked(True)
+            self.use_thermo_file_box.blockSignals(False)          # allow signals again
             self.use_thermo_file_box.setDisabled(True) # disable checkbox if no thermo in mech file
-        
+
         # Enable thermo select based on use_thermo_file_box
         if self.use_thermo_file_box.isChecked():
             self.thermo_select_comboBox.setEnabled(True)
@@ -288,9 +295,12 @@ if __name__ == '__main__':
     if platform.system() == 'Windows':  # this is required for pyinstaller on windows
         multiprocessing.freeze_support()
 
-    sys.excepthook = error_window.excepthookDecorator(path, shut_down)
+        if getattr(sys, 'frozen', False):   # if frozen minimize console immediately
+            ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
     
     app = QApplication(sys.argv)
-    main = Main(path, app)
+    sys.excepthook = error_window.excepthookDecorator(app, path, shut_down)
+
+    main = Main(app, path)
     sys.exit(app.exec_())
    

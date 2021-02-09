@@ -3,7 +3,8 @@
 # directory for license and copyright information.
 
 import numpy as np
-import mech_widget, misc_widget, thermo_widget, series_viewer_widget, shock_fcns, save_output
+from calculate import shock_fcns
+import mech_widget, misc_widget, thermo_widget, series_viewer_widget, save_output
 from qtpy.QtWidgets import *
 from qtpy import QtWidgets, QtGui, QtCore
 from copy import deepcopy
@@ -118,48 +119,51 @@ class SIM_Explorer_Widgets(QtCore.QObject):
     def main_parameter_changed(self, event):
         if not self.parent.mech_loaded: return # if mech isn't loaded successfully, exit
         
-        start = timer()
         sender = self.sender()   
         subComboBox = sender.info['boxes'][1]
         self.updating_boxes = True  # to prevent multiple plot updates
         subComboBox.clear()
         subComboBox.checked = []
-        sub_type = self.var_dict[event]['sub_type']
         
         # Populate subComboBox
         prior = {'selected': None, 'checked': []}
-        if event == '-' or sub_type is None or not hasattr(self.parent, 'mech'):
+        if event == '-':
             subComboBox.setEnabled(False)
         else:
-            subComboBox.setEnabled(True)           
-            
-            # if set(['species', 'rxn']).intersection(sub_type):
-            items = []
-            if 'total' in sub_type:
-                items = ['Total']
-                
-            if 'species' in sub_type:
-                itemMemory = deepcopy(subComboBox.info['itemMemory']['species']) # Get prior settings
-                items.extend(self.parent.mech.gas.species_names)
-            elif 'rxn' in sub_type:
-                itemMemory = deepcopy(subComboBox.info['itemMemory']['rxn']) # Get prior settings
-                rxn_strings = self.parent.mech.gas.reaction_equations()
-                for n, rxn in enumerate(rxn_strings):
-                    rxn_strings[n] = 'R{:d}:  {:s}'.format(n+1, rxn.replace('<=>', '='))
-                    
-                items.extend(rxn_strings)
-            
-            subComboBox.addItems(items)
-            for n, text in enumerate(items):
-                # Check if text in prior settings
-                if ':' in text: # if reaction, strip R# from text
-                    text = text.split(':')[1].lstrip()
-                    
-                if itemMemory['selected'] is not None and itemMemory['selected'] == text:
-                    prior['selected'] = n
+            sub_type = self.var_dict[event]['sub_type']
 
-                if any(value == text for value in itemMemory['checked']):
-                    prior['checked'].append(n)
+            if sub_type is None or not hasattr(self.parent, 'mech'):
+                subComboBox.setEnabled(False)
+            else:
+                subComboBox.setEnabled(True)           
+            
+                # if set(['species', 'rxn']).intersection(sub_type):
+                items = []
+                if 'total' in sub_type:
+                    items = ['Total']
+                
+                if 'species' in sub_type:
+                    itemMemory = deepcopy(subComboBox.info['itemMemory']['species']) # Get prior settings
+                    items.extend(self.parent.mech.gas.species_names)
+                elif 'rxn' in sub_type:
+                    itemMemory = deepcopy(subComboBox.info['itemMemory']['rxn']) # Get prior settings
+                    rxn_strings = self.parent.mech.gas.reaction_equations()
+                    for n, rxn in enumerate(rxn_strings):
+                        rxn_strings[n] = 'R{:d}:  {:s}'.format(n+1, rxn.replace('<=>', '='))
+                    
+                    items.extend(rxn_strings)
+            
+                subComboBox.addItems(items)
+                for n, text in enumerate(items):
+                    # Check if text in prior settings
+                    if ':' in text: # if reaction, strip R# from text
+                        text = text.split(':')[1].lstrip()
+                    
+                    if itemMemory['selected'] is not None and itemMemory['selected'] == text:
+                        prior['selected'] = n
+
+                    if any(value == text for value in itemMemory['checked']):
+                        prior['checked'].append(n)
         
         # Update subComboBox from prior settings
         subComboBox.checked = prior['checked']
@@ -189,7 +193,9 @@ class SIM_Explorer_Widgets(QtCore.QObject):
               
         if self.updating_boxes: return  # do not run if updating boxes from main_parameter_changed
         sender = self.sender()
-        if type(sender) is misc_widget.CheckableSearchComboBox: # if sender is widget, not checkbox
+
+        # if sender is widget, not checkbox
+        if type(sender) in [misc_widget.CheckableSearchComboBox, misc_widget.ItemSearchComboBox]: 
             main_choice = sender.info['boxes'][0].currentText()
             sub_type = self.var_dict[main_choice]['sub_type']
             text = comboBoxValidator(sender.currentText())

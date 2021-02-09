@@ -2,17 +2,19 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level 
 # directory for license and copyright information.
 
+import pathlib, os, sys
 import numpy as np
 from scipy.optimize import minimize
-import nlopt, pathlib, os, sys
-import mech_widget, misc_widget, thermo_widget, series_viewer_widget, shock_fcns, save_output
-from optimize.mech_optimize import Multithread_Optimize
+import nlopt
+import mech_widget, misc_widget, thermo_widget, series_viewer_widget, save_output
+from calculate import shock_fcns 
+from calculate.optimize.mech_optimize import Multithread_Optimize
+from calculate.convert_units import OoM
+from settings import double_sigmoid
 from qtpy.QtWidgets import *
 from qtpy import QtWidgets, QtGui, QtCore
 from copy import deepcopy
 
-from convert_units import OoM
-from settings import double_sigmoid
 
 class Initialize(QtCore.QObject):
     def __init__(self, parent):
@@ -335,6 +337,8 @@ class Shock_Settings(QtCore.QObject):
         self.solve_postshock(var_type)
     
     def _shock_unit_changed(self):
+        if self.sender() is None: return
+
         parent = self.parent()
         var_type = self.sender().objectName().split('_')[0]
         
@@ -796,8 +800,9 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
         
         self.create_boxes()
         self.table.itemChanged.connect(self.update)
-        parent.unc_shading_box.stateChanged.connect(self.update)
         parent.unc_type_box.currentTextChanged.connect(self.update)
+        parent.unc_shading_box.currentTextChanged.connect(self.update)
+        parent.wavelet_levels_box.valueChanged.connect(self.update)
     
     def create_boxes(self):
         parent = self.parent()
@@ -868,8 +873,14 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
         if sender is parent.unc_type_box:
             self.switch_unc_type()
 
-        if sender is parent.unc_shading_box:
-            parent.plot.signal.show_unc_shading = parent.unc_shading_box.isChecked()
+        if sender in [parent.unc_shading_box, parent.wavelet_levels_box]:
+            parent.plot.signal.unc_shading = parent.unc_shading_box.currentText()
+            parent.plot.signal.wavelet_levels = parent.wavelet_levels_box.value()
+            if parent.plot.signal.unc_shading != 'Smoothed Signal':
+                parent.wavelet_levels_box.setEnabled(False)
+            else:
+                parent.wavelet_levels_box.setEnabled(True)
+
             parent.plot.signal.update_uncertainty_shading()
 
         if sender in self.boxes['unc_cutoff']:
@@ -1068,14 +1079,17 @@ class Log:
   
 optAlgorithm = {'DIRECT': nlopt.GN_DIRECT, 
                 'DIRECT-L': nlopt.GN_DIRECT_L,
-                'MLSL (Multi-Level Single-Linkage)': nlopt.GN_MLSL_LDS, #GN_MLSL
-                'ISRES': nlopt.GN_ISRES,
-                'CRS (Controlled Random Search)': nlopt.GN_CRS2_LM,
-                'Evolutionary': nlopt.GN_ESCH,
+                'CRS2 (Controlled Random Search)': nlopt.GN_CRS2_LM,
+                'DE (Differential Evolution)': 'pygmo_DE',
+                'SaDE (Self-Adaptive DE)': 'pygmo_SaDE',
+                'PSO (Particle Swarm Optimization)': 'pygmo_PSO',
+                'GWO (Grey Wolf Optimizer)': 'pygmo_GWO',
+                'RBFOpt': 'RBFOpt',
                 'Nelder-Mead Simplex': nlopt.LN_NELDERMEAD,
                 'Subplex': nlopt.LN_SBPLX,
                 'COBYLA': nlopt.LN_COBYLA,
-                'BOBYQA': nlopt.LN_BOBYQA}   
+                'BOBYQA': nlopt.LN_BOBYQA,
+                'IPOPT (Interior Point Optimizer)': 'pygmo_IPOPT'}   
  
 populationAlgorithms = [nlopt.GN_CRS2_LM, nlopt.GN_MLSL_LDS, nlopt.GN_MLSL, nlopt.GN_ISRES]
 
@@ -1086,10 +1100,10 @@ class Optimization(QtCore.QObject):
 
         self.settings = {'obj_fcn': {}, 'global': {}, 'local': {}}
         
-        for box in [parent.loss_alpha_box, parent.loss_c_box, parent.bayes_unc_sigma_box]:
+        for box in [parent.loss_c_box, parent.bayes_unc_sigma_box]:
             box.valueChanged.connect(self.update_obj_fcn_settings)
-        for box in [parent.obj_fcn_type_box, parent.obj_fcn_scale_box, parent.global_stop_criteria_box,
-                    parent.local_opt_choice_box, parent.bayes_dist_type_box]:
+        for box in [parent.loss_alpha_box, parent.obj_fcn_type_box, parent.obj_fcn_scale_box, 
+                    parent.global_stop_criteria_box, parent.local_opt_choice_box, parent.bayes_dist_type_box]:
             box.currentTextChanged.connect(self.update_obj_fcn_settings)
         
         self.update_obj_fcn_settings() # initialize settings
@@ -1163,8 +1177,21 @@ class Optimization(QtCore.QObject):
         settings['type'] = parent.obj_fcn_type_box.currentText()
         settings['scale'] = parent.obj_fcn_scale_box.currentText()
 
-        settings['alpha'] = parent.loss_alpha_box.value()
-        settings['c'] = parent.loss_c_box.value()
+        loss_alpha_txt = parent.loss_alpha_box.currentText()
+        if loss_alpha_txt == 'Adaptive':
+            settings['alpha'] = 3.0 # since bounds in loss are -inf to 2, this triggers an optimization
+        elif loss_alpha_txt == 'L2 loss':
+            settings['alpha'] = 2.0
+        elif loss_alpha_txt == 'Huber-like':
+            settings['alpha'] = 1.0
+        elif loss_alpha_txt == 'Cauchy':
+            settings['alpha'] = 0.0
+        elif loss_alpha_txt == 'Geman-McClure':
+            settings['alpha'] = -2.0
+        elif loss_alpha_txt == 'Welsch':
+            settings['alpha'] = -100.0
+
+        settings['c'] = 1/parent.loss_c_box.value() # this makes increasing values decrease outlier influence
 
         settings['bayes_dist_type'] = parent.bayes_dist_type_box.currentText()
         settings['bayes_unc_sigma'] = parent.bayes_unc_sigma_box.value()

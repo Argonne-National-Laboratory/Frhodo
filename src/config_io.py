@@ -5,14 +5,14 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level 
 # directory for license and copyright information.
 
+import sys, io, pathlib, collections
+import numpy as np
+from qtpy import QtWidgets
+
 try:
     import ruamel_yaml as yaml
 except ImportError:
     from ruamel import yaml
-
-import numpy as np
-
-import sys, io, pathlib, collections
 
 def FlowMap(*args, **kwargs):
     m = yaml.comments.CommentedMap(*args, **kwargs)
@@ -93,7 +93,7 @@ class GUI_Config(yaml.YAML):
                             },
                          'Experiment Settings': {
                             'temperature units': {'zone 1': 'K',    'zone 2': 'K',    'zone 5': 'K'},
-                            'pressure units':    {'zone 1': 'Torr', 'zone 2': 'Torr', 'zone 5': 'atm'},
+                            'pressure units':    {'zone 1': 'torr', 'zone 2': 'torr', 'zone 5': 'atm'},
                             'velocity units': 'm/s',
                             },
                          'Reactor Settings': {
@@ -109,18 +109,18 @@ class GUI_Config(yaml.YAML):
                             'time uncertainty': 0.0,
                             'objective function type': 'Residual',
                             'objective function scale': 'Linear',
-                            'loss function alpha': -2.00,
+                            'loss function alpha': 'Adaptive',
                             'loss function c': 1.00,
                             'Bayesian distribution type': 'Automatic',
                             'Bayesian uncertainty sigma': 2.0,
                             'multiprocessing': True,
-                            'enabled':                       {'global': True,                             'local': True},
-                            'algorithm':                     {'global': 'CRS (Controlled Random Search)', 'local': 'Subplex'},
-                            'initial step':                  {'global': 5.0E-2,                           'local': 1.0E-3},
-                            'stop criteria type':            {'global': 'Iteration Maximum',              'local': 'Iteration Maximum'},
-                            'stop criteria value':           {'global': 2500,                             'local': 2500},
-                            'relative x tolerance':          {'global': 1.0E-3,                           'local': 1.0E-4},
-                            'relative fcn tolerance':        {'global': 5.0E-2,                           'local': 1.0E-3},
+                            'enabled':                       {'global': True,                  'local': True},
+                            'algorithm':                     {'global': 'RBFOpt',              'local': 'Subplex'},
+                            'initial step':                  {'global': 5.0E-1,                'local': 1.0E-1},
+                            'stop criteria type':            {'global': 'Iteration Maximum',   'local': 'Iteration Maximum'},
+                            'stop criteria value':           {'global': 2500,                  'local': 2500},
+                            'relative x tolerance':          {'global': 1.0E-3,                'local': 1.0E-4},
+                            'relative fcn tolerance':        {'global': 5.0E-2,                'local': 1.0E-3},
                             'initial population multiplier': {'global': 1.0},
                             'weight function': {
                                 'max': 100.0,
@@ -130,12 +130,13 @@ class GUI_Config(yaml.YAML):
                                 },
                             'uncertainty function': {
                                 'type': '%',
-                                'max': [5.0, 20.0],
-                                'min': 5.0,
-                                'time location': [4.5, 35.0],
-                                'inverse growth rate': [0, 0.7],
-                                'cutoff location': [0.0, 100],
-                                'shading': True,
+                                'max': [25.0, 25.0],
+                                'min': 25.0,
+                                'time location': [10.0, 35.0],
+                                'inverse growth rate': [0.7, 0.7],
+                                'cutoff location': [5.0, 95.0],
+                                'shading': 'Simulation',
+                                'wavelet_lvls': 4,
                                 },
                             },
                          'Plot Settings': {
@@ -207,6 +208,19 @@ class GUI_settings:
         self.cfg = self.cfg_io.settings
     
     def load(self):
+        def set_box(box, val):
+            try:    # try to set boxes but will default if fails
+                if isinstance(box, QtWidgets.QDoubleSpinBox) or isinstance(box, QtWidgets.QSpinBox):
+                    box.setValue(val)
+                elif isinstance(box, QtWidgets.QComboBox):
+                    box.setCurrentText(val)
+                elif isinstance(box, QtWidgets.QCheckBox):
+                    box.setChecked(val)
+                elif isinstance(box, QtWidgets.QTextEdit):
+                    box.setPlainText(val)
+            except:
+                pass
+
         parent = self.parent
         
         self.cfg_io.from_yaml(parent.path['default_config'])
@@ -219,57 +233,57 @@ class GUI_settings:
 
         ## Set Experiment Settings ##
         # Set Temperature Units
-        parent.T1_units_box.setCurrentText(f"[{settings['exp']['temperature units']['zone 1']}]")
-        parent.T2_units_box.setCurrentText(f"[{settings['exp']['temperature units']['zone 2']}]")
-        parent.T5_units_box.setCurrentText(f"[{settings['exp']['temperature units']['zone 5']}]")
+        set_box(parent.T1_units_box, f"[{settings['exp']['temperature units']['zone 1']}]")
+        set_box(parent.T2_units_box, f"[{settings['exp']['temperature units']['zone 2']}]")
+        set_box(parent.T5_units_box, f"[{settings['exp']['temperature units']['zone 5']}]")
         
         # Set Pressure Units
-        parent.P1_units_box.setCurrentText(f"[{settings['exp']['pressure units']['zone 1']}]")
-        parent.P2_units_box.setCurrentText(f"[{settings['exp']['pressure units']['zone 2']}]")
-        parent.P5_units_box.setCurrentText(f"[{settings['exp']['pressure units']['zone 5']}]")
+        set_box(parent.P1_units_box, f"[{settings['exp']['pressure units']['zone 1']}]")
+        set_box(parent.P2_units_box, f"[{settings['exp']['pressure units']['zone 2']}]")
+        set_box(parent.P5_units_box, f"[{settings['exp']['pressure units']['zone 5']}]")
         
         # Set Incident Velocity Units
-        parent.u1_units_box.setCurrentText(f"[{settings['exp']['velocity units']}]")
-        
+        set_box(parent.u1_units_box, f"[{settings['exp']['velocity units']}]")       
         
         ## Set Reactor Settings ##
-        parent.reactor_select_box.setCurrentText(settings['reactor']['reactor'])
-        parent.solve_energy_box.setChecked(settings['reactor']['solve energy'])
-        parent.frozen_comp_box.setChecked(settings['reactor']['frozen composition'])
-        parent.end_time_value_box.setValue(settings['reactor']['simulation end time']['value'])
-        parent.end_time_units_box.setCurrentText(f"[{settings['reactor']['simulation end time']['units']}]")
-        parent.ODE_solver_box.setCurrentText(settings['reactor']['ODE solver'])
-        parent.sim_interp_factor_box.setValue(settings['reactor']['simulation interpolation factor'])
-        # parent.ODE_rtol_box.setValue(settings['reactor']['ODE tolerance']['relative'])    # TODO: Temporarily disabled until box is changed
-        # parent.ODE_atol_box.setValue(settings['reactor']['ODE tolerance']['absolute'])    # TODO: Temporarily disabled until box is changed
+        set_box(parent.reactor_select_box, settings['reactor']['reactor'])
+        set_box(parent.solve_energy_box, settings['reactor']['solve energy'])
+        set_box(parent.frozen_comp_box, settings['reactor']['frozen composition'])
+        set_box(parent.end_time_value_box, settings['reactor']['simulation end time']['value'])
+        set_box(parent.end_time_units_box, f"[{settings['reactor']['simulation end time']['units']}]")
+        set_box(parent.ODE_solver_box, settings['reactor']['ODE solver'])
+        set_box(parent.sim_interp_factor_box, settings['reactor']['simulation interpolation factor'])
+        #set_box(parent.ODE_rtol_box, settings['reactor']['ODE tolerance']['relative'])    # TODO: Temporarily disabled until box is changed
+        #set_box(parent.ODE_atol_box, settings['reactor']['ODE tolerance']['absolute'])    # TODO: Temporarily disabled until box is changed
 
         ## Set Optimization Settings ##
-        parent.time_unc_box.setValue(settings['opt']['time uncertainty'])
-        parent.obj_fcn_type_box.setCurrentIndex(parent.obj_fcn_type_box.findText(settings['opt']['objective function type']))
-        parent.obj_fcn_scale_box.setCurrentIndex(parent.obj_fcn_scale_box.findText(settings['opt']['objective function scale']))
-        parent.loss_alpha_box.setValue(settings['opt']['loss function alpha'])
-        parent.loss_c_box.setValue(settings['opt']['loss function c'])
-        parent.bayes_dist_type_box.setCurrentIndex(parent.bayes_dist_type_box.findText(settings['opt']['Bayesian distribution type']))
-        parent.bayes_unc_sigma_box.setValue(settings['opt']['Bayesian uncertainty sigma'])
-        parent.multiprocessing_box.setChecked(settings['opt']['multiprocessing'])
+        set_box(parent.time_unc_box, settings['opt']['time uncertainty'])
+        set_box(parent.obj_fcn_type_box, settings['opt']['objective function type'])
+        set_box(parent.obj_fcn_scale_box, settings['opt']['objective function scale'])
+        set_box(parent.loss_alpha_box, settings['opt']['loss function alpha'])
+        set_box(parent.loss_c_box, settings['opt']['loss function c'])
+        set_box(parent.bayes_dist_type_box, settings['opt']['Bayesian distribution type'])
+        set_box(parent.bayes_unc_sigma_box, settings['opt']['Bayesian uncertainty sigma'])
+        set_box(parent.multiprocessing_box, settings['opt']['multiprocessing'])
         
         # Update Global and Local Settings
         for opt_type in ['global', 'local']:
             widget = parent.optimization_settings.widgets[opt_type]
 
             if opt_type == 'global':
-                parent.global_opt_enable_box.setChecked(settings['opt']['enabled'][opt_type])
-                parent.global_opt_choice_box.setCurrentText(settings['opt']['algorithm'][opt_type])
-                widget['initial_pop_multiplier'].setValue(settings['opt']['initial population multiplier'][opt_type])
+                set_box(parent.global_opt_enable_box, settings['opt']['enabled'][opt_type])
+                set_box(parent.global_opt_choice_box, settings['opt']['algorithm'][opt_type])
+                set_box(widget['initial_pop_multiplier'], settings['opt']['initial population multiplier'][opt_type])
+
             else:
-                parent.local_opt_enable_box.setChecked(settings['opt']['enabled'][opt_type])
-                parent.local_opt_choice_box.setCurrentText(settings['opt']['algorithm'][opt_type])
-                
-            widget['initial_step'].setValue(settings['opt']['initial step'][opt_type])
-            widget['stop_criteria_type'].setCurrentText(settings['opt']['stop criteria type'][opt_type])
-            widget['stop_criteria_val'].setValue(settings['opt']['stop criteria value'][opt_type])
-            widget['xtol_rel'].setValue(settings['opt']['relative x tolerance'][opt_type])
-            widget['ftol_rel'].setValue(settings['opt']['relative fcn tolerance'][opt_type])
+                set_box(parent.local_opt_enable_box, settings['opt']['enabled'][opt_type])
+                set_box(parent.local_opt_choice_box, settings['opt']['algorithm'][opt_type])
+            
+            set_box(widget['initial_step'], settings['opt']['initial step'][opt_type])
+            set_box(widget['stop_criteria_type'], settings['opt']['stop criteria type'][opt_type])
+            set_box(widget['stop_criteria_val'], settings['opt']['stop criteria value'][opt_type])
+            set_box(widget['xtol_rel'], settings['opt']['relative x tolerance'][opt_type])
+            set_box(widget['ftol_rel'], settings['opt']['relative fcn tolerance'][opt_type])
         
         # Update weight function
         shock = parent.display_shock
@@ -290,7 +304,8 @@ class GUI_settings:
 
         parent.exp_unc.set_boxes()
 
-        parent.unc_shading_box.setChecked(settings['opt']['uncertainty function']['shading'])
+        set_box(parent.unc_shading_box, settings['opt']['uncertainty function']['shading'])
+        set_box(parent.wavelet_levels_box, settings['opt']['uncertainty function']['wavelet_lvls'])
 
         ## Set Plot Settings ##
         parent.plot.signal._set_scale('x', settings['plot']['x-scale'], parent.plot.signal.ax[1], True)
@@ -339,7 +354,7 @@ class GUI_settings:
         settings['opt']['time uncertainty'] = parent.time_unc_box.value()
         settings['opt']['objective function type'] = parent.obj_fcn_type_box.currentText()
         settings['opt']['objective function scale'] = parent.obj_fcn_scale_box.currentText()
-        settings['opt']['loss function alpha'] = parent.loss_alpha_box.value()
+        settings['opt']['loss function alpha'] = parent.loss_alpha_box.currentText()
         settings['opt']['loss function c'] = parent.loss_c_box.value()
         settings['opt']['Bayesian distribution type'] = parent.bayes_dist_type_box.currentText()
         settings['opt']['Bayesian uncertainty sigma'] = parent.bayes_unc_sigma_box.value()
@@ -377,7 +392,8 @@ class GUI_settings:
         settings['opt']['uncertainty function']['time location'] = shock['unc_shift']
         settings['opt']['uncertainty function']['inverse growth rate'] = shock['unc_k']
         settings['opt']['uncertainty function']['cutoff location'] = shock['unc_cutoff']
-        settings['opt']['uncertainty function']['shading'] = parent.unc_shading_box.isChecked()
+        settings['opt']['uncertainty function']['shading'] = parent.unc_shading_box.currentText()
+        settings['opt']['uncertainty function']['wavelet_lvls'] = parent.wavelet_levels_box.value()
 
         ## Set Plot Settings ##
         settings['plot']['x-scale'] = parent.plot.signal.ax[1].get_xscale()

@@ -15,8 +15,24 @@ colormap = colors.colormap(reorder_from=1, num_shift=4)
 class Plot(Base_Plot):
     def __init__(self, parent, widget, mpl_layout):
         super().__init__(parent, widget, mpl_layout)
+
         self.canvas.mpl_connect("motion_notify_event", self.hover)
-        
+        parent.plot_tab_widget.currentChanged.connect(self.tab_changed)
+    
+    def tab_changed(self, idx): # Run simulation is tab changed to Sim Explorer
+        if self.parent.plot_tab_widget.tabText(idx) == 'Optimization':
+            self._draw_event()
+
+    def _draw_items_artist(self):   # only draw if tab is open
+        idx = self.parent.plot_tab_widget.currentIndex()
+        if self.parent.plot_tab_widget.tabText(idx) == 'Optimization':
+            super()._draw_items_artist()
+
+    def _draw_event(self, event=None):   # only draw if tab is open
+        idx = self.parent.plot_tab_widget.currentIndex()
+        if self.parent.plot_tab_widget.tabText(idx) == 'Optimization':
+            super()._draw_event(event)
+
     def create_canvas(self):
         self.ax = []
         
@@ -70,7 +86,7 @@ class Plot(Base_Plot):
             s=16, linewidth=0.5, alpha = 0.85)
         scatter.set_pickradius(float(scatter.get_pickradius())*2.5)
         self.ax[0].item['qq_data'].append(scatter)
-     
+    
     def clear_plot(self):
         self.ax[0].item['annot']
         for plt in self.ax[0].item['qq_data']:
@@ -168,7 +184,7 @@ class Plot(Base_Plot):
         dist = self.parent.optimize.dist
         
         # operations needed for both QQ and Density Plot
-        allResid = np.concatenate(resid, axis=0)
+        # allResid = np.concatenate(resid, axis=0)
         # weights = np.concatenate(weights, axis=0)
         # mu = np.average(allResid, weights=weights)
         # allResid -= mu
@@ -179,9 +195,6 @@ class Plot(Base_Plot):
         for i in range(num_shocks):
             if len(self.ax[1].item['density'])-2 < i:   # add line if fewer than experiments
                 self.add_exp_plots()
-        
-        # from timeit import default_timer as timer
-        # start = timer()
         
         # for shock in [0]:
             # self.ax[0].add_line(mpl.lines.Line2D([],[], marker='$'+u'\u2195'+'$', 
@@ -201,7 +214,7 @@ class Plot(Base_Plot):
             
         self.ax[0].item['ref_line'].set_xdata(xrange)
         self.ax[0].item['ref_line'].set_ydata(xrange)
-        
+
         # Update right plot
         # clear shades
         for shade in self.ax[1].item['shade'][::-1]:
@@ -217,7 +230,7 @@ class Plot(Base_Plot):
         fit = dist.pdf(x_grid, *fitres)
         self.ax[1].item['density'][0].set_xdata(x_grid)
         self.ax[1].item['density'][0].set_ydata(fit)
-        
+
         for i in range(num_shocks):
             x_grid = data['KDE'][i][:,0]
             density = data['KDE'][i][:,1]
@@ -229,10 +242,7 @@ class Plot(Base_Plot):
             color = self.ax[1].item['density'][i+1]._color
             shade = self.ax[1].fill_between(x_grid, 0, density, alpha=0.01, zorder=zorder, color=color)
             self.ax[1].item['shade'].append(shade)
-        
+
         if update_lim:
-            self.update_xylim(self.ax[0])
-            self.update_xylim(self.ax[1], xlim=xlim_density)
-    
-        # print('{:0.1f} us'.format((timer() - start)*1E3))
-            
+            self.update_xylim(self.ax[0], force_redraw=False)
+            self.update_xylim(self.ax[1], xlim=xlim_density, force_redraw=True)

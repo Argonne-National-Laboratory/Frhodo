@@ -32,6 +32,8 @@ class HelpMenu:
         for (v, git_v) in zip(current_version, github_version):
             if int(git_v) > int(v):
                 return True
+            elif int(git_v) < int(v):
+                return False
 
         return False
 

@@ -94,6 +94,8 @@ class Plot(Base_Plot):
         
             if update_lim:  # update limits
                 self.update_xylim(axes)
+
+        self._draw_event()  # added to make second axis go away properly
             
     def _get_data(self, axes):
         # get experimental data for axes

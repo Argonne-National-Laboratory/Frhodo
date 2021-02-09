@@ -7,8 +7,15 @@ import os, sys, platform, pathlib, shutil, configparser, re, csv
 from copy import deepcopy
 from dateutil.parser import parse
 from scipy import integrate      # used to integrate weights numerically
+from scipy.interpolate import CubicSpline
 from qtpy import QtCore
-            
+
+from calculate.convert_units import OoM, RoundToSigFigs
+from calculate.smooth_data import dual_tree_complex_wavelet_filter
+
+min_pos_system_value = (np.finfo(float).tiny*(1E20))**(1/2)
+max_pos_system_value = (np.finfo(float).max*(1E-20))**(1/2)
+
 class Path:
     def __init__(self, parent, path):
         self.parent = parent
@@ -53,7 +60,7 @@ class Path:
                 thermo_files.append(name)
             if ext == '.tran':      # currently unused, but store transport files anyways
                 trans_files.append(name)
-            elif ext in ['.yaml', '.yml', '.cti','.ck', '.mech']: #  '.ctml', '.xml', # TODO: enable ctml and xml format
+            elif ext in ['.yaml', '.yml', '.cti','.ck', '.mech', '.inp']: #  '.ctml', '.xml', # TODO: enable ctml and xml format
                 if 'generated_mech.yaml' == name: continue
                 elif 'generated_mech.yml' == name: continue
                 unsorted_mech_files.append(name)
@@ -188,6 +195,7 @@ class Path:
     
     def shock_output(self):
         parent = self.parent
+        log = parent.log
         
         # Add Exp_set_name if exists
         shock_num = str(parent.var['shock_choice'])
@@ -199,7 +207,12 @@ class Path:
         
         # Create folders if needed
         if not parent.path['output_dir'].exists():
-            parent.path['output_dir'].mkdir(exist_ok=True, parents=True)
+            try:
+                parent.path['output_dir'].mkdir(exist_ok=True, parents=True)
+            except (IOError, FileNotFoundError) as e:
+                log.append('Error in saving:')
+                log.append(e)  
+                return
         
         parent.path['Sim log'] = parent.path['output_dir'] / 'Sim log.txt'
         
@@ -233,12 +246,15 @@ class Path:
             parent.path[file] = parent.path['sim_dir'] / 'Sim {:d} - {:s}'.format(self.sim_num, file)
     
     def sim_output(self, var_name):  # takes variable name and creates path for it
+        if var_name == '\u00B1 % |Density Gradient|':   # lots of invalid characters, replace
+            var_name = 'signed % Abs Density Gradient'
+
         name = 'Sim {:d} - {:s}.txt'.format(self.sim_num, var_name)
         self.parent.path[var_name] = self.parent.path['sim_dir'] / name
         
         return self.parent.path[var_name]
     
-    def optimized_mech(self):
+    def optimized_mech(self, file_out='opt_mech'):
         parent = self.parent
         
         mech_name = parent.path['mech'].stem
@@ -254,10 +270,15 @@ class Path:
             if len(num_found) > 0:
                 num.append(*[int(num) for num in num_found])
         
-        file = '{:s}{:.0f}.mech'.format(mech_name, np.max(num)+1)
-        parent.path['Optimized_Mech.mech'] = parent.path['mech_main'] / file
+        opt_mech_file = '{:s}{:.0f}.mech'.format(mech_name, np.max(num)+1)
+        recast_mech_file = opt_mech_file.replace('Opt', 'PreOpt')
+        parent.path['Optimized_Mech.mech'] = parent.path['mech_main'] / opt_mech_file
+        parent.path['Optimized_Mech_recast.mech'] = parent.path['mech_main'] / recast_mech_file
         
-        return parent.path['Optimized_Mech.mech']
+        if file_out == 'opt_mech':
+            return parent.path['Optimized_Mech.mech']
+        elif file_out == 'recast_mech':
+            return parent.path['Optimized_Mech_recast.mech']
     
     def load_dir_file(self, file_path):
         parent = self.parent
@@ -325,22 +346,46 @@ class experiment:
         self.parent = parent
         self.path = parent.path
         self.convert_units = parent.convert_units
+        self.load_style = 'tranter_v1_0'
         # self.load_full_series_box = parent.load_full_series_box
         # self.set_load_full_set()
         # self.load_full_series_box.stateChanged.connect(lambda: self.set_load_full_set())
 
            
-    def parameters(self, file_path):    
+    def parameters(self, file_path):       
+        with open(file_path) as f:
+            lines = f.read().splitlines()
+
+        if lines[0] == '[Date]':   # new Tranter style
+            self.load_style = 'tranter_v1_0'
+            parameters = self.read_tranter_exp_v1(lines)
+        elif lines[0] == '"[Expt Parameters]"':   # old Tranter style
+            self.load_style = 'tranter_v0_1'
+            parameters = self.read_tranter_exp_v0(lines)
+        else:
+            self.load_style = 'tranter_v1_0'
+            parameters = self.read_tranter_exp_v1(lines)
+
+        # Units are assumed to be: T1 [°C], P1 [torr], u1 [mm/μs], P4 [psi]
+        parameters['T1'] = self.convert_units(parameters['T1'], '°C', '2ct')
+        parameters['P1'] = self.convert_units(parameters['P1'], 'torr', '2ct')
+        parameters['u1'] = self.convert_units(parameters['u1'], 'mm/μs', '2ct')
+        parameters['P4'] = self.convert_units(parameters['P4'], 'psi', '2ct')
+        parameters['Sample_Rate'] *= 1E-6               # Hz      to MHz ?
+
+        return parameters
+      
+    def read_tranter_exp_v1(self, lines):
         def get_config(section, key):
             val = self.config[section][key]
             for delimiter in ['"', "'"]:    # remove delimiters
                 val = val.strip(delimiter)
             
             return val
-                
+
         self.config = configparser.RawConfigParser()
-        self.config.read(file_path)
-        
+        self.config.read_string('\n'.join(lines))
+
         # Get mixture composition
         mix = {}
         for key in [item[0] for item in self.config.items('Mixture')]:    # search all keys in section
@@ -357,41 +402,70 @@ class experiment:
                 if mol_frac != 0:  # continue if mole fraction is not zero
                     mix[species] = mol_frac
         
-        # Throw errors if P1, T1, tOpt, or PT Spacing are zero
+        # Throw errors if P1, T1, or Sample Rate are zero
         if float(get_config('Expt Params', 'P1')) == 0:
             raise Exception('Exception in Experiment File: P1 is zero')
         elif float(get_config('Expt Params', 'T1')) == 0:
             raise Exception('Exception in Experiment File: T1 is zero')
-        elif float(get_config('Expt Params', 'tOpt')) == 0:
-            raise Exception('Exception in Experiment File: tOpt is zero')
-        elif float(get_config('Expt Params', 'PT Spacing')) == 0:
-            raise Exception('Exception in Experiment File: PT Spacing is zero')
         elif float(get_config('Expt Params', 'SampRate')) == 0:
             raise Exception('Exception in Experiment File: Sample Rate is zero')
-                          
+             
+        # Throw errors for u1 and calculate/get it from VelatObs or tOpt/PT Spacing
+        if self.config.has_option('Expt Params', 'VelatObs'): # Tranter exp file v1.1 gives velocity
+            u1 = float(get_config('Expt Params', 'VelatObs'))
+            if u1 == 0:
+                raise Exception('Exception in Experiment File: Velocity at observation is zero')
+        else:
+            tOpt = float(get_config('Expt Params', 'tOpt'))
+            PT_spacing = float(get_config('Expt Params', 'PT Spacing'))
+            u1 = PT_spacing/tOpt
+            if tOpt == 0:
+                raise Exception('Exception in Experiment File: tOpt is zero')
+            elif PT_spacing == 0:
+                raise Exception('Exception in Experiment File: PT Spacing is zero')
+
         parameters = {'T1': float(get_config('Expt Params', 'T1')),
-                'P1': float(get_config('Expt Params', 'P1')),
-                'u1': float(get_config('Expt Params', 'PT Spacing'))/float(get_config('Expt Params', 'tOpt')),
-                'P4': float(get_config('Expt Params', 'P4')),
-                'exp_mix': deepcopy(mix), 'thermo_mix': deepcopy(mix),
-                'Sample_Rate': float(get_config('Expt Params', 'SampRate'))}
-        
-        # Convert to cantera units
-        # parameters['T1'] += 273.15                      # Celcius to Kelvin
-        # parameters['P1'] *= 101325/760                  # Torr    to Pa
-        # parameters['u1'] *= 1000                        # mm/μs   to m/s
-        # parameters['P4'] *= 4.4482216152605/0.00064516  # Psi     to Pa
-        # parameters['Sample_Rate'] *= 1E-6               # Hz      to MHz ?
-        
-        # Units are assumed to be: T1 [°C], P1 [Torr], u1 [mm/μs], P4 [psi]
-        parameters['T1'] = self.convert_units(parameters['T1'], '°C', '2ct')
-        parameters['P1'] = self.convert_units(parameters['P1'], 'Torr', '2ct')
-        parameters['u1'] = self.convert_units(parameters['u1'], 'mm/μs', '2ct')
-        parameters['P4'] = self.convert_units(parameters['P4'], 'psi', '2ct')
-        parameters['Sample_Rate'] *= 1E-6               # Hz      to MHz ?
-        
+                      'P1': float(get_config('Expt Params', 'P1')),
+                      'u1': u1,
+                      'P4': float(get_config('Expt Params', 'P4')),
+                      'exp_mix': deepcopy(mix), 'thermo_mix': deepcopy(mix),
+                      'Sample_Rate': float(get_config('Expt Params', 'SampRate'))}
+
         return parameters
-                
+
+    def read_tranter_exp_v0(self, lines):
+        parameters = {'T1': None, 'P1': None, 'u1': None, 'exp_mix': {}, 'thermo_mix': {}}
+
+        key = None
+        processed = {'exp_mix': [], 'shock_conditions': []}
+        for line in lines:
+            if line == '"[Thermochemistry]"':
+                key = 'exp_mix'
+                continue
+            elif line == '"[Start Conditions]"' or line == '"[Expt Times]"':
+                key = 'shock_conditions'
+                continue
+            elif line.isspace() or len(line) == 0:
+                key = None
+                continue
+
+            if key is not None:
+                processed[key].append(line)
+
+        parameters['P1'] = float(processed['shock_conditions'][1])
+        parameters['T1'] = float(processed['shock_conditions'][2])
+        parameters['u1'] = 120.0/float(processed['shock_conditions'][-1]) # assumes 120 mm spacing
+        parameters['P4'] = 1.0 # Arbitrarily assign. Does not matter for general functionality
+
+        for line in processed['exp_mix']:
+            species, mol_frac = line[1:].split(';')[:2]
+            parameters['exp_mix'][species] = float(mol_frac)
+
+        parameters['thermo_mix'] = parameters['exp_mix']
+        parameters['Sample_Rate'] = 50000000.0
+
+        return parameters
+
     def csv(self, file):
         def is_numeric(strings):
             for str in strings:        # test for all strings
@@ -429,6 +503,11 @@ class experiment:
     
     def exp_data(self, file_path):
         exp_data, nonnumeric = self.csv(file_path)
+
+        if self.load_style == 'tranter_v0_1':
+            exp_data = np.array(exp_data)
+            exp_data = exp_data[:,[0,2]]
+            exp_data = exp_data[:-1,:]
         
         return exp_data
     
@@ -505,6 +584,11 @@ def double_sigmoid(x, A, k, x0):    # A = extrema, k = inverse growth rate, x0 =
         eval[x >= 0] = 1/(1 + pos_val_f)
         neg_val_f = np.exp(x[x < 0])
         eval[x < 0] = neg_val_f/(1 + neg_val_f)
+
+        # clip so they can be multiplied
+        eval[eval > 0] = np.clip(eval[eval > 0], min_pos_system_value, max_pos_system_value)
+        eval[eval < 0] = np.clip(eval[eval < 0], -max_pos_system_value, -min_pos_system_value)
+
         return eval
         
     def b_eval(x, k, x0):
@@ -527,8 +611,12 @@ def double_sigmoid(x, A, k, x0):    # A = extrema, k = inverse growth rate, x0 =
         a = (A[2] - A[0])*sig(b[0]) + A[0]          # a is the changing minimum
     else:
         a = (A[2] - A[0])*sig(np.mean(b,0)) + A[0]  # a is the changing minimum
-        
-    return (A[1] - a)*sig(b[0])*sig(-b[1]) + a
+    
+    #print((A[1] - a), sig(b[0]), sig(-b[1]), a)
+
+    res = (A[1] - a)*sig(b[0])*sig(-b[1]) + a
+
+    return res
 
 class series:
     def __init__(self, parent):
@@ -583,6 +671,7 @@ class series:
                 'T5': np.nan, 'P5': np.nan,
                 'T_reactor': np.nan, 'P_reactor': np.nan,
                 'time_offset': parent.time_offset_box.value(),
+                'opt_time_offset': parent.time_offset_box.value(),
                 'Sample_Rate': np.nan,
                 
                 # Weight parameters
@@ -608,8 +697,10 @@ class series:
                 
                 # Data
                 'observable': {'main': '', 'sub': None},
+                'wavelet_lvls': np.nan,                    # number of wavelets for smoothing
                 'raw_data': np.array([]),
                 'exp_data': np.array([]),
+                'exp_data_smoothed': np.array([]),
                 'weights': np.array([]),
                 'normalized_weights': np.array([]),
                 'uncertainties': np.array([]),
@@ -763,8 +854,8 @@ class series:
                 weights_norm = weights.copy()/(integral/t_conv)
                 shock['normalized_weights'] = weights_norm
 
-                # also calculate absolute uncertainties
-                obs_data = shock['exp_data'][:,1]
+            # also calculate absolute uncertainties
+            obs_data = shock['exp_data'][:,1]
             
             if self.parent.exp_unc.unc_type == '%':
                 shock['abs_uncertainties'] = np.sort([obs_data/(1+unc), obs_data*(1+unc)], axis=0).T
@@ -773,7 +864,56 @@ class series:
 
         return unc
 
-    def set(self, key, val=[]):
+    def smoothed_data(self, signal):
+        def calculate_C(signal):
+            finite_signal = np.array(signal)[np.isfinite(signal)] # ignore nan and inf
+            min_signal = finite_signal.min()  
+            max_signal = finite_signal.max()
+                
+            # if zero is within total range, find largest pos or neg range
+            if np.sign(max_signal) != np.sign(min_signal):  
+                processed_signal = [finite_signal[finite_signal>=0], finite_signal[finite_signal<=0]]
+                C = 0
+                for signal in processed_signal:
+                    range = np.abs(signal.max() - signal.min())
+                    if range > C:
+                        C = range
+                        max_signal = signal.max()
+            else:
+                C = np.abs(max_signal-min_signal)
+
+            C *= 10**(OoM(max_signal) + 2)  # scaling factor TODO: + 1 looks loglike, + 2 linear like
+            C = RoundToSigFigs(C, 1)    # round to 1 significant figure
+
+            return C
+
+        t = signal[:,0]
+        obs = signal[:,1]
+
+        lvls = self.shock[self.idx][self.shock_idx]['wavelet_lvls']
+
+        C = calculate_C(obs)
+
+        # if data is not uniformly sampled, resample it
+        dt = np.diff(t)
+        min_dt = np.min(dt)
+        max_dt = np.max(dt)
+        if not np.isclose(min_dt, max_dt):
+            f_interp = CubicSpline(t.flatten(), obs.flatten())
+
+            N = np.ceil((np.max(t) - np.min(t))/min_dt)
+            t = np.linspace(np.min(t), np.max(t), int(N))
+            obs = f_interp(t).flatten()
+
+        obs = np.sign(obs)*np.log10(1 + np.abs(obs/C))      # apply bisymlog prior to smoothing
+        obs = dual_tree_complex_wavelet_filter(obs, lvls=lvls) # smooth transformed data
+        obs = np.sign(obs)*C*(np.power(10, np.abs(obs)) - 1)  # inverse transform back to original scale
+
+        signal = np.array([t, obs])
+
+        return signal.T
+
+    def set(self, key, val=[], **kwargs):
         parent = self.parent
         if key == 'exp_data':
             if parent.load_full_series:
@@ -792,6 +932,21 @@ class series:
                     if shock[key].size == 0:
                         shock['err'].append(key)
         
+        elif key == 'exp_data_smoothed':
+            opt_type = parent.optimization_settings.get('obj_fcn', 'type')
+            shock = self.shock[self.idx][self.shock_idx]
+            lvls = self.parent.plot.signal.wavelet_levels
+
+            if (opt_type != 'Bayesian' or parent.plot.signal.unc_shading != 'Smoothed Signal' 
+                or len(shock['exp_data']) == 0 or shock['wavelet_lvls'] == lvls):
+                return
+            
+            shock['wavelet_lvls'] = lvls
+            if lvls == 1:
+                shock['exp_data_smoothed'] = shock['exp_data'].copy()
+            else:
+                shock['exp_data_smoothed'] = self.smoothed_data(shock['exp_data'].copy())
+
         elif key == 'series_name':          # being called many times when weights changing, don't know why yet
             self.name[self.idx] = val
             for shock in self.shock[self.idx]:
@@ -805,6 +960,10 @@ class series:
         elif key == 'time_offset':
             for shock in self.shock[self.idx]:
                 shock[key] = val
+
+                # only updated if optimize isn't running so it doesn't interfere with optimization
+                if not parent.optimize_running: 
+                    shock['opt_time_offset'] = val
                 
         elif key == 'zone':
             for shock in self.shock[self.idx]:
@@ -861,36 +1020,24 @@ class series:
         mech.set_TPX(shock['T_reactor'], shock['P_reactor'], shock['thermo_mix'])
             
         # reset mech back to reset values
-        coefVals = []
-        for rxnIdx in range(mech.gas.n_reactions):
-            coefVal = {}
-            for coefName in mech.coeffs[rxnIdx].keys():
-                coefVal[coefName] = deepcopy(mech.coeffs[rxnIdx][coefName])
-                resetVal = mech.coeffs_bnds[rxnIdx][coefName]['resetVal']
-                mech.coeffs[rxnIdx][coefName] = resetVal 
-            
-            coefVals.append(coefVal)
-            
-        mech.modify_reactions(mech.coeffs)
-        
+        prior_mech = mech.reset()  # reset mechanism and get mech that it was
+                
         # Get reset rates and rate bounds
         shock['rate_reset_val'] = []
         shock['rate_bnds'] = []
         for rxnIdx in range(mech.gas.n_reactions):
-            if 'Arrhenius' in self.parent.mech_tree.rxn[rxnIdx]['rxnType']:
+            if self.parent.mech_tree.rxn[rxnIdx]['rxnType'] in ['Arrhenius', 'Plog Reaction', 'Falloff Reaction']:
                 resetVal = mech.gas.forward_rate_constants[rxnIdx]
                 shock['rate_reset_val'].append(resetVal)
                 rate_bnds = mech.rate_bnds[rxnIdx]['limits'](resetVal)
                 shock['rate_bnds'].append(rate_bnds)
                 
-                # reset coeffs to prior values
-                for coefName in mech.coeffs[rxnIdx].keys():
-                    mech.coeffs[rxnIdx][coefName] = coefVals[rxnIdx][coefName]
-            
             else:   # skip if not Arrhenius type
                 shock['rate_reset_val'].append(np.nan)
                 shock['rate_bnds'].append([np.nan, np.nan])
         
+        # set mech to prior mech
+        mech.coeffs = prior_mech
         mech.modify_reactions(mech.coeffs)
     
     def set_coef_reset(self, rxnIdx, coefName):
@@ -966,6 +1113,7 @@ class series:
         # Update signal and raw_signal plots
         if parent.display_shock['exp_data'].size > 0:
             parent.plot.signal.update(update_lim=True)
+            # create new shading plot
             # Background reset causes disappearing data on new shock load
             #parent.plot.signal.set_background()           # Reset background
         else:
