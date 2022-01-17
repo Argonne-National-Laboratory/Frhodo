@@ -1,0 +1,5 @@
+https://arxiv.org/pdf/2004.14938.pdf
+
+Tau = 100
+alpha = -60 to 2
+c = 1 to 5

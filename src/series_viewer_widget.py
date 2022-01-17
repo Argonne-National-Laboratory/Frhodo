@@ -2,7 +2,7 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level 
 # directory for license and copyright information.
 
-import shock_fcns
+from calculate import shock_fcns
 import numpy as np
 from qtpy.QtWidgets import *
 from qtpy import QtWidgets, QtGui, QtCore

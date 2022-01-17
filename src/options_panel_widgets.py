@@ -2,10 +2,15 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level 
 # directory for license and copyright information.
 
+import pathlib, os, sys
 import numpy as np
-import nlopt, pathlib, os
-import mech_widget, misc_widget, thermo_widget, series_viewer_widget, shock_fcns, save_output
-from optimize.mech_optimize import Multithread_Optimize
+from scipy.optimize import minimize
+import nlopt
+import mech_widget, misc_widget, thermo_widget, series_viewer_widget, save_output
+from calculate import shock_fcns 
+from calculate.optimize.mech_optimize import Multithread_Optimize
+from calculate.convert_units import OoM
+from settings import double_sigmoid
 from qtpy.QtWidgets import *
 from qtpy import QtWidgets, QtGui, QtCore
 from copy import deepcopy
@@ -60,6 +65,7 @@ class Initialize(QtCore.QObject):
         # Setup tables
         parent.mix = Mix_Table(parent)
         parent.weight = Weight_Parameters_Table(parent)
+        parent.exp_unc = Uncertainty_Parameters_Table(parent)
         
         # Setup reactor settings
         parent.reactor_settings = Reactor_Settings(parent)
@@ -254,7 +260,7 @@ class Directories(QtCore.QObject):
                                 
         self.invalid = deepcopy(invalid)
         for key in key_names:
-            if key is 'path_file':
+            if key == 'path_file':
                 if key in parent.path and os.access(parent.path[key], os.R_OK) and parent.path[key].is_file():
                     eval('parent.' + key + '_label.setPixmap(self.check_icon)')
                 else:
@@ -268,7 +274,7 @@ class Directories(QtCore.QObject):
 
                     eval('parent.' + key + '_label.setPixmap(self.check_icon)')
                 else:
-                    if key is not 'sim_main':    # not invalid if sim folder missing, can create later
+                    if key != 'sim_main':    # not invalid if sim folder missing, can create later
                         self.invalid.append(key)
                     eval('parent.' + key + '_label.setPixmap(self.x_icon)')
             eval('parent.' + key + '_label.show()')
@@ -331,6 +337,8 @@ class Shock_Settings(QtCore.QObject):
         self.solve_postshock(var_type)
     
     def _shock_unit_changed(self):
+        if self.sender() is None: return
+
         parent = self.parent()
         var_type = self.sender().objectName().split('_')[0]
         
@@ -569,7 +577,7 @@ class Mix_Table(QtCore.QObject):
             self.molFrac_box.append(misc_widget.ScientificDoubleSpinBox(parent=self.parent(), value=molFrac))
             self.molFrac_box[-1].setMinimum(0)
             self.molFrac_box[-1].setMaximum(1)
-            self.molFrac_box[-1].setSingleStep(0.001)
+            self.molFrac_box[-1].setSingleIntStep(0.001)
             self.molFrac_box[-1].setSpecialValueText('-')
             self.molFrac_box[-1].setFrame(False)
             self.molFrac_box[-1].valueChanged.connect(self.update_mix)
@@ -715,7 +723,7 @@ class Weight_Parameters_Table(QtCore.QObject):
                 box_val = self.prop[col][row]['value']
                 box = misc_widget.ScientificDoubleSpinBox(parent=self.parent(), value=box_val)
                
-                box.setSingleStep(self.prop[col][row]['singleStep'])
+                box.setSingleIntStep(self.prop[col][row]['singleStep'])
                 box.setStrDecimals(self.prop[col][row]['decimals'])
                 box.setMinimum(self.prop[col][row]['minimum'])
                 if 'suffix' in self.prop[col][row]:
@@ -757,7 +765,209 @@ class Weight_Parameters_Table(QtCore.QObject):
         if parent.display_shock['exp_data'].size > 0 and update_plot: # If exp_data exists
             parent.plot.signal.update(update_lim=False)
             parent.plot.signal.canvas.draw()
+ 
+            
+class Uncertainty_Parameters_Table(QtCore.QObject):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.table = self.parent().unc_fcn_table
+
+        self.unc_type = parent.unc_type_box.currentText()
+
+        stylesheet = ["QHeaderView::section{",  # stylesheet because windows 10 doesn't show borders on the bottom
+            "border-top:0px solid #D8D8D8;",
+            "border-left:0px solid #D8D8D8;",
+            "border-right:1px solid #D8D8D8;",
+            "border-bottom:1px solid #D8D8D8;",
+            # "background-color:white;",                                        # this matches windows 10 theme 
+            "background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,"     # this matches windows 7 theme perfectly
+                                 "stop: 0 #ffffff, stop: 1.0 #f1f2f4);"
+            "padding:4px;}",
+        "QTableCornerButton::section{",
+            "border-top:0px solid #D8D8D8;",
+            "border-left:0px solid #D8D8D8;",
+            "border-right:1px solid #D8D8D8;",
+            "border-bottom:1px solid #D8D8D8;",
+            "background-color:white;}"]
         
+        header = self.table.horizontalHeader()   
+        header.setStyleSheet(' '.join(stylesheet))
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
+        header.setFixedHeight(24)
+        
+        self.table.setSpan(1, 0, 1, 2)  # make first row span entire length
+        
+        self.create_boxes()
+        self.table.itemChanged.connect(self.update)
+        parent.unc_type_box.currentTextChanged.connect(self.update)
+        parent.unc_shading_box.currentTextChanged.connect(self.update)
+        parent.wavelet_levels_box.valueChanged.connect(self.update)
+    
+    def create_boxes(self):
+        parent = self.parent()
+        # self.table.setStyleSheet("QTableWidget::item { margin-left: 10px }")
+        # TODO: Change to saved variables
+        self.boxes = {'unc_max': [], 'unc_min': [], 'unc_shift': [], 'unc_k': [], 'unc_cutoff': []}
+        self.prop = {'start': {'unc_max':    {'value': 0,     'singleStep': 1,                    'row': 0,
+                                              'minimum': 0,   'decimals': 3,      'suffix': '%'},
+                               'unc_min':    {'value': 0,     'singleStep': 1,                    'row': 1,
+                                              'minimum': 0,   'decimals': 3,      'suffix': '%'},
+                               'unc_shift':  {'value': 4.5,   'singleStep': 0.1,  'maximum': 100, 'row': 2,
+                                              'minimum': 0,   'decimals': 3,      'suffix': '%'},              
+                               'unc_k':      {'value': 0,     'singleStep': 0.01, 'decimals': 3,  'row': 3,
+                                              'minimum': 0},
+                               'unc_cutoff': {'value': 4.5,   'singleStep': 0.1,  'maximum': 100, 'row': 4,
+                                              'minimum': 0,   'decimals': 3,      'suffix': '%'}},
+                     'end':   {'unc_max':    {'value': 0,     'singleStep': 1,                    'row': 0,
+                                              'minimum': 0,   'decimals': 3,      'suffix': '%'},
+                               'unc_shift':  {'value': 36.0,  'singleStep': 0.1,  'maximum': 100, 'row': 2,
+                                              'minimum': 0,   'decimals': 3,      'suffix': '%'},
+                               'unc_k':      {'value': 0.3,   'singleStep': 0.01, 'decimals': 3,  'row': 3,
+                                              'minimum': 0},
+                               'unc_cutoff': {'value': 4.5,   'singleStep': 0.1,  'maximum': 100, 'row': 4,
+                                              'minimum': 0,   'decimals': 3,      'suffix': '%'}}}
+                          
+        for j, col in enumerate(['start', 'end']):
+            for row in self.prop[col]:
+                i = self.prop[col][row]['row']
+
+                box_val = self.prop[col][row]['value']
+                box = misc_widget.ScientificDoubleSpinBox(parent=self.parent(), value=box_val)
+               
+                box.setSingleIntStep(self.prop[col][row]['singleStep'])
+                box.setStrDecimals(self.prop[col][row]['decimals'])
+                box.setMinimum(self.prop[col][row]['minimum'])
+                if 'suffix' in self.prop[col][row]:
+                    box.setSuffix(self.prop[col][row]['suffix'])
+                if 'maximum' in self.prop[col][row]:
+                    box.setMaximum(self.prop[col][row]['maximum'])
+                box.setFrame(False)
+                box.info = [col, row]
+                
+                box.valueChanged.connect(self.update)
+                self.table.setCellWidget(i, j, box)
+                self.boxes[row].append(box)
+    
+    def set_boxes(self, shock=None):
+        parent = self.parent()
+        if shock is None:
+            shock = parent.display_shock
+            
+        for j, col in enumerate(['start', 'end']):
+            for i, row in enumerate(self.prop[col]):
+                box_val = shock[row][j]
+                box = self.boxes[row][j]
+                box.blockSignals(True)
+                box.setValue(box_val)
+                box.blockSignals(False)
+    
+    def update(self, event=None, shock=None):
+        parent = self.parent()
+        sender = self.sender()
+        update_plot = False
+        if shock is None:           # if no shock given, must be from widgets
+            shock = parent.display_shock
+            update_plot = True
+        
+        if sender is parent.unc_type_box:
+            self.switch_unc_type()
+
+        if sender in [parent.unc_shading_box, parent.wavelet_levels_box]:
+            parent.plot.signal.unc_shading = parent.unc_shading_box.currentText()
+            parent.plot.signal.wavelet_levels = parent.wavelet_levels_box.value()
+            if parent.plot.signal.unc_shading != 'Smoothed Signal':
+                parent.wavelet_levels_box.setEnabled(False)
+            else:
+                parent.wavelet_levels_box.setEnabled(True)
+
+            parent.plot.signal.update_uncertainty_shading()
+
+        if sender in self.boxes['unc_cutoff']:
+            self.boxes['unc_cutoff'][0].setMaximum(self.boxes['unc_cutoff'][1].value())
+            self.boxes['unc_cutoff'][1].setMinimum(self.boxes['unc_cutoff'][0].value())
+
+        for param in list(self.boxes.keys()):
+            shock[param] = [box.value() for box in self.boxes[param]]
+
+        if parent.display_shock['exp_data'].size > 0 and update_plot: # If exp_data exists
+            parent.plot.signal.update(update_lim=False)
+            parent.plot.signal.canvas.draw()
+
+    def switch_unc_type(self):
+        parent = self.parent()
+        shock = parent.display_shock
+        
+        # for loading, if a sim hasn't been run
+        if not hasattr(parent.SIM, 'independent_var') and parent.unc_type_box.currentText() != '%':
+           self.unc_type = parent.unc_type_box.currentText()
+           for box in [*self.boxes['unc_max'], *self.boxes['unc_min']]:
+                box.setSuffix('')
+           return
+
+        t = parent.SIM.independent_var
+        sim_obs = parent.SIM.observable
+        old_unc = parent.series.uncertainties(t)
+
+        t_conv = parent.var['reactor']['t_unit_conv']
+        t0 = shock['exp_data'][ 0, 0]
+        tf = shock['exp_data'][-1, 0]
+
+        shift   = np.array(shock['unc_shift'])/100*(tf-t0) + t0
+        k       = np.array(shock['unc_k'])*t_conv
+        unc_min = np.array(shock['unc_min'])
+        unc_max = np.array(shock['unc_max'])
+        A = np.insert(unc_max, 1, unc_min)
+
+        self.unc_type = parent.unc_type_box.currentText()
+        
+        # TODO: Switching could use some more work but good enough for now
+        if self.unc_type == '%':
+            abs_unc = old_unc
+
+            x0 = [A[0]/sim_obs[0], A[1]/np.median(sim_obs), A[2]/sim_obs[-1], *k, *shift]
+            bnds = np.ones((7, 2))*[0, np.inf]
+            bnds[3:5, :] = [t0, tf]
+
+            zero = lambda x: np.sum((double_sigmoid(t, x[0:3], x[3:5], x[5:7])*sim_obs - abs_unc)**2)
+            res = minimize(zero, x0, bounds=bnds)
+            new_vals = {'unc_min': [res.x[1]*100], 'unc_max': [res.x[0]*100, res.x[2]*100],
+                        'unc_k': res.x[3:5]/t_conv, 'unc_shift': (res.x[5:7] - t0)*100/(tf-t0)}
+        else:
+            abs_unc = sim_obs*old_unc
+
+            # calculate new absolute uncertainty extents
+            x0 = [abs_unc[0], A[1]/100*np.median(sim_obs), abs_unc[-1], *k, *shift]
+            bnds = np.ones((7, 2))*[0, np.inf]
+            bnds[3:5, :] = [t0, tf]
+
+            zero = lambda x: np.sum((double_sigmoid(t, x[0:3], x[3:5], x[5:7]) - abs_unc)**2)
+            res = minimize(zero, x0, bounds=bnds)
+            new_vals = {'unc_min': [res.x[1]], 'unc_max': [res.x[0], res.x[2]],
+                        'unc_k': res.x[3:5]/t_conv, 'unc_shift': (res.x[5:7] - t0)*100/(tf-t0)}
+
+            newSingleIntStep = 10**(OoM(np.min(res.x[0:3])))
+
+        for j, col in enumerate(['start', 'end']):
+            for row in new_vals.keys():
+                if len(self.boxes[row]) <= j: continue
+                box = self.boxes[row][j]
+                if self.unc_type == '%':
+                    box.setSingleIntStep(self.prop[col][row]['singleStep'])
+                    if 'suffix' in self.prop[col][row]:
+                        box.setSuffix(self.prop[col][row]['suffix'])
+                else:
+                    if row in ['unc_min', 'unc_max']:
+                        box.setSingleIntStep(newSingleIntStep)
+                        if 'suffix' in self.prop[col][row]:
+                            box.setSuffix('')
+                    
+                box.blockSignals(True)
+                box.setValue(new_vals[row][j])
+                box.blockSignals(False)
+        
+        box.valueChanged.emit(box.value())
+
          
 class Tables_Tab(QtCore.QObject):
     def __init__(self, parent):
@@ -801,7 +1011,10 @@ class Log:
         self.current_color = self.color['base']
         self.blink_status = False
         self.log.setTabStopWidth(QtGui.QFontMetricsF(self.log.font()).width(' ') * 6)
-
+        #font = QtGui.QFont("Courier New")
+        #font.setStyleHint(QtGui.QFont.TypeWriter)
+        #self.log.setCurrentFont(font)
+        #self.log.setFontPointSize(9)
         # self.tab_widget.tabBar().setStyleSheet('background-color: yellow')
 
         # Connect Log Functions
@@ -866,34 +1079,46 @@ class Log:
   
 optAlgorithm = {'DIRECT': nlopt.GN_DIRECT, 
                 'DIRECT-L': nlopt.GN_DIRECT_L,
-                'MLSL (Multi-Level Single-Linkage)': nlopt.GN_MLSL_LDS, #GN_MLSL
-                'ISRES': nlopt.GN_ISRES,
-                'CRS (Controlled Random Search)': nlopt.GN_CRS2_LM,
-                'Evolutionary': nlopt.GN_ESCH,
+                'CRS2 (Controlled Random Search)': nlopt.GN_CRS2_LM,
+                'DE (Differential Evolution)': 'pygmo_DE',
+                'SaDE (Self-Adaptive DE)': 'pygmo_SaDE',
+                'PSO (Particle Swarm Optimization)': 'pygmo_PSO',
+                'GWO (Grey Wolf Optimizer)': 'pygmo_GWO',
+                'RBFOpt': 'RBFOpt',
                 'Nelder-Mead Simplex': nlopt.LN_NELDERMEAD,
                 'Subplex': nlopt.LN_SBPLX,
                 'COBYLA': nlopt.LN_COBYLA,
-                'BOBYQA': nlopt.LN_BOBYQA}   
-                
+                'BOBYQA': nlopt.LN_BOBYQA,
+                'IPOPT (Interior Point Optimizer)': 'pygmo_IPOPT'}   
+ 
+populationAlgorithms = [nlopt.GN_CRS2_LM, nlopt.GN_MLSL_LDS, nlopt.GN_MLSL, nlopt.GN_ISRES]
+
 class Optimization(QtCore.QObject):
     def __init__(self, parent): # TODO: Setting tab order needs to happen here
         super().__init__(parent)
         parent = self.parent()
-        self.settings = {'loss': {}, 'global': {}, 'local': {}}
+
+        self.settings = {'obj_fcn': {}, 'global': {}, 'local': {}}
         
-        for box in [parent.loss_alpha_box, parent.loss_c_box]:
-            box.valueChanged.connect(self.update_loss_settings)
-        parent.resid_scale_box.currentTextChanged.connect(self.update_loss_settings)
-        self.update_loss_settings() # initialize settings
+        for box in [parent.loss_c_box, parent.bayes_unc_sigma_box]:
+            box.valueChanged.connect(self.update_obj_fcn_settings)
+        for box in [parent.loss_alpha_box, parent.obj_fcn_type_box, parent.obj_fcn_scale_box, 
+                    parent.global_stop_criteria_box, parent.local_opt_choice_box, parent.bayes_dist_type_box]:
+            box.currentTextChanged.connect(self.update_obj_fcn_settings)
+        
+        self.update_obj_fcn_settings() # initialize settings
         
         parent.multiprocessing_box  # checkbox
         
         self.widgets = {'global': {'run': parent.global_opt_enable_box,
                                    'algorithm': parent.global_opt_choice_box, 'initial_step': [],
-                                   'xtol_rel': [], 'ftol_rel': []},
+                                   'stop_criteria_type': parent.global_stop_criteria_box,
+                                   'stop_criteria_val': [], 'xtol_rel': [], 'ftol_rel': [],
+                                   'initial_pop_multiplier': []},
                         'local': {'run': parent.local_opt_enable_box,
                                    'algorithm': parent.local_opt_choice_box, 'initial_step': [],
-                                   'xtol_rel': [], 'ftol_rel': []}}
+                                   'stop_criteria_type': parent.local_stop_criteria_box,
+                                   'stop_criteria_val': [], 'xtol_rel': [], 'ftol_rel': []}}
         
         self.labels = {'global': [parent.global_text_1, parent.global_text_2, parent.global_text_3],
                        'local':  [parent.local_text_1, parent.local_text_2, parent.local_text_3]}
@@ -912,33 +1137,83 @@ class Optimization(QtCore.QObject):
                     box.stateChanged.connect(self.update_opt_settings)
         
         self.update_opt_settings()
+
+        '''
+        weight_unc_parameters_stacked_widget
+            WeightFunctionPage
+                weight_fcn_table
+            UncertaintyFunctionPage
+                unc_fcn_table
+        '''
      
     def _create_spinboxes(self):
         parent = self.parent()
         layout = {'global': parent.global_opt_layout, 'local': parent.local_opt_layout}
-        vars = {'global': {'initial_step': 1E-2, 'xtol_rel': 1E-4, 'ftol_rel': 5E-4},
-                'local':  {'initial_step': 1E-2, 'xtol_rel': 1E-4, 'ftol_rel': 1E-3}}
+        vars = {'global': {'initial_step': 1E-2, 'stop_criteria_val': 1500, 'xtol_rel': 1E-4, 'ftol_rel': 5E-4, 'initial_pop_multiplier': 1},
+                'local':  {'initial_step': 1E-2, 'stop_criteria_val': 1500, 'xtol_rel': 1E-4, 'ftol_rel': 1E-3}}
         
         spinbox = misc_widget.ScientificDoubleSpinBox
         for opt_type, layout in layout.items():
             for n, (var_type, val) in enumerate(vars[opt_type].items()):
-                self.widgets[opt_type][var_type] = spinbox(parent=parent, value=val, numFormat='e')
-                self.widgets[opt_type][var_type].setSingleStep(0.1)
-                self.widgets[opt_type][var_type].setStrDecimals(1)
+                if var_type in ['stop_criteria_val', 'initial_pop_multiplier']:
+                    self.widgets[opt_type][var_type] = spinbox(parent=parent, value=val, numFormat='g')
+                    self.widgets[opt_type][var_type].setMinimum(1)
+                    self.widgets[opt_type][var_type].setStrDecimals(4)
+                    if var_type == 'stop_criteria_val':
+                        self.widgets[opt_type][var_type].setSingleIntStep(1)
+                    else:
+                        self.widgets[opt_type][var_type].setSingleIntStep(0.1)
+                else:
+                    self.widgets[opt_type][var_type] = spinbox(parent=parent, value=val, numFormat='e')
+                    self.widgets[opt_type][var_type].setStrDecimals(1)
+                
                 layout.addWidget(self.widgets[opt_type][var_type], n, 0)
-             
-    def update_loss_settings(self, event=None):
-        settings = self.settings['loss']
+
+    def update_obj_fcn_settings(self, event=None):
+        parent = self.parent()
+        sender = self.sender()
+        settings = self.settings['obj_fcn']
         
-        settings['alpha'] = self.parent().loss_alpha_box.value()
-        settings['c'] = self.parent().loss_c_box.value()
-        settings['resid_scale'] = self.parent().resid_scale_box.currentText()
+        settings['type'] = parent.obj_fcn_type_box.currentText()
+        settings['scale'] = parent.obj_fcn_scale_box.currentText()
+
+        loss_alpha_txt = parent.loss_alpha_box.currentText()
+        if loss_alpha_txt == 'Adaptive':
+            settings['alpha'] = 3.0 # since bounds in loss are -inf to 2, this triggers an optimization
+        elif loss_alpha_txt == 'L2 loss':
+            settings['alpha'] = 2.0
+        elif loss_alpha_txt == 'Huber-like':
+            settings['alpha'] = 1.0
+        elif loss_alpha_txt == 'Cauchy':
+            settings['alpha'] = 0.0
+        elif loss_alpha_txt == 'Geman-McClure':
+            settings['alpha'] = -2.0
+        elif loss_alpha_txt == 'Welsch':
+            settings['alpha'] = -100.0
+
+        settings['c'] = 1/parent.loss_c_box.value() # this makes increasing values decrease outlier influence
+
+        settings['bayes_dist_type'] = parent.bayes_dist_type_box.currentText()
+        settings['bayes_unc_sigma'] = parent.bayes_unc_sigma_box.value()
+
+        # Hides and unhides the Bayesian page depending upon selection. Is this better than disabling though?
+        if sender is parent.obj_fcn_type_box or event is None:
+            parent.plot.signal.switch_weight_unc_plot()    # update weight/uncertainty plot
+            stackWidget = parent.weight_unc_parameters_stacked_widget
+            if settings['type'] == 'Residual':
+                parent.obj_fcn_tab_widget.removeTab(parent.obj_fcn_tab_widget.indexOf(parent.Bayesian_tab))
+                stackWidget.setCurrentWidget(parent.WeightFunctionPage)
+            else:
+                parent.obj_fcn_tab_widget.insertTab(parent.obj_fcn_tab_widget.count() + 1, parent.Bayesian_tab, "Bayesian")
+                stackWidget.setCurrentWidget(parent.UncertaintyFunctionPage)
 
         self.save_settings(event)
          
     def update_opt_settings(self, event=None):
+        parent = self.parent()
+        sender = self.sender()
         if event is not None:
-            box = self.sender()
+            box = sender
             opt_type = box.info['opt_type']
             var_type = box.info['var']
             
@@ -962,10 +1237,24 @@ class Optimization(QtCore.QObject):
                 if isinstance(box, QtWidgets.QDoubleSpinBox) or isinstance(box, QtWidgets.QSpinBox):
                     self.settings[opt_type][var_type] = box.value()
                 elif isinstance(box, QtWidgets.QComboBox):
-                    self.settings[opt_type][var_type] = optAlgorithm[box.currentText()]
+                    if box in [parent.global_opt_choice_box, parent.local_opt_choice_box]:
+                        self.settings[opt_type][var_type] = optAlgorithm[box.currentText()]
+                        if sender is box and box is parent.global_opt_choice_box:   # Toggle pop_multiplier box
+                            if self.settings[opt_type][var_type] in populationAlgorithms:
+                                self.widgets[opt_type]['initial_pop_multiplier'].setEnabled(True)
+                            else:
+                                self.widgets[opt_type]['initial_pop_multiplier'].setEnabled(False)
+                    else:
+                        self.settings[opt_type][var_type] = box.currentText()
+                        if sender is box and box is self.widgets[opt_type]['stop_criteria_type']:
+                            if self.settings[opt_type][var_type] == 'No Abort Criteria':
+                                self.widgets[opt_type]['stop_criteria_val'].setEnabled(False)
+                            else:
+                                self.widgets[opt_type]['stop_criteria_val'].setEnabled(True)
+
                 elif isinstance(box, QtWidgets.QCheckBox):
                     self.settings[opt_type][var_type] = box.isChecked()
-        
+
         self.save_settings(event)
     
     def save_settings(self, event=None):

@@ -126,9 +126,11 @@ Development/Old Versions
 Development/Documentation
 Development/Extras
 Paths/
+.vs/
 #*.7z
 #*.ini
 #*.log
 *.sln
-.vs/Frhodo_dev/v16/.suo
+
 *.pyproj
+*.user

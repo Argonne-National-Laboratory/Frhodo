@@ -20,7 +20,7 @@ class Observable_Widgets(QtCore.QObject):
         self.updating_boxes = False
         
         # Limit observable options to subset of total
-        keys = ['Temperature', 'Pressure', 'Density Gradient', 'Mole Fraction', 'Mass Fraction', 'Concentration']
+        keys = ['Temperature', 'Pressure', 'Density Gradient', 'Heat Release Rate', 'Mole Fraction', 'Mass Fraction', 'Concentration']
         self.var_dict = {key:parent.SIM.all_var[key] for key in keys}
         
         self.create_choices()
@@ -83,7 +83,7 @@ class Observable_Widgets(QtCore.QObject):
         comboBox.checked = []
         
         if (param == '-' or self.var_dict[param]['sub_type'] is None or not hasattr(self.parent, 'mech') or 
-            self.widget['main_parameter'].currentText() == 'Density Gradient'):
+            self.widget['main_parameter'].currentText() in ['Density Gradient', 'Heat Release Rate']):
             comboBox.hide()
         else:
             comboBox.show()

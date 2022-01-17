@@ -1,8 +1,10 @@
+***** clicking arrows on shock increments by 2 sometimes
 ***** see Engines
 ***** Address mplcairo for non windows systems
 ***** see Recast Reaction Rate Eqns
 ***** bug: Sim Explorer: if old mech species > new mech species/rxn, loading can cause outside vector range
 ****  bug: changing x axis to reverse reaction rate and selecting reaction causes crash
+***   chemked for thermo coordinates, mechanism name, name, source date, source name, comments, chemkin or cantera?
 
 ***** fix loading mech with unknown species (mix table doesn't update and plot doesn't show legend)
 ****  bug: loading Z:\BilBo Models\cycloheptane\2018\Mechanisms as experiment file
@@ -23,6 +25,9 @@
 Engines:
 ***** sensitivity analysis (Vyaas)
 ***** for slow simulations: update plot as calculation is performed or somehow update user
+****  Use pygmo for more global optimization methods?
+****  Use sci-kit optimize for bayesian optimization?
+****  Be able to constrain total rate and branching ratios. Schlieren gives total unc, theory gives branching ratio unc
 **    pytorch for ode solver?
 **    consider diffeqpy (juliadiffeq) to solve ODE. Should be faster and has more options
 **    julia alternative: Implement cvode (sundials) for scipy or from cantera: https://pypi.org/project/scikits.odes/

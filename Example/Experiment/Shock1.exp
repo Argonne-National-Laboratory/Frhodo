@@ -1,0 +1,14 @@
+[Mixture]
+Mol_0_Formula="Kr"
+Mol_0_Mol frc=0.960    
+Mol_1_Formula="cC7H14"
+Mol_1_Mol frc=0.040      
+
+[Expt Params]
+P1=5.01
+T1=21.00
+P4=30.00
+tOpt=116.557292    
+PT Spacing=120.000000 
+SampRate=50000000.000000      
+ 

@@ -6,7 +6,7 @@ import matplotlib as mpl
 from matplotlib import scale as mplscale
 
 import numpy as np
-
+from calculate.convert_units import Bisymlog
 
 class AbsoluteLogScale(mplscale.LogScale):
     name = 'abslog'
@@ -124,7 +124,7 @@ class BiSymmetricLogScale(mplscale.ScaleBase):
                 max_OoM = raw_tick_OoM[-1]  
                 min_dist = scale_ticklocs[2] - scale_ticklocs[1]
 
-                if vmin <= 0 <= vmax:
+                if vmin <= 0 and 0 <= vmax:
                     if min_dist > self.transform(10**zero_OoM):
                         min_dist = self.inverse_transform(min_dist)
                         zero_OoM = np.round(np.log10(np.abs(min_dist)))
@@ -221,14 +221,10 @@ class BiSymmetricLogScale(mplscale.ScaleBase):
             mpl.transforms.Transform.__init__(self)
             self.base = base
             self.C = C
+            self.bisymlog = Bisymlog(C=C, scaling_factor=2.0, base=base)
 
-        def transform_non_affine(self, a):
-            fcn = lambda x: np.sign(x)*np.log10(1 + np.abs(x/self.C))/np.log10(self.base)
-            
-            n = np.isfinite(a)   # only perform transformation on finite values
-            res = a.copy()
-            res[n] = fcn(res[n])
-            return res
+        def transform_non_affine(self, x):
+            return self.bisymlog.transform(x)
 
         def inverted(self): # link to inverted transform class
             return BiSymmetricLogScale.InvertedBiSymLogTransform(self.C)
@@ -242,9 +238,10 @@ class BiSymmetricLogScale(mplscale.ScaleBase):
             mpl.transforms.Transform.__init__(self)
             self.base = base
             self.C = C
+            self.bisymlog = Bisymlog(C=C, scaling_factor=2.0, base=base)
 
-        def transform_non_affine(self, a):
-            return np.sign(a)*self.C*(-1 + np.power(self.base, np.abs(a)))
+        def transform_non_affine(self, x):
+            return self.bisymlog.invTransform(x)
             
         def inverted(self):
             return BiSymmetricLogScale.BiSymLogTransform(self.C)    
