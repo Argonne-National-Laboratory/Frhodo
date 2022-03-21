@@ -58,13 +58,10 @@ class Worker(QRunnable):
 
         # Calculate initial rate scalers
         lb, ub = self.rxn_rate_opt['bnds'].values()
-        self.s = np.divide(rates(self.rxn_coef_opt, mech), self.rxn_rate_opt['x0'])*100 # this initializes from current GUI settings
+        self.s = rates(self.rxn_coef_opt, mech) - self.rxn_rate_opt['x0'] # this initializes from current GUI settings
 
         # Correct initial rate guesses if outside bounds
-        self.s = np.clip(self.s, lb*(1+1E-6), ub*(1-1E-6))
-
-        #np.putmask(self.s, self.s < lb, lb*1.01)
-        #np.putmask(self.s, self.s > ub, ub*0.99)
+        self.s = np.clip(self.s, lb*(1+1E-9), ub*(1-1E-9))
 
     def trim_shocks(self): # trim shocks from zero weighted data
         for n, shock in enumerate(self.shocks2run):
@@ -336,7 +333,7 @@ class Optimize:
         elif options['stop_criteria_type'] == 'Maximum Time [min]':
             num_gen = int(np.ceil(1E20/pop_size))
 
-        prob = pygmo.problem(pygmo_objective_fcn(self.obj_fcn, bnds))
+        prob = pygmo.problem(pygmo_objective_fcn(self.obj_fcn, tuple(bnds)))
         pop = pygmo.population(prob, pop_size)
         pop.push_back(x = x0)   # puts initial guess into the initial population
 

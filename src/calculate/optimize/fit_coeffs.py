@@ -13,13 +13,11 @@ from timeit import default_timer as timer
 import itertools
 
 from calculate.convert_units import OoM, Bisymlog
-from calculate.optimize.misc_fcns import penalized_loss_fcn, set_arrhenius_bnds
+from calculate.optimize.misc_fcns import penalized_loss_fcn, set_arrhenius_bnds, min_pos_system_value, max_pos_system_value
 
 Ru = ct.gas_constant
 # Ru = 1.98720425864083
 
-min_pos_system_value = (np.finfo(float).tiny*(1E20))**(0.5)
-max_pos_system_value = (np.finfo(float).max*(1E-20))**(0.5)
 min_ln_val = np.log(min_pos_system_value)
 max_ln_val = np.log(max_pos_system_value)
 min_log_val = np.log10(min_pos_system_value)
@@ -129,7 +127,7 @@ def fit_arrhenius(rates, T, x0=[], coefNames=default_arrhenius_coefNames, bnds=[
                                 loss=loss)
         except:
             return
-    
+
     if A_idx is not None:
         popt[A_idx] = np.exp(popt[A_idx])
 
