@@ -1,5 +1,6 @@
 name: frhodo
 channels:
+  - numba
   - cantera/label/dev
   - numba
   - conda-forge

@@ -127,7 +127,7 @@ def fit_arrhenius(rates, T, x0=[], coefNames=default_arrhenius_coefNames, bnds=[
                                 loss=loss)
         except:
             return
-            
+
     if A_idx is not None:
         popt[A_idx] = np.exp(popt[A_idx])
 

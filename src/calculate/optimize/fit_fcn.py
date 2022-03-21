@@ -10,8 +10,6 @@ from scipy.interpolate import CubicSpline
 from scipy import stats
 from copy import deepcopy
 
-from timeit import default_timer as timer
-
 from calculate.mech_fcns import Chemical_Mechanism
 from calculate.convert_units import OoM, Bisymlog
 from calculate.optimize.misc_fcns import weighted_quantile, outlier, penalized_loss_fcn
@@ -398,6 +396,7 @@ class Fit_Fun:
         else:                   # optimizing multiple experiments
             loss_min = loss_resid.min()
             loss_outlier = outlier(loss_resid, c=self.opt_settings['loss_c'])
+
             if obj_fcn_type == 'Residual':
                 loss_exp = penalized_loss_fcn(loss_resid-loss_min, a=alpha, c=loss_outlier)
             else:   # otherwise do not include penalty for Bayesian
