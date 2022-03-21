@@ -1,6 +1,7 @@
 name: frhodo
 channels:
   - cantera/label/dev
+  - numba
   - conda-forge
   - defaults
 dependencies:
