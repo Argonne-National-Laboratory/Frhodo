@@ -85,16 +85,16 @@ def calculate_residuals(args_list):
         
             return exp_bounds
 
-        t_sim_shifted = t_sim + t_offset + t_adjust
-
         # Compare SIM Density Grad vs. Experimental
+        t_sim_shifted = t_sim + t_offset + t_adjust
         exp_bounds = calc_exp_bounds(t_sim_shifted, t_exp)
         t_exp, obs_exp, weights = t_exp[exp_bounds], obs_exp[exp_bounds], weights[exp_bounds]
         if opt_type == 'Bayesian':
             obs_bounds = obs_bounds[exp_bounds]
         
-        f_interp = CubicSpline(t_sim_shifted.flatten(), obs_sim.flatten())
-        obs_sim_interp = f_interp(t_exp)
+        f_interp = CubicSpline(t_sim.flatten(), obs_sim.flatten())
+        t_exp_shifted = t_exp - t_offset - t_adjust
+        obs_sim_interp = f_interp(t_exp_shifted)
         
         if scale == 'Linear':
             resid = np.subtract(obs_exp, obs_sim_interp)                                                     
@@ -304,7 +304,7 @@ class Fit_Fun:
             return np.nan
         
         # Convert to mech values
-        log_opt_rates = s/100*self.x0
+        log_opt_rates = s + self.x0
         x = self.fit_all_coeffs(np.exp(log_opt_rates))
         if x is None: 
             return np.inf
@@ -347,14 +347,15 @@ class Fit_Fun:
             if np.size(loss_resid) <= 2:  # optimizing only a few experiments, use SSE
                 loss_alpha = 2.0
             
-            else:
-                loss_alpha_fcn = lambda alpha: self.calculate_obj_fcn(x, loss_resid, alpha, log_opt_rates, output_dict)
+            else: # alpha is based on residual loss function, not great, but it's super slow otherwise
+                loss_alpha_fcn = lambda alpha: self.calculate_obj_fcn(x, loss_resid, alpha, log_opt_rates, output_dict, obj_fcn_type='Residual')
         
                 res = minimize_scalar(loss_alpha_fcn, bounds=[-100, 2], method='bounded')
                 loss_alpha = res.x
 
-        print([loss_alpha, *exp_loss_alpha])
-        obj_fcn = self.calculate_obj_fcn(x, loss_resid, loss_alpha, log_opt_rates, output_dict)
+        # testing loss alphas
+        # print([loss_alpha, *exp_loss_alpha])
+        obj_fcn = self.calculate_obj_fcn(x, loss_resid, loss_alpha, log_opt_rates, output_dict, obj_fcn_type=self.opt_settings['obj_fcn_type'])
 
         # For updating
         self.i += 1
@@ -388,14 +389,15 @@ class Fit_Fun:
         else:
             return obj_fcn, x, output_dict['shock']
        
-    def calculate_obj_fcn(self, x, loss_resid, alpha, log_opt_rates, output_dict, loss_outlier=0):
+    def calculate_obj_fcn(self, x, loss_resid, alpha, log_opt_rates, output_dict, obj_fcn_type='Residual', loss_outlier=0):
         if np.size(loss_resid) == 1:  # optimizing single experiment
             loss_outlier = 0
             loss_exp = loss_resid
         else:                   # optimizing multiple experiments
             loss_min = loss_resid.min()
             loss_outlier = outlier(loss_resid, c=self.opt_settings['loss_c'])
-            if self.opt_settings['obj_fcn_type'] == 'Residual':
+
+            if obj_fcn_type == 'Residual':
                 loss_exp = penalized_loss_fcn(loss_resid-loss_min, a=alpha, c=loss_outlier)
             else:   # otherwise do not include penalty for Bayesian
                 loss_exp = penalized_loss_fcn(loss_resid-loss_min, a=alpha, c=loss_outlier, use_penalty=False)
@@ -403,7 +405,7 @@ class Fit_Fun:
         
         self.loss_outlier = loss_outlier
 
-        if self.opt_settings['obj_fcn_type'] == 'Residual':
+        if obj_fcn_type == 'Residual':
             if np.size(loss_resid) == 1:  # optimizing single experiment
                 obj_fcn = loss_exp[0]
             else:
@@ -411,7 +413,7 @@ class Fit_Fun:
                 #obj_fcn = np.median(loss_exp)
                 obj_fcn = np.average(loss_exp)
 
-        elif self.opt_settings['obj_fcn_type'] == 'Bayesian':
+        elif obj_fcn_type == 'Bayesian':
             if np.size(loss_resid) == 1:  # optimizing single experiment
                 Bayesian_weights = np.array(output_dict['aggregate_weights'], dtype=object).flatten()
             else:
@@ -427,9 +429,8 @@ class Fit_Fun:
 
             CheKiPEUQ_eval_dict = {'log_opt_rates': log_opt_rates, 'x': x, 'output_dict': output_dict, 
                                    'bayesian_weights': Bayesian_weights, 'iteration_num': self.i}
-            
-            obj_fcn = self.CheKiPEUQ_Frhodo_interface.evaluate(CheKiPEUQ_eval_dict)
 
+            obj_fcn = self.CheKiPEUQ_Frhodo_interface.evaluate(CheKiPEUQ_eval_dict)
 
         return obj_fcn
 

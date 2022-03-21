@@ -191,10 +191,17 @@ class CheKiPEUQ_Frhodo_interface:
             return_unbounded_indices=True
             )
         #remove the unbounded values.
-        Bayesian_dict['pars_initial_guess_truncated'] = remove_unbounded_values(Bayesian_dict['pars_initial_guess'], Bayesian_dict['unbounded_indices'] )
-        Bayesian_dict['pars_lower_bnds_truncated'] = remove_unbounded_values( Bayesian_dict['pars_lower_bnds'], Bayesian_dict['unbounded_indices'] )
-        Bayesian_dict['pars_upper_bnds_truncated'] = remove_unbounded_values( Bayesian_dict['pars_upper_bnds'], Bayesian_dict['unbounded_indices'] )
-        Bayesian_dict['pars_bnds_exist_truncated'] = remove_unbounded_values( Bayesian_dict['pars_bnds_exist'], Bayesian_dict['unbounded_indices'] )
+        # TODO: This might be improper way to handle all paramters having bounds
+        if len(Bayesian_dict['unbounded_indices']) > 0:
+            Bayesian_dict['pars_initial_guess_truncated'] = remove_unbounded_values(Bayesian_dict['pars_initial_guess'], Bayesian_dict['unbounded_indices'] )
+            Bayesian_dict['pars_lower_bnds_truncated'] = remove_unbounded_values( Bayesian_dict['pars_lower_bnds'], Bayesian_dict['unbounded_indices'] )
+            Bayesian_dict['pars_upper_bnds_truncated'] = remove_unbounded_values( Bayesian_dict['pars_upper_bnds'], Bayesian_dict['unbounded_indices'] )
+            Bayesian_dict['pars_bnds_exist_truncated'] = remove_unbounded_values( Bayesian_dict['pars_bnds_exist'], Bayesian_dict['unbounded_indices'] )
+        else:
+            Bayesian_dict['pars_initial_guess_truncated'] = Bayesian_dict['pars_initial_guess']
+            Bayesian_dict['pars_lower_bnds_truncated'] =  Bayesian_dict['pars_lower_bnds']
+            Bayesian_dict['pars_upper_bnds_truncated'] =  Bayesian_dict['pars_upper_bnds']
+            Bayesian_dict['pars_bnds_exist_truncated'] =  Bayesian_dict['pars_bnds_exist']
 
     def evaluate(self, CheKiPEUQ_eval_dict):
         Bayesian_dict = self.Bayesian_dict                
@@ -249,7 +256,11 @@ class CheKiPEUQ_Frhodo_interface:
         # We need to provide the current values of the varying_rate_vals to feed into the function.
             
         #varying_rate_vals = np.array(output_dict['shock']['rate_val'])[list(varying_rate_vals_indices)] #when extracting a list of multiple indices, instead of array[index] one use array[[indices]]
-        Bayesian_dict['pars_current_guess_truncated'] = remove_unbounded_values(Bayesian_dict['pars_current_guess'], Bayesian_dict['unbounded_indices'] ) 
+        # TODO: This might be improper way to handle all paramters having bounds
+        if len(Bayesian_dict['unbounded_indices']) > 0:
+            Bayesian_dict['pars_current_guess_truncated'] = remove_unbounded_values(Bayesian_dict['pars_current_guess'], Bayesian_dict['unbounded_indices'] )
+        else:
+            Bayesian_dict['pars_current_guess_truncated'] = Bayesian_dict['pars_current_guess']
             
         log_posterior_density = get_log_posterior_density(CheKiPEUQ_PE_object, Bayesian_dict['pars_current_guess_truncated'])
         neg_log_posterior_density = -1*log_posterior_density # need neg_logP because minimizing.

@@ -10,8 +10,8 @@ import pathlib, sys
 
 Ru = ct.gas_constant
 
-min_pos_system_value = (np.finfo(float).tiny*(1E20))**(0.5)
-max_pos_system_value = (np.finfo(float).max*(1E-20))**(0.5)
+min_pos_system_value = (np.finfo(float).tiny*(1E20))**(1/2)
+max_pos_system_value = (np.finfo(float).max*(1E-20))**(1/2)
 min_neg_system_value = -max_pos_system_value
 T_min = 300
 T_max = 6000

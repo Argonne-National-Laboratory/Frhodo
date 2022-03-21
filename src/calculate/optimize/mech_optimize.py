@@ -338,8 +338,8 @@ class Multithread_Optimize:
 
             ln_rate = rxn_rate_opt['x0'][i:i + len(rxn_coef['T'])]
             rxn_coef_bnds = mech.rate_bnds[rxnIdx]['limits'](np.exp(ln_rate))
-            rxn_coef_bnds = np.log(rxn_coef_bnds)  # operate on ln and scale
-            scaled_rxn_coef_bnds = np.sort(rxn_coef_bnds/ln_rate*100, axis=0)
+            rxn_coef_bnds = np.sort(np.log(rxn_coef_bnds), axis=0)  # operate on ln and scale
+            scaled_rxn_coef_bnds = rxn_coef_bnds - ln_rate
 
             bnds = np.concatenate((bnds, scaled_rxn_coef_bnds), axis=1)
 
