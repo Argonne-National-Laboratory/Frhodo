@@ -1,18 +1,16 @@
 """Testing the API components of Frhodo"""
-from frhodo.api import load_files
 
 
-def test_launch(frhodo_app):
+def test_launch(frhodo_driver):
     """Make sure we can launch Frhodo"""
-    app, window = frhodo_app
-    assert window.isVisible()
+    assert frhodo_driver.window.isVisible()
 
 
-def test_load(frhodo_app, example_dir, tmp_path):
+def test_load(frhodo_driver, example_dir, tmp_path):
     """Load loading in desired data"""
-    app, window = frhodo_app
-    load_files(window, app,
-               example_dir / 'Experiment',
-               example_dir / 'Mechanism',
-               tmp_path)
-    assert len(window.series.shock) == 1
+    frhodo_driver.load_files(
+        example_dir / 'Experiment',
+        example_dir / 'Mechanism',
+        tmp_path
+    )
+    assert len(frhodo_driver.window.series.shock) == 1

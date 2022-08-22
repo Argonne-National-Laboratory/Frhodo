@@ -4,6 +4,7 @@ from typing import Tuple
 from PyQt5.QtWidgets import QApplication
 from pytest import fixture
 
+from frhodo.api import FrhodoDriver
 from frhodo.main import launch_gui, Main
 
 
@@ -14,8 +15,8 @@ def example_dir() -> Path:
 
 
 @fixture()
-def frhodo_app() -> Tuple[QApplication, Main]:
+def frhodo_driver() -> FrhodoDriver:
     # Launch the application headless
     app, window = launch_gui(['frhodo', '-platform', 'offscreen'], fresh_gui=True)
-    yield app, window
+    yield FrhodoDriver(window, app)
     app.quit()
