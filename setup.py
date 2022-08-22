@@ -9,7 +9,7 @@ version = version_ns['__version__']
 
 setup(
     name='frhodo',
-    version='0.0.1',
+    version=version,
     packages=find_packages(),
     description='Simulate experimental data and optimize chemical kinetics mechanisms with this GUI-based application',
     entry_points={
