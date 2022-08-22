@@ -25,12 +25,12 @@ class Path:
         self.loading_dir_file = False
         
         parent.path = path
-        parent.path['graphics'] = parent.path['main']/'UI'/'graphics'
+        parent.path['graphics'] = parent.path['main'] / 'UI' / 'graphics'
         self.config = configparser.RawConfigParser()
         
         # Specify yaml files
-        parent.path['default_config'] = parent.path['appdata']/'default_config.yaml'
-        parent.path['Cantera_Mech'] = parent.path['appdata']/'generated_mech.yaml'
+        parent.path['default_config'] = parent.path['appdata'] / 'default_config.yaml'
+        parent.path['Cantera_Mech'] = parent.path['appdata'] / 'generated_mech.yaml'
         for key in ['default_config', 'Cantera_Mech']:
             if parent.path[key].exists(): # Check that file is readable and writable
                 if not os.access(parent.path[key], os.R_OK) or not os.access(parent.path[key], os.W_OK):
@@ -344,7 +344,7 @@ class Path:
         if self.fs_watcher.directories():
             self.fs_watcher.removePaths(self.fs_watcher.directories())
 
-        if self.parent.path['mech_main'].is_dir(): 
+        if self.parent.path['mech_main'].is_dir():
             self.fs_watcher.addPath(str(self.parent.path['mech_main']))
 
 
@@ -626,6 +626,9 @@ def double_sigmoid(x, A, k, x0):    # A = extrema, k = inverse growth rate, x0 =
     return res
 
 class series:
+    """Holds data from a collection of related shock experiments.
+
+    Also provides functionality for switching between different shocks in displays"""
     def __init__(self, parent):
         self.parent = parent
         self.exp = experiment(parent)
@@ -666,7 +669,9 @@ class series:
         self.shock.append(shock)
     
     def _create_shock(self, num, shock_path):
+        """Create a placeholder for data from a shock experiment"""
         parent = self.parent
+        # TODO (wardlt): This complex dictionary is ripe for implementation as a dataclass
         shock = {'num': num, 'path': deepcopy(shock_path), 'include': False, 
                 'series_name': self.name[-1], 'run_SIM': True,      # TODO: make run_SIM a trigger to calculate or not
                     
@@ -735,7 +740,7 @@ class series:
         
         self.path.append(deepcopy(parent.path['exp_main']))
         self.name.append(parent.exp_series_name_box.text())
-        self.shock_num.append(list(parent.path['shock'][:,0].astype(int)))
+        self.shock_num.append(list(parent.path['shock'][:, 0].astype(int)))
         self.species_alias.append({})
         self.in_table.append(False)
         
@@ -753,10 +758,16 @@ class series:
         self.in_table[n] = True
     
     def clear_series(self, n):
+        """Delete a series from the collection
+
+        Args:
+            n: Index of series to be deleted
+        """
         del self.path[n], self.name[n], self.shock_num[n], self.species_alias[n]
         del self.shock[n], self.in_table[n]
     
     def clear_shocks(self):
+        """Remove all shocks from a certain series"""
         if self.parent.load_full_series: return
         
         self.update_idx()   # in case series are changed and load full set not selected
@@ -1027,7 +1038,12 @@ class series:
         
         return shock['rate_val']
     
-    def rate_bnds(self, shock):
+    def rate_bnds(self, shock: dict):
+        """Update the bonds on the reaction rates based on a certain shock experiment
+
+        Args:
+            shock: Dictionary contain the shock information
+        """
         if not self.parent.mech.isLoaded: return
         mech = self.parent.mech
         
@@ -1064,6 +1080,7 @@ class series:
         self.parent.series_viewer.update()
 
     def change_shock(self):
+        """Charge the selected shock based on the choice in the GUI"""
         parent = self.parent
         # parent.user_settings.save(save_all = False)
         

@@ -40,7 +40,14 @@ shut_down = {'bool': False}
 
 
 class Main(QMainWindow):
-    def __init__(self, app, path):
+    def __init__(self, app: QApplication, path: dict, skip_config: bool = True):
+        """Launch the Frhodo GUI application
+
+        Args:
+            app: Link the QTApplication
+            path: Collection of useful paths
+            skip_config: Skip loading in the default configuration. Primarily useful if running Frhodo from API
+        """
         super().__init__()
         self.app = app
 
@@ -52,7 +59,7 @@ class Main(QMainWindow):
 
         # Start threadpools
         self.threadpool = QtCore.QThreadPool()
-        self.threadpool.setMaxThreadCount(2) # Sets thread count to 1 (1 for gui - this is implicit, 1 for calc)
+        self.threadpool.setMaxThreadCount(2)  # Sets thread count to 1 (1 for gui - this is implicit, 1 for calc)
 
         # Set selected tabs
         for tab_widget in [self.option_tab_widget, self.plot_tab_widget]:
@@ -91,14 +98,18 @@ class Main(QMainWindow):
             self.app.processEvents()  # allow everything to draw properly
 
         # Initialize Settings
-        self.initialize_settings()  # ~ 4 sec
+        self.initialize_settings(skip_config)  # ~ 4 sec
 
         # Setup help menu
         self.version = __version__
         help_menu.HelpMenu(self)
 
-    def initialize_settings(self):  # TODO: Solving for loaded shock twice
-        """Load in the user-defined settings from configuration files on disk"""
+    def initialize_settings(self, skip_config: bool):  # TODO: Solving for loaded shock twice
+        """Load in the user-defined settings from configuration files on disk
+
+        Args:
+            skip_config: Skip loading the default configuration
+        """
         msgBox = MessageWindow(self, 'Loading...')
         self.app.processEvents()
 
@@ -106,7 +117,8 @@ class Main(QMainWindow):
 
         # Load in the UI selections for the last box
         self.user_settings = config_io.GUI_settings(self)
-        self.user_settings.load()
+        if not skip_config:
+            self.user_settings.load()
 
         # Whether to load >1 files from the
         self.load_full_series = self.load_full_series_box.isChecked()   # TODO: Move to somewhere else?
@@ -309,11 +321,12 @@ class Main(QMainWindow):
         # assert False
 
 
-def launch_gui(args: Optional[List[str]] = None) -> Tuple[QApplication, Main]:
+def launch_gui(args: Optional[List[str]] = None, fresh_gui: bool = False) -> Tuple[QApplication, Main]:
     """Launch the GUI
 
     Args:
         args: Arguments to pass to the QApplication. Use ``sys.argv`` by default
+        fresh_gui: Whether to skip loading the previous configurations
     Returns:
         - The QApplication instance
         - Link to the main window
@@ -328,10 +341,16 @@ def launch_gui(args: Optional[List[str]] = None) -> Tuple[QApplication, Main]:
         if getattr(sys, 'frozen', False):  # if frozen minimize console immediately
             ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
 
-    app = QApplication(args)
-    sys.excepthook = error_window.excepthookDecorator(app, path, shut_down)
+    # Make a copy of the default paths, so that multiple launches of the Frhodo do not interfere
+    #   WardLT: I added this while building unit tests, which involve launching Frhodo many times
+    my_path = path.copy()
 
-    main_window = Main(app, path)
+    # Launch the QT application
+    app = QApplication(args)
+    sys.excepthook = error_window.excepthookDecorator(app, my_path, shut_down)
+
+    # Create the Frhodo main window
+    main_window = Main(app, my_path, fresh_gui)
     return app, main_window
 
 

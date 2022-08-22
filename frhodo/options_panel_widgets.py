@@ -132,8 +132,8 @@ class Directories(QtCore.QObject):
         parent.load_full_series_box.stateChanged.connect(self.set_load_full_set)
         self.set_load_full_set()
         
-        self.x_icon = QtGui.QPixmap(str(parent.path['graphics']/'x_icon.png'))
-        self.check_icon = QtGui.QPixmap(str(parent.path['graphics']/'check_icon.png'))
+        self.x_icon = QtGui.QPixmap(str(parent.path['graphics'] / 'x_icon.png'))
+        self.check_icon = QtGui.QPixmap(str(parent.path['graphics'] / 'check_icon.png'))
         self.update_icons()
     
     def preset(self, selection):
@@ -169,7 +169,7 @@ class Directories(QtCore.QObject):
                     initial_dir = parent.path[key].parents[0] # set path_file as initial folder
                     
                     # if initial_dir doesn't exist or can't be accessed, choose source folder
-                    if not os.access(parent.path[key], os.R_OK) or not initial_dir.is_dir():  
+                    if not os.access(parent.path[key], os.R_OK) or not initial_dir.is_dir():
                         initial_dir = parent.path['main']
                 
                 path = QFileDialog.getOpenFileName(parent, description_text, str(initial_dir), 'ini (*.ini)')
@@ -274,8 +274,8 @@ class Directories(QtCore.QObject):
                 
                 if key in self.invalid:
                     eval('parent.' + key + '_label.setPixmap(self.x_icon)')
-                elif (key in parent.path and os.access(parent.path[key], os.R_OK) 
-                    and parent.path[key].is_dir() and str(parent.path[key]) != '.'):
+                elif (key in parent.path and os.access(parent.path[key], os.R_OK)
+                      and parent.path[key].is_dir() and str(parent.path[key]) != '.'):
 
                     eval('parent.' + key + '_label.setPixmap(self.check_icon)')
                 else:
@@ -563,7 +563,7 @@ class Mix_Table(QtCore.QObject):
         species.insert(0, '')
         self.thermoSpecies_box = []
         # create down_arrow_path with forward slashes as required by QT stylesheet url
-        down_arrow_path = '"' + str((self.parent().path['graphics']/'arrowdown.png').as_posix()) + '"'
+        down_arrow_path = '"' + str((self.parent().path['graphics'] / 'arrowdown.png').as_posix()) + '"'
         for row in range(self.table.rowCount()):
             self.thermoSpecies_box.append(misc_widget.SearchComboBox())
             self.thermoSpecies_box[-1].addItems(species)
@@ -632,7 +632,7 @@ class Mix_Table(QtCore.QObject):
         
         # if path_file exists and species_aliases exist and not loading preset, save aliases
         if save_species_alias or len(parent.series.current['species_alias']) > 0:
-            if parent.path['path_file'].is_file() and not parent.path_set.loading_dir_file:    
+            if parent.path['path_file'].is_file() and not parent.path_set.loading_dir_file:
                 parent.path_set.save_aliases(parent.path['path_file'])
         
         parent.series.thermo_mix()

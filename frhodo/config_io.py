@@ -192,6 +192,11 @@ class GUI_Config(yaml.YAML):
                 self.dump(out, configFile)
 
     def from_yaml(self, src=None):
+        """Read settings from a YAML file, if present
+
+        Args:
+            src: Path to where the settings file should be
+        """
         if src is None: return
         if not src.exists(): return
         
