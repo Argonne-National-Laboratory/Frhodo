@@ -2,12 +2,11 @@ name: frhodo
 channels:
   - numba
   - cantera/label/dev
-  - numba
   - conda-forge
   - defaults
 dependencies:
   - cantera=2.6.0a1
-  - ipopt=3.14.4
+  - ipopt=3.14.*
   - matplotlib=3.5.1
   - nlopt=2.7.0
   - numba=0.54.1
@@ -23,3 +22,4 @@ dependencies:
   - pip:
     - dtcwt==0.12.0
     - rbfopt==4.2.2
+    - -e .
