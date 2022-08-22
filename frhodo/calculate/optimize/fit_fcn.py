@@ -72,7 +72,18 @@ def update_mech_coef_opt(mech, coef_opt, x):
     if mech_changed:
         mech.modify_reactions(mech.coeffs)  # Update mechanism with new coefficients
 
-def calculate_residuals(args_list):                                                                                                                                                                 
+def calculate_residuals(args_list):
+    """Evaluate the different between a shock experiment and the simulation given a list of parameters
+
+    Args:
+        args_list: Tuple with arguments in the following order:
+            var: Variables being optimized
+            coef_opt: Description of the coefficients being optimized
+            x: Guess for these new parameters
+            shock: Description of the shock experiment
+    Returns:
+        ???
+    """
     def resid_func(t_offset, t_adjust, t_sim, obs_sim, t_exp, obs_exp, weights, obs_bounds=[],
                          loss_alpha=2, loss_c=1, loss_penalty=True, scale='Linear', 
                          bisymlog_scaling_factor=1.0, DoF=1, opt_type='Residual', verbose=False):
@@ -249,7 +260,20 @@ def calculate_residuals(args_list):
 
 # Using optimization vs least squares curve fit because y_range's change if time_offset != 0
 class Fit_Fun:
+    """Fitness function to be minimized during optimization"""
+
     def __init__(self, input_dict):
+        """
+
+        Args:
+            input_dict: Dictionary containing all input data
+                - parent: Link to the host GUI. Accesses optimization settings from here
+                - shocks2run: List of the shock experiments to compare against
+                - coef_opt: Dictionary describing which coefficients are being optimized
+                - rxn_rate_opttheir initial values, and the bounds
+                - mech: Link to the mechanism object being tuned
+                - signals: Link to the signals in the main application
+        """
         self.parent = input_dict['parent']
         self.shocks2run = input_dict['shocks2run']
         self.data = self.parent.series.shock
@@ -288,10 +312,20 @@ class Fit_Fun:
             input_dict['opt_settings'] = self.opt_settings
             self.CheKiPEUQ_Frhodo_interface = CheKiPEUQ_Frhodo_interface(input_dict)
     
-    def __call__(self, s, optimizing=True):                                                                    
+    def __call__(self, s, optimizing=True):
+        """Evaluate the fitness function
+
+        Args:
+            s:
+            optimizing: Whether this function is being used by an optimizer. If not, return extra data
+
+        Returns:
+            The objective function value if optimizing. Objective function value plus
+
+        """
         def append_output(output_dict, calc_resid_output):
             for key in calc_resid_output:
-                if key not in output_dict:
+                if key not in output_dict: # TODO (wardlt) replace with defaultdict
                     output_dict[key] = []
                     
                 output_dict[key].append(calc_resid_output[key])
@@ -318,7 +352,8 @@ class Fit_Fun:
         
         display_ind_var = None
         display_observable = None
-                                                                          
+
+        # Evaluate the simulations in parallel if we have > 1
         if self.multiprocessing and len(self.shocks2run) > 1:
             args_list = ((var_dict, self.coef_opt, x, shock) for shock in self.shocks2run)
             calc_resid_outputs = self.pool.map(calculate_residuals, args_list)
@@ -434,7 +469,14 @@ class Fit_Fun:
 
         return obj_fcn
 
-    def fit_all_coeffs(self, all_rates):      
+    def fit_all_coeffs(self, all_rates):
+        """Adjust the input rates such that they are all consistent and within user-defined bounds
+
+        Args:
+            all_rates: List of all the rates being optimized
+        Returns:
+            Updated set of reaction coefficients
+        """
         coeffs = []
         i = 0
         for rxn_coef in self.rxn_coef_opt:

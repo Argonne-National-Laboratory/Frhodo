@@ -16,7 +16,10 @@ from .calculate.smooth_data import dual_tree_complex_wavelet_filter
 min_pos_system_value = (np.finfo(float).tiny*(1E20))**(1/2)
 max_pos_system_value = (np.finfo(float).max*(1E-20))**(1/2)
 
+
 class Path:
+    """Facilitates loading data from disk"""
+
     def __init__(self, parent, path):
         self.parent = parent
         self.loading_dir_file = False
@@ -38,9 +41,11 @@ class Path:
         self.fs_watcher.directoryChanged.connect(self.mech)
 
     def mech(self):
+        """Load in the chemical mechanism files from the "mech_main" directory"""
         parent = self.parent
         
-        # Test for existance of mech folder and return if it doesn't
+        # Test for existence of mech folder and return if it doesn't
+        #  TODO (wardlt): Remove after confirming this value is never used
         if parent.path['mech_main'].is_dir():
             self.mech_main_exists = True
         else:
@@ -255,6 +260,7 @@ class Path:
         return self.parent.path[var_name]
     
     def optimized_mech(self, file_out='opt_mech'):
+        """Define the filename of the optimized mechanism file"""
         parent = self.parent
         
         mech_name = parent.path['mech'].stem
@@ -281,6 +287,7 @@ class Path:
             return parent.path['Optimized_Mech_recast.mech']
     
     def load_dir_file(self, file_path):
+        """Load the directories specified by the user"""
         parent = self.parent
         self.loading_dir_file = True
         self.config.read(file_path)
@@ -988,9 +995,16 @@ class series:
             # don't run if a species isn't in the mech or mech doesn't exist
             # elif not hasattr(parent.mech.gas, 'species_names'): return
             # elif species not in parent.mech.gas.species_names: return  
-    
-    def rates(self, shock, rxnIdx=[]): # This resets and updates all rates in shock
-        if not self.parent.mech.isLoaded: return
+
+    def rates(self, shock, rxnIdx=()):
+        """Resets and updates all rates in shock
+
+        Args:
+            shock: Parameters of the shock to update rates for
+            rxnIdx: List of reactions to update
+        """
+        if not self.parent.mech.isLoaded:
+            return
         mech = self.parent.mech
         
         mech_out = mech.set_TPX(shock['T_reactor'], shock['P_reactor'], shock['thermo_mix'])
@@ -1000,7 +1014,7 @@ class series:
         
         if not rxnIdx:
             rxnIdxRange = range(mech.gas.n_reactions)
-        elif not isinstance(rxns, list):    # does not function right now
+        elif not isinstance(rxn, list):    # does not function right now
             rxnIdxRange = [rxnIdx]
         else:
             rxnIdxRange = rxnIdx

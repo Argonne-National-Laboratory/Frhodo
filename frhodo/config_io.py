@@ -202,6 +202,8 @@ class GUI_Config(yaml.YAML):
 
 
 class GUI_settings:
+    """Link between the UI display and the underlying :class:`GUI_config` data"""
+
     def __init__(self, parent):
         self.parent = parent    # Need to find a better solution than passing parent
         self.cfg_io = GUI_Config()
@@ -317,7 +319,8 @@ class GUI_settings:
     
     def save(self, save_all=False):
         parent = self.parent
-        
+
+        # Accesses sepcific
         settings = {'directory': self.cfg['Directory Settings'],
                     'exp': self.cfg['Experiment Settings'],
                     'reactor': self.cfg['Reactor Settings'],

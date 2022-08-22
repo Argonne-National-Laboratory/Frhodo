@@ -41,17 +41,22 @@ class Multithread_Optimize:
      
     def start_threads(self):
         parent = self.parent
+
+        # Prepare the name of the output file
         parent.path_set.optimized_mech()
 
+        # Controls for the display
         self.last_plot_timer = 0.0
         self.time_between_plots = 0.0  # maximum update rate, updated based on time to plot
 
+        # Check whether we should be using multiprocessing
         parent.multiprocessing = parent.multiprocessing_box.isChecked()
 
         ## Check fit_coeffs
         #from optimize.fit_coeffs import debug
         #debug(parent.mech)
 
+        # Check if the optimization cannot start for some reason
         if parent.directory.invalid: 
             parent.log.append('Invalid directory found\n')
             return
@@ -72,8 +77,9 @@ class Multithread_Optimize:
                     continue
 
                 self.shocks2run.append(shock)
-        
-        if len(self.shocks2run) == 0: # optimize current shock if nothing selected
+
+        # Optimize current shock if nothing selected
+        if len(self.shocks2run) == 0:
             self.shocks2run = [parent.display_shock]
         else:
             if not parent.load_full_series_box.isChecked(): # TODO: May want to remove this limitation in future
@@ -150,7 +156,8 @@ class Multithread_Optimize:
 
         # Create Progress Bar
         # parent.create_progress_bar()
-                
+
+        # Invoke the optimization to begin in a separate thread
         if not parent.abort:
             s = 'Optimization starting\n\n   Iteration\t\t Objective Func\tBest Objetive Func'
             parent.log.append(s, alert=False)
@@ -163,15 +170,16 @@ class Multithread_Optimize:
                 return True
         return False    
 
-    def _initialize_opt(self):  # initialize various dictionaries for optimization
+    def _initialize_opt(self):
+        """Initialize various dictionaries for optimization"""
         self.coef_opt = self._set_coef_opt()
         self.rxn_coef_opt = self._set_rxn_coef_opt()
         self.rxn_rate_opt = self._set_rxn_rate_opt()
 
-    def _set_coef_opt(self):                   
+    def _set_coef_opt(self):
+        """Find which coefficients of kinetic models should be optimized"""
         mech = self.parent.mech
         coef_opt = []
-        #for rxnIdx in range(mech.gas.n_reactions):      # searches all rxns
         for rxnIdx, rxn in enumerate(mech.gas.reactions()):      # searches all rxns
             if not mech.rate_bnds[rxnIdx]['opt']: continue        # ignore fixed reactions
 
@@ -186,8 +194,10 @@ class Multithread_Optimize:
         return coef_opt
     
     def _set_rxn_coef_opt(self, min_T_range=500, min_P_range_factor=2):
+        """Get the initial value and bounds for the parameters being optimized"""
         mech = self.parent.mech
         rxn_coef_opt = []
+        print(self.coef_opt)
         for coef in self.coef_opt:
             if len(rxn_coef_opt) == 0 or coef['rxnIdx'] != rxn_coef_opt[-1]['rxnIdx']:
                 rxn_coef_opt.append(deepcopy(coef))
@@ -266,7 +276,7 @@ class Multithread_Optimize:
                 rxn_coef['invT'] = []
                 rxn_coef['P'] = []
 
-                # set condtions for upper and lower rates
+                # set conditions for upper and lower rates
                 for coef_type in ['low_rate', 'high_rate']:
                     n_coef = 0
                     for coef in rxn_coef['key']:

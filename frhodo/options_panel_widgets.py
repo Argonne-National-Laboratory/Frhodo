@@ -4,6 +4,7 @@
 
 import pathlib, os, sys
 from copy import deepcopy
+from typing import Union, List
 
 import numpy as np
 from scipy.optimize import minimize
@@ -144,7 +145,7 @@ class Directories(QtCore.QObject):
     
     def select(self):
         parent = self.parent()
-        
+
         key = '_'.join(self.sender().objectName().split("_")[:-1])
         if 'path_file_load' in key:
             key = 'path_file'
@@ -153,6 +154,7 @@ class Directories(QtCore.QObject):
             dialog = 'select'
             
         type = self.sender().objectName().split("_")[-1]
+
         if 'button' in type:
             description_text = eval('parent.' + key + '_box.placeholderText()')
             initial_dir = pathlib.Path.home()     # set user as initial folder
@@ -189,8 +191,8 @@ class Directories(QtCore.QObject):
                 return self.sender().setPlainText(text)
             
             self.QTextEdit_function(self.sender(), fn, parent, text)
-            parent.path[key] = pathlib.Path(text) 
-        
+            parent.path[key] = pathlib.Path(text)
+
             # select will modify box, this section is under if box to prevent double calling
             self.update_icons()
             if 'mech_main' in key and 'mech_main' not in self.invalid:  # Mech path changed: update mech combobox
@@ -973,6 +975,8 @@ class Uncertainty_Parameters_Table(QtCore.QObject):
 
          
 class Tables_Tab(QtCore.QObject):
+    """Table holding the thermodynamic and kinetic models"""
+
     def __init__(self, parent):
         super().__init__(parent)
         parent = self.parent()
@@ -1025,7 +1029,13 @@ class Log:
         clear_log_button.clicked.connect(self.clear)
         copy_log_button.clicked.connect(self.copy)
         
-    def append(self, message, alert=True):
+    def append(self, message: Union[str, List[str]], alert: bool = True) -> None:
+        """
+
+        Args:
+            message: Message to be displayed
+            alert: Whether to blink the log tab in the GUI window
+        """
         if isinstance(message, list):
             message = '\n'.join(message)
             

@@ -12,6 +12,7 @@ from qtpy.QtWidgets import *
 from qtpy import QtWidgets, QtGui, QtCore
 
 from . import misc_widget
+from .calculate.mech_fcns import Chemical_Mechanism
 
 
 def silentSetValue(obj, value):
@@ -74,18 +75,29 @@ class Tree(QtCore.QObject):
             tree.expand(event)
             item.info['isExpanded'] = True
     
-    def set_trees(self, mech):
+    def set_trees(self, mech: Chemical_Mechanism):
+        """Update the widget display with a new chemical mechanism"""
         parent = self.parent()
         #parent.mech_tree.reset()
-        self.model.removeRows(0, self.model.rowCount())
+        self.model.removeRows(0, self.model.rowCount())  # Clear the old version
+
+        # Determine the display mode
         if 'Chemkin' in parent.tab_select_comboBox.currentText():
             self.mech_tree_type = 'Chemkin'
         else:
             self.mech_tree_type = 'Bilbo'
+
+        # Update the
         self.mech_tree_data = self._set_mech_tree_data(self.mech_tree_type, mech)
         self._set_mech_tree(self.mech_tree_data)
 
     def _set_mech_tree_data(self, selection, mech):
+        """Update the mechanism tree
+
+        Args:
+            selection: Which type of mechanism file to use
+            mech: Mechanism data
+        """
         def get_coef_abbreviation(coefName):
             if 'activation_energy' == coefName:
                 return 'Ea'
@@ -367,6 +379,11 @@ class Tree(QtCore.QObject):
             parent.run_single(rxn_changed=True)   
     
     def update_rates(self, rxnNum=None):
+        """Update the reaction rates _for the user-selected T/P/concentrations_?
+
+        Args:
+            rxnNum: Specific reaction number to update
+        """
         parent = self.parent()
         shock = parent.display_shock
         
@@ -398,6 +415,7 @@ class Tree(QtCore.QObject):
         self._copy_expanded_tab_rates()
     
     def update_uncertainties(self, event=None, sender=None):
+        """Update the uncertainty box based on an event from the UI"""
         parent = self.parent()
         mech = parent.mech
        
@@ -410,7 +428,7 @@ class Tree(QtCore.QObject):
             if 'coefName' in sender.info: # this means the coef unc was changed
                 coefNum, coefName, coefAbbr = sender.info['coefNum'], sender.info['coefName'], sender.info['coefAbbr']
                 
-                # get correct uncertainty diction based on reaction type
+                # get correct uncertainty dictionary based on reaction type
                 coef_key, bnds_key = keysFromBox(sender, mech)
 
                 coefUncDict = mech.coeffs_bnds[rxnNum][bnds_key][coefName]
@@ -466,6 +484,12 @@ class Tree(QtCore.QObject):
         parent.series.rate_bnds(parent.display_shock) 
     
     def update_coef_rate_from_opt(self, coef_opt, x):
+        """Updated all coefficients given the coefficient dictionary and vector used in optimization
+
+        Args:
+            coef_opt: Dictionary describing the parameters in `x`
+            x: Coefficients set by the optimizer
+        """
         parent = self.parent()
 
         conv_type = 'Cantera2' + self.mech_tree_type

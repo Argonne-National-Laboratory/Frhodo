@@ -14,6 +14,7 @@ from timeit import default_timer as timer
 
 from ..optimize.fit_fcn import initialize_parallel_worker, Fit_Fun
 from ..optimize.misc_fcns import rates
+from frhodo.calculate.mech_fcns import Chemical_Mechanism
 import frhodo
 
 
@@ -35,7 +36,19 @@ class Worker(QRunnable):
     
     '''
 
-    def __init__(self, parent, shocks2run, mech, coef_opt, rxn_coef_opt, rxn_rate_opt, *args, **kwargs):
+    def __init__(self, parent, shocks2run, mech: Chemical_Mechanism,
+                 coef_opt, rxn_coef_opt, rxn_rate_opt, *args, **kwargs):
+        """
+        Args:
+            parent: Attachment to parent QApplication
+            shocks2run: Data of the shocks to be compared against
+            mech: Connection to the :class:`~Chemical_Mechanism` holding reaction data
+            coef_opt: List of the coefficients being optimized, path to them in `mech`
+            rxn_coef_opt: The extracted coefficients and bounds for each parameter in `ceof_opt`
+            rxn_rate_opt: A parsimonious form of the coefficients and bounds, usable by optimization codes
+            *args: Unused?
+            **kwargs: Unused
+        """
         super(Worker, self).__init__()
         # Store constructor arguments (re-used for processing)
         self.parent = parent
@@ -57,7 +70,7 @@ class Worker(QRunnable):
     def _initialize(self):        
         mech = self.mech
 
-        # Calculate initial rate scalers
+        # Calculate initial rate scalars
         lb, ub = self.rxn_rate_opt['bnds'].values()
         self.s = rates(self.rxn_coef_opt, mech) - self.rxn_rate_opt['x0'] # this initializes from current GUI settings
 
@@ -76,7 +89,10 @@ class Worker(QRunnable):
                 shock['abs_uncertainties_trim'] = shock['abs_uncertainties'][exp_bounds,:]
     
     def optimize_coeffs(self):
+        """Perform the optimization"""
         parent = self.parent
+
+        # Create a pool where each worker has a copy of the full reaction mechanism dictionary
         pool = mp.Pool(processes=parent.max_processors,
                        initializer=initialize_parallel_worker,
                        initargs=(parent.mech.reset_mech, parent.mech.thermo_coeffs, parent.mech.coeffs, parent.mech.coeffs_bnds, 
@@ -87,9 +103,11 @@ class Worker(QRunnable):
         input_dict = {'parent': parent, 'pool': pool, 'mech': self.mech, 'shocks2run': self.shocks2run,
                       'coef_opt': self.coef_opt, 'rxn_coef_opt': self.rxn_coef_opt, 'rxn_rate_opt': self.rxn_rate_opt,
                       'multiprocessing': parent.multiprocessing, 'signals': self.signals}
-           
+
+        # Create the function that will be called during optimization
         Scaled_Fit_Fun = Fit_Fun(input_dict)
-        def eval_fun(s, grad=None):            
+        def eval_fun(s, grad=None):
+            """Wrapper for evaluation function. Handles aborting when desired"""
             if self.__abort:
                 parent.optimize_running = False
                 self.signals.log.emit('\nOptimization aborted')
@@ -225,6 +243,14 @@ elif OS_type == 'Darwin':
 
 class Optimize:
     def __init__(self, obj_fcn, x0, bnds, opt_options, Scaled_Fit_Fun):
+        """
+        Args:
+            obj_fcn: Objection function wrapper that invokes `Scaled_Fit_Fun` and includes an "abort" feature
+            x0: Initial guess
+            bnds:
+            opt_options:
+            Scaled_Fit_Fun: Fitness function used by `obj_fun`
+        """
         self.obj_fcn = obj_fcn
         self.x0 = x0
         self.bnds = bnds
@@ -295,7 +321,8 @@ class Optimize:
                 
         x = opt.optimize(x0) # optimize!
         #s = parent.optimize.HoF['s']
-                
+
+        # Invoke the code one last time with the proposed solution
         obj_fcn, x, shock_output = self.Scaled_Fit_Fun(x, optimizing=False)
             
         if nlopt.SUCCESS > 0: 
@@ -374,23 +401,26 @@ class Optimize:
         
         timer_start = timer()
 
+        # Determine how to stop the optimization
         if options['stop_criteria_type'] == 'Iteration Maximum':
             max_eval = int(options['stop_criteria_val'])
             max_time = 1E30
         elif options['stop_criteria_type'] == 'Maximum Time [min]':
             max_eval = 10000 # will need to check if rbfopt changes based on iteration
             max_time = options['stop_criteria_val']*60
+        else:
+            raise ValueError(f'Stopping condition "{options["stop_criteria_type"]}" not yet implemented')
 
-        var_type = ['R']*np.size(x0)    # specifies that all variables are continious
+        var_type = ['R']*np.size(x0)    # specifies that all variables are continuous
         
         output = {'success': False, 'message': []}
-        # Intialize and report any problems to log, not to console window
+        # Initialize and report any problems to log, not to console window
         stdout = io.StringIO()
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
             with contextlib.redirect_stdout(stdout):
                 bb = rbfopt.RbfoptUserBlackBox(np.size(x0), np.array(bnds[0]), np.array(bnds[1]),
-                                    np.array(var_type), self.obj_fcn)
+                                               np.array(var_type), self.obj_fcn)
                 settings = rbfopt.RbfoptSettings(max_iterations=max_eval,
                                                     max_evaluations=max_eval,
                                                     max_cycles=1E30,

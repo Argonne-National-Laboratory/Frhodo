@@ -114,6 +114,7 @@ class SIM_Property:
 
 
 class Simulation_Result:
+    """Storage for results of a reactor simulation"""
     def __init__(self, num=None, states=None, reactor_vars=[]):
         self.states = states
         self.all_var = all_var
@@ -175,6 +176,7 @@ class Simulation_Result:
          
 
 class Reactor:
+    """Simulates all types of reactors"""
     def __init__(self, mech):
         self.mech = mech
         self.ODE_success = False

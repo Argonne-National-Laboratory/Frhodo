@@ -4,6 +4,8 @@
 
 import os, io, stat, contextlib, pathlib, time
 from copy import deepcopy
+from typing import Tuple
+
 import cantera as ct
 from cantera import interrupts, cti2yaml#, ck2yaml, ctml2yaml
 import numpy as np
@@ -295,6 +297,7 @@ class Chemical_Mechanism:
                 raise(f'{rxn} is a {rxn.__class__.__name__} and is currently unsupported in Frhodo, but this error should never be seen')
 
     def get_coeffs_keys(self, rxn, coefAbbr, rxnIdx=None):
+        """Get the keys in a reaction dictionary associated that define the par"""
         if type(rxn) in [ct.ElementaryReaction, ct.ThreeBodyReaction]:
             bnds_key = 'rate'
             coef_key = 0
@@ -319,6 +322,9 @@ class Chemical_Mechanism:
                 coef_key = bnds_key = 'low_rate'
             else:
                 coef_key = bnds_key = 'falloff_parameters'
+
+        else:
+            raise ValueError(f'rxn type {rxn} not yet supported')
 
         return coef_key, bnds_key
 
@@ -525,18 +531,48 @@ class Chemical_Mechanism:
 
         return M
 
-    def run(self, reactor_choice, t_end, T_reac, P_reac, mix, **kwargs):
+    def run(self, reactor_choice, t_end, T_reac, P_reac, mix, **kwargs) -> Tuple[dict, dict]:
+        """Perform a simulation of the reaction output
+
+        Args:
+            reactor_choice: Choice of the reactor
+            t_end: How long of a simulation to run
+            T_reac: Temperature at which to perform the reaction
+            P_reac: Pressure at which to perform the simulation
+            mix: Initial concentrations of the reactants
+            kwargs: Options that are passed forward to the specific type of reactor being used and ODE solver
+        Returns:
+            - Results of the simulation
+            - Extensive details of the model performance
+        """
         return self.reactor.run(reactor_choice, t_end, T_reac, P_reac, mix, **kwargs)
 
 
 class Uncertainty: # alternate name: why I hate pickle part 10
+    """Computes the uncertainty bounds for parameters"""
+
     def __init__(self, unc_type, rxnIdx, **kwargs):
+        """
+        Args:
+            unc_type: Type of the
+            rxnIdx: Index of the reaction
+            **kwargs:
+        """
         # self.gas = gas
         self.unc_type = unc_type
         self.rxnIdx = rxnIdx
         self.unc_dict = kwargs
-    
-    def _unc_fcn(self, x, uncVal, uncType): # uncertainty function
+
+    def _unc_fcn(self, x, uncVal, uncType):  # TODO (wardlt): Can be static or
+        """Compute the bounds given the value of a coefficient
+
+        Args:
+            x: Assembled value of the coefficient
+            uncVal: Magnitude of the uncertainty
+            uncType: Type of the uncertainty (e.g., %, +, F)
+        Returns:
+            Bounds for the value
+        """
         if np.isnan(uncVal):
             return [np.nan, np.nan]
         elif uncType == 'F':
@@ -549,6 +585,8 @@ class Uncertainty: # alternate name: why I hate pickle part 10
             return np.sort([x, x + uncVal], axis=0)
         elif uncType == '-':
             return np.sort([x - uncVal, x], axis=0)
+        else:
+            raise ValueError(f'Unsupported type {uncType}')
 
     def __call__(self, x=None):
         if self.unc_type == 'rate':
