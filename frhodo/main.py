@@ -7,7 +7,7 @@
 
 import os, sys, platform, multiprocessing, pathlib, ctypes
 # os.environ['QT_API'] = 'pyside2'        # forces pyside2
-from typing import Tuple
+from typing import Tuple, Optional, List
 
 from qtpy.QtWidgets import QMainWindow, QApplication, QMessageBox
 from qtpy import uic, QtCore, QtGui
@@ -309,20 +309,26 @@ class Main(QMainWindow):
         # assert False
 
 
-def launch_gui() -> Tuple[QApplication, Main]:
+def launch_gui(args: Optional[List[str]] = None) -> Tuple[QApplication, Main]:
     """Launch the GUI
 
+    Args:
+        args: Arguments to pass to the QApplication. Use ``sys.argv`` by default
     Returns:
         - The QApplication instance
         - Link to the main window
     """
+    # Get the default argument if none specified
+    if args is None:
+        args = sys.argv.copy()
+
     if platform.system() == 'Windows':  # this is required for pyinstaller on windows
         multiprocessing.freeze_support()
 
         if getattr(sys, 'frozen', False):  # if frozen minimize console immediately
             ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
 
-    app = QApplication(sys.argv)
+    app = QApplication(args)
     sys.excepthook = error_window.excepthookDecorator(app, path, shut_down)
 
     main_window = Main(app, path)
