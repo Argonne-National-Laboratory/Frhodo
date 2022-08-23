@@ -5,7 +5,7 @@ using :meth:`~fhrodo.main.launch_gui`
 """
 
 from pathlib import Path
-from typing import List
+from typing import List, Optional, Dict
 
 import numpy as np
 from PyQt5.QtWidgets import QApplication
@@ -16,8 +16,13 @@ from ..main import Main
 class FrhodoDriver:
     """Driver the Frhodo GUI application
 
-    Implements simple interfaces for common tasks, such as loading differnet datasets
+    Implements simple interfaces for common tasks, such as loading different datasets
     or evaluating changes to different mechanisms
+
+    **Limitations**
+
+    The driver only supports a subset of
+    We only provide support for experiments that use experimental data from a single series
     """
 
     def __init__(self, window: Main, app: QApplication):
@@ -32,13 +37,16 @@ class FrhodoDriver:
 
     def load_files(self, experiment_path: Path,
                    mechanism_path: Path,
-                   output_path: Path):
+                   output_path: Path,
+                   aliases: Optional[Dict[str, str]] = None):
         """Load the input files for Frhodo
 
         Args:
             experiment_path: Path to the experimental data
             mechanism_path: Path to the mechanism files
             output_path: Path to which simulation results should be stored
+            aliases: List of aliases of chemical species as mapping of the name
+                of a chemical in the experiment data to name of the same chemical in the mechanism.
         """
 
         self.window.exp_main_box.setPlainText(str(experiment_path.resolve().absolute()))
@@ -47,6 +55,13 @@ class FrhodoDriver:
 
         # Trigger Frhodo to process these files
         self.app.processEvents()
+
+        # Add in the aliases
+        if aliases is not None:
+            aliases = aliases.copy()  # Ensure that later changes to aliases don't propagate here
+            self.window.series.species_alias[0] = aliases
+            for shock in self.window.series.shock[0]:
+                shock['species_alias'] = aliases
 
     @property
     def n_shocks(self):
@@ -65,8 +80,10 @@ class FrhodoDriver:
         """
 
         # Check if it is in the list
-        assert self.n_shocks > 0
-        assert any(n == x['num'] for x in self.window.series.shock[0])
+        assert self.n_shocks > 0, 'No shocks are loaded'
+        assert n in self.window.series.current['shock_num'], f'Shock number {n} is not in the current series'
+
+        # Trigger an update of the displayed system
         self.window.shock_choice_box.setValue(n + 1)
         self.app.processEvents()
 

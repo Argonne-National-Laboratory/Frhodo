@@ -1,11 +1,13 @@
 """Testing the API components of Frhodo"""
 
+
 def _load_example(frhodo_driver, example_dir, tmp_path):
     """Set up the driver with a specific problem case"""
     frhodo_driver.load_files(
         example_dir / 'Experiment',
         example_dir / 'Mechanism',
-        tmp_path
+        tmp_path,
+        {'A': 'B'}  # A fake alias
     )
 
 
@@ -34,3 +36,7 @@ def test_simulate(frhodo_driver, example_dir, tmp_path):
     assert len(runs) == 1
     assert runs[0].ndim == 2
     assert runs[0].shape[1] == 2
+
+    # Make sure the aliases propagated through
+    #  They are reloaded from configuration variables when we re-run a simulation
+    assert frhodo_driver.window.display_shock['species_alias']['A'] == 'B'
