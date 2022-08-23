@@ -58,12 +58,15 @@ class FrhodoDriver:
         return len(self.window.series.shock[0])
 
     def _select_shock(self, n: int):
-        """Change which shock experiment is running
+        """Change which shock experiment is being displayed and simulated
 
         Args:
             n: Which shock experiment to evaluate
         """
 
+        # Check if it is in the list
+        assert self.n_shocks > 0
+        assert any(n == x['num'] for x in self.window.series.shock[0])
         self.window.shock_choice_box.setValue(n + 1)
         self.app.processEvents()
 
@@ -75,9 +78,34 @@ class FrhodoDriver:
              array with the first column is the time and second
              is the observable
         """
+
+        if self.n_shocks == 0:
+            return []
+
         # Loop over each shock
         output = []
-        for i in range(self.n_shocks):
-            self._select_shock(i)
-            output.append(self.window.display_shock['exp_data'])
+        for shock in self.window.series.shock[0]:
+            output.append(shock['exp_data'])
+        return output
+
+    def run_simulations(self) -> List[np.ndarray]:
+        """Run the simulation for each of the observed
+
+        Returns:
+            List of simulated data arrays where each is a 2D
+             array with the first column is the time and second
+             is the simulated observable
+        """
+
+        # Loop over all shocks
+        output = []
+        for shock in self.window.series.shock[0]:
+            # We force the simulation by changing the shock index in the GUI
+            #  That could be an issue if the behavior of the GUI changes
+            self._select_shock(shock['num'])
+            assert self.window.SIM.success, 'Simulation failed'
+            output.append(np.stack([
+                self.window.SIM.independent_var,
+                self.window.SIM.observable
+            ], axis=1))
         return output
