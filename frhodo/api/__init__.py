@@ -5,7 +5,9 @@ using :meth:`~fhrodo.main.launch_gui`
 """
 
 from pathlib import Path
+from typing import List
 
+import numpy as np
 from PyQt5.QtWidgets import QApplication
 
 from ..main import Main
@@ -45,3 +47,37 @@ class FrhodoDriver:
 
         # Trigger Frhodo to process these files
         self.app.processEvents()
+
+    @property
+    def n_shocks(self):
+        """Number of shock experiments loaded"""
+        n_series = len(self.window.series.shock)
+        assert n_series <= 1, "We only support one series"
+        if n_series == 0:
+            return 0
+        return len(self.window.series.shock[0])
+
+    def _select_shock(self, n: int):
+        """Change which shock experiment is running
+
+        Args:
+            n: Which shock experiment to evaluate
+        """
+
+        self.window.shock_choice_box.setValue(n + 1)
+        self.app.processEvents()
+
+    def get_observables(self) -> List[np.ndarray]:
+        """Get the observable data from each shock experiment
+
+        Returns:
+            List of experimental data arrays where each is a 2D
+             array with the first column is the time and second
+             is the observable
+        """
+        # Loop over each shock
+        output = []
+        for i in range(self.n_shocks):
+            self._select_shock(i)
+            output.append(self.window.display_shock['exp_data'])
+        return output

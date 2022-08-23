@@ -1,11 +1,13 @@
 from pathlib import Path
-from typing import Tuple
 
-from PyQt5.QtWidgets import QApplication
 from pytest import fixture
 
 from frhodo.api import FrhodoDriver
-from frhodo.main import launch_gui, Main
+from frhodo.main import launch_gui
+
+# Launch the application headless and without reading the configuration from a past run
+app, window = launch_gui(['frhodo', '-platform', 'offscreen'], fresh_gui=True)
+driver = FrhodoDriver(window, app)
 
 
 @fixture()
@@ -16,7 +18,4 @@ def example_dir() -> Path:
 
 @fixture()
 def frhodo_driver() -> FrhodoDriver:
-    # Launch the application headless
-    app, window = launch_gui(['frhodo', '-platform', 'offscreen'], fresh_gui=True)
-    yield FrhodoDriver(window, app)
-    app.quit()
+    return driver
