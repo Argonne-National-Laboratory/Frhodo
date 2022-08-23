@@ -5,7 +5,7 @@ using :meth:`~fhrodo.main.launch_gui`
 """
 
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 
 import numpy as np
 from PyQt5.QtWidgets import QApplication
@@ -21,8 +21,10 @@ class FrhodoDriver:
 
     **Limitations**
 
-    The driver only supports a subset of
-    We only provide support for experiments that use experimental data from a single series
+    The driver only supports a subset of features of Frhodo
+
+    - Only supports experiments that use experimental data from a single series
+    - Does not support changing parameters to reactions which are pressure-dependent
     """
 
     def __init__(self, window: Main, app: QApplication):
@@ -71,6 +73,11 @@ class FrhodoDriver:
         if n_series == 0:
             return 0
         return len(self.window.series.shock[0])
+
+    @property
+    def rxn_coeffs(self) -> List[List[Dict[str, float]]]:
+        """Reaction rate coefficients"""
+        return self.window.mech.coeffs
 
     def _select_shock(self, n: int):
         """Change which shock experiment is being displayed and simulated
@@ -126,3 +133,42 @@ class FrhodoDriver:
                 self.window.SIM.observable
             ], axis=1))
         return output
+
+    def get_reaction_rates(self) -> np.ndarray:
+        """Get the reaction rates for each shock experiment
+
+        Returns:
+            Array where each row is a different reaction rate and each column is
+             a different shock tube experiment
+        """
+
+        # Run them directly through the `series` interface rather than changing the display
+        #  to avoid re-running the
+        output = []
+        for shock in self.window.series.shock[0]:
+            output.append(self.window.series.rates(shock))
+
+        # Call with the current shock to ensure `mech` hasn't been changed
+        self.window.series.rates(self.window.display_shock)
+        return np.stack(output, axis=1)
+
+    def change_coefficient(self, new_values: Dict[Tuple[int, int, str], float]):
+        """Update the parameters of a reaction parameter
+
+        Args:
+            new_values: A dictionary where the key is a tuple defining which
+                coefficient is being altered: (<rxn index: int>, <pressure index: int>, <coeff. name: str>)
+                The value is the new value for that coefficient
+        """
+
+        # Update the value in the Chemical_Mechanism dictionary
+        for key, new_value in new_values.items():
+            rxn_id, prs_id, coef_name = key
+            rxn_model = self.window.mech.coeffs[rxn_id][prs_id]
+            assert coef_name in rxn_model, f'Key {coef_name} not present for reaction #{rxn_id} at pressure #{prs_id}'
+            rxn_model[coef_name] = new_value
+
+        # Update the reaction rates for the current shock
+        self.window.mech.modify_reactions(self.window.mech.coeffs)
+        self.window.tree.update_rates()
+        self.app.processEvents()

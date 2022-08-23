@@ -295,6 +295,7 @@ class Tree(QtCore.QObject):
             return None
 
     def update_value(self, event):
+        """Update the value from when a user interacts with the mechanism widget"""
         def getRateConst(parent, rxnNum, coef_key, coefName, value):
             shock = parent.display_shock
             parent.mech.coeffs[rxnNum][coef_key][coefName] = value

@@ -1008,7 +1008,9 @@ class series:
             # elif species not in parent.mech.gas.species_names: return  
 
     def rates(self, shock, rxnIdx=()):
-        """Resets and updates all rates in shock
+        """Resets and updates all rates in a single shock experiment
+
+        Modifies the `mech` object of the Frhodo main window
 
         Args:
             shock: Parameters of the shock to update rates for
