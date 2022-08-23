@@ -117,8 +117,9 @@ class Main(QMainWindow):
 
         # Load in the UI selections for the last box
         self.user_settings = config_io.GUI_settings(self)
-        if not skip_config:
-            self.user_settings.load()
+        if skip_config:
+            self.path['default_config'] = None  # Will result in configuration loading to fail
+        self.user_settings.load()
 
         # Whether to load >1 files from the
         self.load_full_series = self.load_full_series_box.isChecked()   # TODO: Move to somewhere else?
