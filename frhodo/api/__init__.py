@@ -5,13 +5,16 @@ using :meth:`~fhrodo.main.launch_gui`
 """
 
 from pathlib import Path
-from typing import List, Optional, Dict, Tuple, Union
+from typing import List, Optional, Dict, Tuple, Union, Any
 
 import numpy as np
+import cantera as ct
 from PyQt5.QtWidgets import QApplication
 
 from ..main import Main, launch_gui
 
+CoefIndex = Tuple[int, Union[str, int], str]
+"""How to specify the index of a reaction parameter: reaction index, pressure index, name of the parameter"""
 
 class FrhodoDriver:
     """Driver the Frhodo GUI application
@@ -76,7 +79,7 @@ class FrhodoDriver:
         return len(self.window.series.shock[0])
 
     @property
-    def rxn_coeffs(self) -> List[List[Dict[str, float]]]:
+    def rxn_coeffs(self) -> List[Union[List[Dict[str, float]], Dict[str, Any]]]:
         """Reaction rate coefficients"""
         return self.window.mech.coeffs
 
@@ -160,7 +163,55 @@ class FrhodoDriver:
         self.window.series.rates(self.window.display_shock)
         return np.stack(output, axis=1)
 
-    def change_coefficient(self, new_values: Dict[Tuple[int, Union[str, int], str], float]):
+    def get_fittable_parameters(self, chosen_reactions: Optional[List[int]] = None) -> List[CoefIndex]:
+        """Get a list of all parameters than can be fit during optimization
+
+        Args:
+            chosen_reactions: Which reactions we're allowed to optimize
+        Returns:
+            Index of each parameter that could be modified. Indices are defined by:
+                - Reaction number
+                - Index of the pressure level
+                - Name of the coefficient
+        """
+
+        output = []
+        # Loop over all reactions, getting both the coefficients (stored in Fhrodo)
+        #   and reaction models (stored in a Cantera reaction object)
+        for rxn_id, (coeffs, rxn_obj) in enumerate(zip(self.rxn_coeffs, self.window.mech.gas.reactions())):
+            # Determine whether to skip this reaction
+            if chosen_reactions is not None and rxn_id not in chosen_reactions:
+                continue
+
+            # We get the high and low pressure for the falloff reactions
+            if type(rxn_obj) is ct.FalloffReaction:
+                for p_id in ['low_rate', 'high_rate']:
+                    for coeff in coeffs[p_id].keys():
+                        output.append((rxn_id, p_id, coeff))
+            else:
+                # Loop over pressure levels
+                for p_id, p_coeffs in enumerate(coeffs):
+                    for coeff in p_coeffs.keys():
+                        output.append((rxn_id, p_id, coeff))
+        return output
+
+    def get_coefficients(self, indices: List[CoefIndex]) -> List[float]:
+        """Get the values of specific coefficients
+
+        Args:
+            indices: List of coefficients to extract
+        Returns:
+            List of their current values
+        """
+
+        output = []
+        for rxn_id, prs_id, coef_name in indices:
+            rxn_model = self.window.mech.coeffs[rxn_id][prs_id]
+            assert coef_name in rxn_model, f'Key {coef_name} not present for reaction #{rxn_id} at pressure #{prs_id}'
+            output.append(rxn_model[coef_name])
+        return output
+
+    def change_coefficient(self, new_values: Dict[CoefIndex, float]):
         """Update the parameters of a reaction parameter
 
         Args:

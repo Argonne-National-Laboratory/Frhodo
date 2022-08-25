@@ -29,10 +29,13 @@ def test_load(loaded_frhodo):
 
 
 def test_observables(loaded_frhodo):
-    runs = loaded_frhodo.get_observables()
+    runs, weights = loaded_frhodo.get_observables()
     assert len(runs) == 1
     assert runs[0].ndim == 2
     assert runs[0].shape[1] == 2
+
+    assert len(weights) == 1
+    assert weights[0].size == runs[0].shape[0]
 
 
 def test_simulate(loaded_frhodo):
@@ -47,11 +50,12 @@ def test_simulate(loaded_frhodo):
 
 
 @mark.parametrize(
-    'rxn_id, prs_id', [(1, 0),  # PLog TODO (wardlt): Reaction 1 fails because we don't yet support PLog reactions
+    'rxn_id, prs_id', [(0, 0),  # PLog TODO (wardlt): Reaction 0 fails because we don't yet support PLog reactions
                        (3, 0),  # Elementary
                        (36, 'low_rate')]  # Three-body
 )
 def test_update(loaded_frhodo, rxn_id, prs_id):
+    """Test that we can update individual parameters"""
     # Get the initial reaction rates
     rates = loaded_frhodo.get_reaction_rates()
     assert rates.shape == (66, 1)
@@ -74,3 +78,19 @@ def test_update(loaded_frhodo, rxn_id, prs_id):
     # Make sure that this changes the simulation
     new_sim = loaded_frhodo.run_simulations()[0]
     assert not np.isclose(sim[-1, 1], new_sim[-1, 1], rtol=1e-4)  # Look just at the last point
+
+
+def test_fittable_parameters(loaded_frhodo):
+    """Test getting lists of parameters to update"""
+
+    # Make sure we can get all parameters
+    total = loaded_frhodo.get_fittable_parameters()
+    assert len(total) == 434
+
+    # Make sure it works with each reaction type
+    assert len(loaded_frhodo.get_fittable_parameters([0])) == 32  # plog
+    assert len(loaded_frhodo.get_fittable_parameters([3])) == 3  # elementary
+    assert len(loaded_frhodo.get_fittable_parameters([36])) == 6  # Troe
+
+    # Test getting a parameter
+    assert np.isclose(loaded_frhodo.get_coefficients([(1, 0, 'pre_exponential_factor')]), 5.9102033e+93)
