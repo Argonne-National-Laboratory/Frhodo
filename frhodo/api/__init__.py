@@ -10,7 +10,7 @@ from typing import List, Optional, Dict, Tuple
 import numpy as np
 from PyQt5.QtWidgets import QApplication
 
-from ..main import Main
+from ..main import Main, launch_gui
 
 
 class FrhodoDriver:
@@ -172,3 +172,17 @@ class FrhodoDriver:
         self.window.mech.modify_reactions(self.window.mech.coeffs)
         self.window.tree.update_rates()
         self.app.processEvents()
+
+    @classmethod
+    def create_driver(cls, headless: bool = True, fresh: bool = True) -> 'FrhodoDriver':
+        """Create a Frhodo driver
+
+        Args:
+            headless: Whether to suppress the display
+            fresh: Whether to skip loading in previous configuration
+        Returns:
+            Driver connected to a new Frhodo instance
+        """
+        qt_args = ['frhodo', '-platform', 'offscreen'] if headless else ['frhodo']
+        app, window = launch_gui(qt_args, fresh_gui=fresh)
+        return cls(window, app)

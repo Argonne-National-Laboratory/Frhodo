@@ -2,6 +2,8 @@
 import numpy as np
 from pytest import fixture, mark
 
+from frhodo.api import FrhodoDriver
+
 
 @fixture
 def loaded_frhodo(frhodo_driver, example_dir, tmp_path):
@@ -15,9 +17,10 @@ def loaded_frhodo(frhodo_driver, example_dir, tmp_path):
     return frhodo_driver
 
 
-def test_launch(frhodo_driver):
+def test_launch():
     """Make sure we can launch Frhodo"""
-    assert frhodo_driver.window.isVisible()
+    driver = FrhodoDriver.create_driver()
+    assert driver.window.isVisible()
 
 
 def test_load(loaded_frhodo):
