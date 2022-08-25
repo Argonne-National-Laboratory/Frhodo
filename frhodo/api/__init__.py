@@ -174,6 +174,7 @@ class FrhodoDriver:
                 - Index of the pressure level
                 - Name of the coefficient
         """
+        _not_parameter = ['efficiencies', 'Pressure']
 
         output = []
         # Loop over all reactions, getting both the coefficients (stored in Fhrodo)
@@ -187,12 +188,14 @@ class FrhodoDriver:
             if type(rxn_obj) is ct.FalloffReaction:
                 for p_id in ['low_rate', 'high_rate']:
                     for coeff in coeffs[p_id].keys():
-                        output.append((rxn_id, p_id, coeff))
+                        if coeff not in _not_parameter:
+                            output.append((rxn_id, p_id, coeff))
             else:
                 # Loop over pressure levels
                 for p_id, p_coeffs in enumerate(coeffs):
                     for coeff in p_coeffs.keys():
-                        output.append((rxn_id, p_id, coeff))
+                        if coeff not in _not_parameter:
+                            output.append((rxn_id, p_id, coeff))
         return output
 
     def get_coefficients(self, indices: List[CoefIndex]) -> List[float]:

@@ -85,10 +85,10 @@ def test_fittable_parameters(loaded_frhodo):
 
     # Make sure we can get all parameters
     total = loaded_frhodo.get_fittable_parameters()
-    assert len(total) == 434
+    assert len(total) == 360
 
     # Make sure it works with each reaction type
-    assert len(loaded_frhodo.get_fittable_parameters([0])) == 32  # plog
+    assert len(loaded_frhodo.get_fittable_parameters([0])) == 24  # plog
     assert len(loaded_frhodo.get_fittable_parameters([3])) == 3  # elementary
     assert len(loaded_frhodo.get_fittable_parameters([36])) == 6  # Troe
 
