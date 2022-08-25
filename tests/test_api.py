@@ -47,9 +47,11 @@ def test_simulate(loaded_frhodo):
 
 
 @mark.parametrize(
-    'rxn_id', [1, 3]  # TODO (wardlt): Reaction 1 fails because we don't yet support pressure-dependent reactions
+    'rxn_id, prs_id', [(1, 0),  # PLog TODO (wardlt): Reaction 1 fails because we don't yet support PLog reactions
+                       (3, 0),  # Elementary
+                       (36, 'low_rate')]  # Three-body
 )
-def test_update(loaded_frhodo, rxn_id):
+def test_update(loaded_frhodo, rxn_id, prs_id):
     # Get the initial reaction rates
     rates = loaded_frhodo.get_reaction_rates()
     assert rates.shape == (66, 1)
@@ -58,8 +60,8 @@ def test_update(loaded_frhodo, rxn_id):
     sim = loaded_frhodo.run_simulations()[0]
 
     # Update one of the rates
-    loaded_frhodo.change_coefficient({(rxn_id, 0, 'pre_exponential_factor'): 200})
-    assert loaded_frhodo.rxn_coeffs[rxn_id][0]['pre_exponential_factor'] == 200
+    loaded_frhodo.change_coefficient({(rxn_id, prs_id, 'pre_exponential_factor'): 200})
+    assert loaded_frhodo.rxn_coeffs[rxn_id][prs_id]['pre_exponential_factor'] == 200
 
     # Make sure that only one rate changes
     new_rates = loaded_frhodo.get_reaction_rates()

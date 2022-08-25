@@ -4,7 +4,7 @@
 
 import os, io, stat, contextlib, pathlib, time
 from copy import deepcopy
-from typing import Tuple
+from typing import Tuple, Optional, Sequence, Union
 
 import cantera as ct
 from cantera import interrupts, cti2yaml#, ck2yaml, ctml2yaml
@@ -59,7 +59,7 @@ class Chemical_Mechanism:
                 print(e)
    
         output = {'success': False, 'message': []}
-        # Intialize and report any problems to log, not to console window
+        # Initialize and report any problems to log, not to console window
         stdout = io.StringIO()
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
@@ -338,13 +338,21 @@ class Chemical_Mechanism:
                            'coeffs': np.array(S.thermo.coeffs),
                            'h_scaler': 1, 's_scaler': 1,}
             
-            self.thermo_coeffs.append(thermo_dict)   
-    
-    def modify_reactions(self, coeffs, rxnIdxs=[]):     # Only works for Arrhenius equations currently
+            self.thermo_coeffs.append(thermo_dict)
+
+    def modify_reactions(self, coeffs, rxnIdxs: Optional[Union[int, float, Sequence[int]]] = ()):
+        """Update the reaction models in the underlying Cantera reaction models associated with this class
+
+        Args:
+            coeffs: New coefficient values
+            rxnIdxs: IDs of reactions to be updated
+        """
+        # TODO (wardlt): This function is only called with `self.mech` as inputs
+        # TODO (sikes): Only works for Arrhenius equations currently
         if not rxnIdxs:                     # if rxnNums does not exist, modify all
             rxnIdxs = range(len(coeffs))
         else:
-            if isinstance(rxnIdxs, (float, int)):  # if single reaction given, run that one
+            if isinstance(rxnIdxs, (float, int)):  # if single reaction given, run that onee
                 rxnIdxs = [rxnIdxs]
         
         for rxnIdx in rxnIdxs:

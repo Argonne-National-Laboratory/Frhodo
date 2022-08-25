@@ -5,7 +5,7 @@ using :meth:`~fhrodo.main.launch_gui`
 """
 
 from pathlib import Path
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Union
 
 import numpy as np
 from PyQt5.QtWidgets import QApplication
@@ -51,6 +51,7 @@ class FrhodoDriver:
                 of a chemical in the experiment data to name of the same chemical in the mechanism.
         """
 
+        # Set the files in the text boxes
         self.window.exp_main_box.setPlainText(str(experiment_path.resolve().absolute()))
         self.window.mech_main_box.setPlainText(str(mechanism_path.resolve().absolute()))
         self.window.sim_main_box.setPlainText(str(output_path.resolve().absolute()))
@@ -94,26 +95,33 @@ class FrhodoDriver:
         self.window.shock_choice_box.setValue(n + 1)
         self.app.processEvents()
 
-    def get_observables(self) -> List[np.ndarray]:
-        """Get the observable data from each shock experiment
+    def get_observables(self) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        """Get the observable data and associated weights from each shock experiment
 
         Returns:
-            List of experimental data arrays where each is a 2D
+            - List of experimental data arrays where each is a 2D
              array with the first column is the time and second
              is the observable
+            - 1D array of the weights for each point
         """
 
         if self.n_shocks == 0:
-            return []
+            return [], []
 
         # Loop over each shock
         output = []
+        output_weights = []
         for shock in self.window.series.shock[0]:
-            output.append(shock['exp_data'])
-        return output
+            # Changing the index in the GUI forces data to be loaded
+            self._select_shock(shock['num'])
+
+            # Get the data from the display shock
+            output.append(self.window.display_shock['exp_data'])
+            output_weights.append(self.window.display_shock['normalized_weights'])
+        return output, output_weights
 
     def run_simulations(self) -> List[np.ndarray]:
-        """Run the simulation for each of the observed
+        """Run the simulation for each of the shocks
 
         Returns:
             List of simulated data arrays where each is a 2D
@@ -152,7 +160,7 @@ class FrhodoDriver:
         self.window.series.rates(self.window.display_shock)
         return np.stack(output, axis=1)
 
-    def change_coefficient(self, new_values: Dict[Tuple[int, int, str], float]):
+    def change_coefficient(self, new_values: Dict[Tuple[int, Union[str, int], str], float]):
         """Update the parameters of a reaction parameter
 
         Args:
