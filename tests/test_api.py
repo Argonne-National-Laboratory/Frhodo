@@ -1,6 +1,6 @@
 """Testing the API components of Frhodo"""
 import numpy as np
-from pytest import fixture
+from pytest import fixture, mark
 
 
 @fixture
@@ -43,7 +43,10 @@ def test_simulate(loaded_frhodo):
     assert loaded_frhodo.window.display_shock['species_alias']['A'] == 'B'
 
 
-def test_update(loaded_frhodo):
+@mark.parametrize(
+    'rxn_id', [1, 3]  # TODO (wardlt): Reaction 1 fails because we don't yet support pressure-dependent reactions
+)
+def test_update(loaded_frhodo, rxn_id):
     # Get the initial reaction rates
     rates = loaded_frhodo.get_reaction_rates()
     assert rates.shape == (66, 1)
@@ -52,7 +55,6 @@ def test_update(loaded_frhodo):
     sim = loaded_frhodo.run_simulations()[0]
 
     # Update one of the rates
-    rxn_id = 3  # A simple reaction
     loaded_frhodo.change_coefficient({(rxn_id, 0, 'pre_exponential_factor'): 200})
     assert loaded_frhodo.rxn_coeffs[rxn_id][0]['pre_exponential_factor'] == 200
 
