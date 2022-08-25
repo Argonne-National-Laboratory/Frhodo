@@ -2,7 +2,7 @@ from pathlib import Path
 
 from pytest import fixture
 
-from frhodo.api import FrhodoDriver
+from frhodo.api.driver import FrhodoDriver
 from frhodo.main import launch_gui
 
 # Launch the application headless and without reading the configuration from a past run

@@ -2,7 +2,7 @@
 import numpy as np
 from pytest import fixture, mark
 
-from frhodo.api import FrhodoDriver
+from frhodo.api.driver import FrhodoDriver
 
 
 @fixture
