@@ -23,6 +23,7 @@ class FrhodoDriver:
 
     The driver only supports a subset of features of Frhodo
 
+    - We can only run one driver per process. You will even need to "spawn" new processes rather than fork on Linux
     - Only supports experiments that use experimental data from a single series
     - Does not support changing parameters to reactions which are pressure-dependent
     """
@@ -211,7 +212,7 @@ class FrhodoDriver:
             output.append(rxn_model[coef_name])
         return output
 
-    def change_coefficient(self, new_values: Dict[CoefIndex, float]):
+    def set_coefficients(self, new_values: Dict[CoefIndex, float]):
         """Update the parameters of a reaction parameter
 
         Args:

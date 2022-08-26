@@ -1,0 +1,201 @@
+"""Utilities useful for using Frhodo from external optimizers"""
+import multiprocessing
+import warnings
+from pathlib import Path
+from typing import List, Optional, Dict, Sequence
+
+import numpy as np
+from scipy import stats as ss
+from scipy.interpolate import interp1d
+
+from frhodo.api.driver import CoefIndex, FrhodoDriver
+
+_frhodo: Optional[FrhodoDriver] = None
+
+
+class BaseObjectiveFunction:
+    """Base class for a Frhodo-based objective function
+
+    Launches its own Frhodo GUI instance the first time you invoke a prediction function.
+    """
+
+    def __init__(
+            self,
+            exp_directory: Path,
+            mech_directory: Path,
+            parameters: List[CoefIndex],
+            aliases: Optional[Dict[str, str]] = None,
+    ):
+        """
+
+        Args:
+            exp_directory: Path to the experimental data
+            mech_directory: Path to the mechanism file(s)
+            parameters: Parameters to be adjusted
+            aliases: Aliases that map species in the experiment to the mechanism description
+        """
+        self.parameters = parameters.copy()
+
+        # Make a placeholder for the Frhodo instance
+        self._exp_directory = exp_directory
+        self._mech_directory = mech_directory
+        self._aliases = aliases
+        self._frhodo: Optional[FrhodoDriver] = None
+
+        # Make a placeholder for experimental data
+        self._observations: Optional[List[np.ndarray]] = None
+        self._weights: Optional[List[np.ndarray]] = None
+
+    def __getstate__(self):
+        if multiprocessing.get_start_method() != "spawn":
+            warnings.warn('You must set the multiprocessing start method to spawn so we can run >1 multiprocessing instance')
+
+    @property
+    def frhodo(self) -> FrhodoDriver:
+        """Link to the underlying Frhodo instance"""
+        global _frhodo  # Use the module-level instance of Frhodo
+        # Launch if needed
+        if _frhodo is None:
+            _frhodo = FrhodoDriver.create_driver()
+
+        # Load in the data and mechanism
+        _frhodo.load_files(
+            self._exp_directory,
+            self._mech_directory,
+            self._mech_directory / 'outputs',
+            aliases=self._aliases
+        )
+        return _frhodo
+
+    @property
+    def observations(self) -> List[np.ndarray]:
+        """Experimental data less any regions that are masked out"""
+        # Load the data in if needed
+        if self._observations is None:
+            self._load_experiments()
+        return self._observations
+
+    @property
+    def weights(self) -> List[np.ndarray]:
+        """Weights for each observation"""
+        if self._observations is None:
+            self._load_experiments()
+        return self._weights
+
+    @property
+    def x(self) -> np.ndarray:
+        """Get the current state of the coefficient being optimized
+
+        This is either the initial values from loading the mechanism or the last values ran.
+        """
+        return np.array(self.frhodo.get_coefficients(self.parameters))
+
+    def _load_experiments(self):
+        """Load observations and weights from disk
+
+        Sets the values in `self._observations` and `self._weights`
+        """
+        self._observations = []
+        self._weights = []
+        for obs, weights in zip(*self.frhodo.get_observables()):
+            # Find portions that are weighted sufficiently
+            mask = weights > 1e-6
+
+            # Store the masked weights and observations
+            self._observations.append(obs[mask, :])
+            self._weights.append(weights[mask])
+
+    def run_simulations(self, x: Sequence[float]) -> List[np.ndarray]:
+        """Run the simulations with a new set of parameters
+
+        Args:
+            x: New set of reaction coefficients
+        Returns:
+            Simulated for each experiment interpolated at the same time increments
+            as :meth:`observations`.
+        """
+
+        # Update the parameters
+        assert len(x) == len(self.parameters), f"Expected {len(self.parameters)} parameters but got {len(x)}"
+        self.frhodo.set_coefficients(dict(zip(self.parameters, x)))
+
+        # Run each simulation to each set of experimental data
+        sims = self.frhodo.run_simulations()
+        output = []
+        for sim, obs in zip(sims, self.observations):
+            # Interpolate simulation data over the same steps as the experiments
+            sim_func = interp1d(sim[:, 0], sim[:, 1], kind='cubic')
+            output.append(sim_func(obs[:, 0]))
+        return output
+
+    def compute_residuals(self, x: Sequence[float]) -> List[np.ndarray]:
+        """Compute the residual between simulation and experiment
+
+        Args:
+            x: New set of reaction coefficients
+        Returns:
+            Residuals for each shock experiment at each point
+        """
+
+        # Run the simulations with the new parameters
+        sims = self.run_simulations(x)
+
+        # Compute residuals
+        output = []
+        for sim, obs in zip(sims, self.observations):
+            output.append(np.subtract(sim, obs[:, 1]))
+        return output
+
+    def __call__(self, x: np.ndarray, **kwargs):
+        """Invoke the objective function"""
+        raise NotImplementedError()
+
+
+class BayesianObjectiveFunction(BaseObjectiveFunction):
+    """Computes the log-probability of observing experimental data given the simulated results
+
+    Users must also pass an estimated "uncertainty" of experimental measurements along with the
+    other input parameters to :meth:`__call__`. We place it as the first argument in the list.
+
+    Uses a t-Distribution error model for the data to be robust against noise in the data and
+    weighs data differently by scaling the width of the t-distribution so that it is wider
+    for data with smaller weights.
+    These approaches are modelled after the techniques demonstrated by
+    `Paulson et al. 2019 <https://www.sciencedirect.com/science/article/abs/pii/S0020722518314721>`_.
+    """
+
+    def compute_log_probs(self, x: np.ndarray, uncertainty: float) -> np.ndarray:
+        """Compute the log probability of observing each shock experiment
+
+        Args:
+            x: New values for each coefficient
+            uncertainty: Size of the uncertainty for the observables
+        """
+
+        resids = self.compute_residuals(x)
+        output = []
+        for resid, weights in zip(resids, self.weights):
+            # Adjust uncertainty so that the error tolerance of less-important data is larger
+            #  See doi:10.1016/j.ijengsci.2019.05.011
+            std = uncertainty / weights
+            output.append(ss.t(loc=0, scale=std, df=2.1).logpdf(resid).sum())
+        return np.array(output)
+
+    def _load_experiments(self):
+        super()._load_experiments()
+
+        # Adjust the weights such that the largest is 1
+        for i, weight in enumerate(self.weights):
+            self.weights[i] /= weight.max()
+
+    def __call__(self, x: np.ndarray, **kwargs):
+        """Invoke the objective function
+
+        Args:
+            x: Uncertainty of the observations followed by the new coefficients
+        """
+        assert len(kwargs) == 0, "This function does not take keyword arguments"
+
+        uncertainty, coeffs = x[0], x[1:]
+        logprobs = self.compute_log_probs(coeffs, uncertainty)
+        return logprobs.sum()

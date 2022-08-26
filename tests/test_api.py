@@ -1,8 +1,11 @@
 """Testing the API components of Frhodo"""
 import numpy as np
 from pytest import fixture, mark
+from multiprocessing import Pool, set_start_method
 
 from frhodo.api.driver import FrhodoDriver
+from frhodo.api.optimize import BayesianObjectiveFunction
+from frhodo.api import optimize
 
 
 @fixture
@@ -63,9 +66,14 @@ def test_update(loaded_frhodo, rxn_id, prs_id):
     # Get the simulation before
     sim = loaded_frhodo.run_simulations()[0]
 
+    # Get the original value
+    coef_ind = (rxn_id, prs_id, 'pre_exponential_factor')
+    orig_value = loaded_frhodo.get_coefficients([coef_ind])[0]
+
     # Update one of the rates
-    loaded_frhodo.change_coefficient({(rxn_id, prs_id, 'pre_exponential_factor'): 200})
+    loaded_frhodo.set_coefficients({coef_ind: 200})
     assert loaded_frhodo.rxn_coeffs[rxn_id][prs_id]['pre_exponential_factor'] == 200
+    assert loaded_frhodo.get_coefficients([coef_ind]) == [200]
 
     # Make sure that only one rate changes
     new_rates = loaded_frhodo.get_reaction_rates()
@@ -77,7 +85,11 @@ def test_update(loaded_frhodo, rxn_id, prs_id):
 
     # Make sure that this changes the simulation
     new_sim = loaded_frhodo.run_simulations()[0]
-    assert not np.isclose(sim[-1, 1], new_sim[-1, 1], rtol=1e-4)  # Look just at the last point
+    try:
+        assert not np.isclose(sim[-1, 1], new_sim[-1, 1], rtol=1e-4)  # Look just at the last point
+    finally:
+        # Set it back to not mess-up our other tasks
+        loaded_frhodo.set_coefficients({coef_ind: orig_value})
 
 
 def test_fittable_parameters(loaded_frhodo):
@@ -94,3 +106,44 @@ def test_fittable_parameters(loaded_frhodo):
 
     # Test getting a parameter
     assert np.isclose(loaded_frhodo.get_coefficients([(1, 0, 'pre_exponential_factor')]), 5.9102033e+93)
+
+
+def test_optimizer(loaded_frhodo, example_dir, tmp_path):
+    set_start_method("spawn")  # Allows us to run >1 Frhodo instance
+    opt = BayesianObjectiveFunction(
+        exp_directory=example_dir / 'Experiment',
+        mech_directory=example_dir / 'Mechanism',
+        parameters=[(3, 0, 'pre_exponential_factor')]
+    )
+
+    # Set the frhodo executable for that module (we can have only 1 per process)
+    optimize._frhodo = loaded_frhodo
+
+    # Test the state
+    assert opt.weights[0].max() == 1
+    assert len(opt.x) == 1
+
+    # Make sure the optimizer produces different results with different inputs
+    x0 = opt.x.tolist()
+    x0.insert(0, 1e-4)
+    y0 = opt(x0)
+
+    x1 = list(x0)
+    x1[1] = x0[1] * 100
+    y1 = opt(x1)
+    assert y0 != y1
+
+    # Re-running the initial guess should produce the same result
+    y0_repeat = opt(x0)
+    assert y0 == y0_repeat
+
+    # Make sure the serialization works
+    with Pool(2) as p:
+        # Make sure we still get repeatability
+        y = p.map(opt, [x0] * 32)
+        assert np.isclose(y, y0).all()
+
+        # Run with different inputs and make sure they match up
+        y = p.map(opt, [x0, x1])
+        assert np.isclose(y, [y0, y1]).all()
+
