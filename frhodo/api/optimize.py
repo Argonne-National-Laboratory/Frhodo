@@ -2,7 +2,7 @@
 import multiprocessing
 import warnings
 from pathlib import Path
-from typing import List, Optional, Dict, Sequence
+from typing import List, Optional, Dict, Sequence, Tuple
 
 import numpy as np
 from scipy import stats as ss
@@ -45,10 +45,28 @@ class BaseObjectiveFunction:
         # Make a placeholder for experimental data
         self._observations: Optional[List[np.ndarray]] = None
         self._weights: Optional[List[np.ndarray]] = None
+        self._sim_kwargs: Optional[List[dict]] = None
+        self._rxn_conditions: Optional[List[Tuple[float, float, dict]]] = None
+
+        # Track whether the data has been loaded or not
+        self._loaded = False
 
     def __getstate__(self):
         if multiprocessing.get_start_method() != "spawn":
             warnings.warn('You must set the multiprocessing start method to spawn so we can run >1 multiprocessing instance')
+        state = self.__dict__.copy()
+        return state
+
+    def set_driver(self, driver: FrhodoDriver):
+        """Set the driver to be used for this class
+
+        Use this if you have already launched Frhodo.
+
+        Args:
+            driver: Driver to use in place of creating a new one
+        """
+        global _frhodo
+        _frhodo = driver
 
     @property
     def frhodo(self) -> FrhodoDriver:
@@ -59,12 +77,14 @@ class BaseObjectiveFunction:
             _frhodo = FrhodoDriver.create_driver()
 
         # Load in the data and mechanism
-        _frhodo.load_files(
-            self._exp_directory,
-            self._mech_directory,
-            self._mech_directory / 'outputs',
-            aliases=self._aliases
-        )
+        if not self._loaded:
+            _frhodo.load_files(
+                self._exp_directory,
+                self._mech_directory,
+                self._mech_directory / 'outputs',
+                aliases=self._aliases
+            )
+            assert self.observations is not None
         return _frhodo
 
     @property
@@ -105,6 +125,8 @@ class BaseObjectiveFunction:
             self._observations.append(obs[mask, :])
             self._weights.append(weights[mask])
 
+        self._sim_kwargs, self._rxn_conditions = self.frhodo.get_simulator_inputs()
+
     def run_simulations(self, x: Sequence[float]) -> List[np.ndarray]:
         """Run the simulations with a new set of parameters
 
@@ -120,10 +142,13 @@ class BaseObjectiveFunction:
         self.frhodo.set_coefficients(dict(zip(self.parameters, x)))
 
         # Run each simulation to each set of experimental data
-        sims = self.frhodo.run_simulations()
+        sims = []
+        for sim_kwargs, rxn_cond in zip(self._sim_kwargs, self._rxn_conditions):
+            sims.append(self.frhodo.run_simulation_from_kwargs(sim_kwargs, rxn_cond))
+
+        # Interpolate simulation data over the same steps as the experiments
         output = []
         for sim, obs in zip(sims, self.observations):
-            # Interpolate simulation data over the same steps as the experiments
             sim_func = interp1d(sim[:, 0], sim[:, 1], kind='cubic')
             output.append(sim_func(obs[:, 0]))
         return output
@@ -164,6 +189,25 @@ class BayesianObjectiveFunction(BaseObjectiveFunction):
     `Paulson et al. 2019 <https://www.sciencedirect.com/science/article/abs/pii/S0020722518314721>`_.
     """
 
+    def __init__(
+            self,
+            exp_directory: Path,
+            mech_directory: Path,
+            parameters: List[CoefIndex],
+            priors: Optional[List[ss.rv_continuous]] = None,
+            aliases: Optional[Dict[str, str]] = None,
+    ):
+        """
+
+        Args:
+            exp_directory: Path to the experimental data
+            mech_directory: Path to the mechanism file(s)
+            parameters: Parameters to be adjusted
+            aliases: Aliases that map species in the experiment to the mechanism description
+        """
+        super().__init__(exp_directory, mech_directory, parameters, aliases)
+        self.priors = priors
+
     def compute_log_probs(self, x: np.ndarray, uncertainty: float) -> np.ndarray:
         """Compute the log probability of observing each shock experiment
 
@@ -196,6 +240,12 @@ class BayesianObjectiveFunction(BaseObjectiveFunction):
         """
         assert len(kwargs) == 0, "This function does not take keyword arguments"
 
+        # Compute the log probability of the data
         uncertainty, coeffs = x[0], x[1:]
-        logprobs = self.compute_log_probs(coeffs, uncertainty)
-        return logprobs.sum()
+        logprob = self.compute_log_probs(coeffs, uncertainty).sum()
+
+        # Compute the log probability from the priors
+        if self.priors is not None:
+            logprob += sum(p.logpdf(c) for p, c in zip(self.priors, x))
+
+        return logprob

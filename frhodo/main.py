@@ -279,24 +279,17 @@ class Main(QMainWindow):
         # Get the conditions of the current reactor
         T_reac, P_reac, mix = shock['T_reactor'], shock['P_reactor'], shock['thermo_mix']
 
-        # Make sure the rate constants are update-to-date with the conditions on the table and specified shock
-        self.tree.update_rates()
-
         # calculate all properties or observable by sending t_save
         tabIdx = self.plot_tab_widget.currentIndex()
         tabText = self.plot_tab_widget.tabText(tabIdx)
         if tabText == 'Sim Explorer':
             t_save = np.array([0])
 
-        # Formulate the output arguments for the
-        SIM_kwargs = {'u_reac': shock['u2'], 'rho1': shock['rho1'], 'observable': self.display_shock['observable'],
-            't_lab_save': t_save, 'sim_int_f': self.var['reactor']['sim_interp_factor'],
-            'ODE_solver': self.var['reactor']['ode_solver'],
-            'rtol': self.var['reactor']['ode_rtol'], 'atol': self.var['reactor']['ode_atol']}
+        # Make sure the rate constants are update-to-date with the conditions on the table and specified shock
+        self.tree.update_rates()
 
-        if '0d Reactor' in self.var['reactor']['name']:
-            SIM_kwargs['solve_energy'] = self.var['reactor']['solve_energy']
-            SIM_kwargs['frozen_comp'] = self.var['reactor']['frozen_comp']
+        # Get the keyword arguments to being passed to the simulator
+        SIM_kwargs = self.get_simulation_kwargs(shock, t_save)
 
         self.SIM, verbose = self.mech.run(self.var['reactor']['name'], self.var['reactor']['t_end'],
                                           T_reac, P_reac, mix, **SIM_kwargs)
@@ -317,6 +310,19 @@ class Main(QMainWindow):
             if tabText == 'Sim Explorer':
                 self.sim_explorer.update_plot(None)
             return # If mech error exit function
+
+    def get_simulation_kwargs(self, shock, t_save) -> dict:
+        """Get the keyword arguments passed to a simulator for a certain shock"""
+
+        # Formulate the output arguments for the
+        SIM_kwargs = {'u_reac': shock['u2'], 'rho1': shock['rho1'], 'observable': self.display_shock['observable'],
+                      't_lab_save': t_save, 'sim_int_f': self.var['reactor']['sim_interp_factor'],
+                      'ODE_solver': self.var['reactor']['ode_solver'],
+                      'rtol': self.var['reactor']['ode_rtol'], 'atol': self.var['reactor']['ode_atol']}
+        if '0d Reactor' in self.var['reactor']['name']:
+            SIM_kwargs['solve_energy'] = self.var['reactor']['solve_energy']
+            SIM_kwargs['frozen_comp'] = self.var['reactor']['frozen_comp']
+        return SIM_kwargs
 
     # def raise_error(self):
         # assert False

@@ -51,6 +51,10 @@ def test_simulate(loaded_frhodo):
     #  They are reloaded from configuration variables when we re-run a simulation
     assert loaded_frhodo.window.display_shock['species_alias']['A'] == 'B'
 
+    # Test running the simulation from the keyword arguments
+    kwargs, rxn_cond = loaded_frhodo.get_simulator_inputs()
+    manual_sim = loaded_frhodo.run_simulation_from_kwargs(kwargs[0], rxn_cond[0])
+    assert np.isclose(runs[0], manual_sim).all()
 
 @mark.parametrize(
     'rxn_id, prs_id', [(0, 0),  # PLog TODO (wardlt): Reaction 0 fails because we don't yet support PLog reactions
@@ -136,14 +140,4 @@ def test_optimizer(loaded_frhodo, example_dir, tmp_path):
     # Re-running the initial guess should produce the same result
     y0_repeat = opt(x0)
     assert y0 == y0_repeat
-
-    # Make sure the serialization works
-    with Pool(2) as p:
-        # Make sure we still get repeatability
-        y = p.map(opt, [x0] * 32)
-        assert np.isclose(y, y0).all()
-
-        # Run with different inputs and make sure they match up
-        y = p.map(opt, [x0, x1])
-        assert np.isclose(y, [y0, y1]).all()
 

@@ -7,6 +7,7 @@ import cantera as ct
 import numpy as np
 from PyQt5.QtWidgets import QApplication
 
+from frhodo.calculate.reactors import Simulation_Result
 from frhodo.main import Main, launch_gui
 
 CoefIndex = Tuple[int, Union[str, int], str]
@@ -96,6 +97,23 @@ class FrhodoDriver:
         self.window.shock_choice_box.setValue(n + 1)
         self.app.processEvents()
 
+    def get_simulator_inputs(self) -> Tuple[List[dict], List[Tuple[float, float, Dict[str, float]]]]:
+        """Get the list of variables that serve as input for the simulator for each shock that runs
+
+        Returns:
+            - Keyword arguments passed to the simulator
+            - Temperature, pressure and concentration of different guasses
+        """
+        var_outputs = []
+        rxn_outputs = []
+
+        for shock in self.window.series.shock[0]:
+            self._select_shock(shock['num'])
+            var_outputs.append(self.window.get_simulation_kwargs(shock, np.array([0])))
+            rxn_outputs.append((shock['T_reactor'], shock['P_reactor'], shock['thermo_mix']))
+
+        return var_outputs, rxn_outputs
+
     def get_observables(self) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """Get the observable data and associated weights from each shock experiment
 
@@ -142,6 +160,32 @@ class FrhodoDriver:
                 self.window.SIM.observable
             ], axis=1))
         return output
+
+    def run_simulation_from_kwargs(self, sim_kwargs, rxn_conditions) -> np.ndarray:
+        """Perform a simulation for an arbitrary reactor and reaction conditions.
+
+        Args:
+            sim_kwargs: Keywords defining the reactor
+            rxn_conditions: Conditions at which the reaction occurs
+
+        Returns:
+            Simulated data arrays where each is a 2D
+             array with the first column is the time and second
+             is the simulated observable
+        """
+
+        # Update the mechanism for the specified reaction conditions
+        self.window.mech.set_TPX(*rxn_conditions)
+
+        # Run the simulation
+        #  TODO (wardlt): Do not hardcode the runtime or reactor conditions
+        sim, _ = self.window.mech.run('Incident Shock Reactor', 1.2e-05, *rxn_conditions, **sim_kwargs)
+
+        assert sim.success, "Simulation failed"
+        return np.stack([
+            sim.independent_var,
+            sim.observable
+        ], axis=1)
 
     def get_reaction_rates(self) -> np.ndarray:
         """Get the reaction rates for each shock experiment

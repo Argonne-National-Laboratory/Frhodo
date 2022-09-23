@@ -12,6 +12,7 @@ import numpy as np
 from timeit import default_timer as timer
 
 from . import reactors, shock_fcns, integrate
+from .reactors import Simulation_Result
 from .. import ck2yaml
 
 
@@ -539,7 +540,7 @@ class Chemical_Mechanism:
 
         return M
 
-    def run(self, reactor_choice, t_end, T_reac, P_reac, mix, **kwargs) -> Tuple[dict, dict]:
+    def run(self, reactor_choice, t_end, T_reac, P_reac, mix, **kwargs) -> Tuple[Simulation_Result, dict]:
         """Perform a simulation of the reaction output
 
         Args:
