@@ -3,6 +3,7 @@ import multiprocessing
 import warnings
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
+from copy import deepcopy
 from pathlib import Path
 from typing import List, Optional, Dict, Sequence, Tuple
 
@@ -26,6 +27,7 @@ class BaseObjectiveFunction:
             mech_directory: Path,
             parameters: List[CoefIndex],
             aliases: Optional[Dict[str, str]] = None,
+            num_workers: Optional[int] = None
     ):
         """
 
@@ -34,10 +36,11 @@ class BaseObjectiveFunction:
             mech_directory: Path to the mechanism file(s)
             parameters: Parameters to be adjusted
             aliases: Aliases that map species in the experiment to the mechanism description
+            num_workers: Maximum number of parallel workers to allow
         """
         self.parameters = parameters.copy()
 
-        # Make a placeholder for the Frhodo instance
+        # Store where to find the experimental data
         self._exp_directory = exp_directory
         self._mech_directory = mech_directory
         self._aliases = aliases
@@ -49,6 +52,20 @@ class BaseObjectiveFunction:
         self._weights: Optional[List[np.ndarray]] = None
         self._sim_kwargs: Optional[List[dict]] = None
         self._rxn_conditions: Optional[List[Tuple[float, float, dict]]] = None
+
+        # Holder for the process pool, which is not serialized
+        self._exec: Optional[ProcessPoolExecutor] = ProcessPoolExecutor(num_workers)
+        self._num_workers = num_workers
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_exec']
+        return state
+
+    def __setstate__(self, state: dict):
+        state = state.copy()
+        state['_exec'] = ProcessPoolExecutor(state['_num_workers'])
+        self.__dict__.update(state)
 
     @property
     def observations(self) -> List[np.ndarray]:
@@ -113,21 +130,22 @@ class BaseObjectiveFunction:
             Simulated for each experiment interpolated at the same time increments
             as :meth:`observations`.
         """
+        # Make a copy of the mech so we're threadsafe
+        mech = deepcopy(self.mech)
 
         # Update the parameters
         assert len(x) == len(self.parameters), f"Expected {len(self.parameters)} parameters but got {len(x)}"
-        set_coefficients(self.mech, dict(zip(self.parameters, x)))
+        set_coefficients(mech, dict(zip(self.parameters, x)))
 
         # Run each simulation to each set of experimental data
         sims = []
-        with ProcessPoolExecutor(1) as exec:
-            for sim_kwargs, rxn_cond in zip(self._sim_kwargs, self._rxn_conditions):
-                exc = exec.submit(run_simulation, self.mech, rxn_cond, sim_kwargs)
-                try:
-                    res = exc.result()
-                except BrokenProcessPool:
-                    raise ValueError('Running the simulation failed')
-                sims.append(res)
+        for sim_kwargs, rxn_cond in zip(self._sim_kwargs, self._rxn_conditions):
+            future = self._exec.submit(run_simulation, mech, rxn_cond, sim_kwargs)
+            try:
+                res = future.result()
+            except BrokenProcessPool:
+                raise ValueError('Running the simulation failed')
+            sims.append(res)
 
         # Interpolate simulation data over the same steps as the experiments
         output = []
@@ -186,6 +204,7 @@ class BayesianObjectiveFunction(BaseObjectiveFunction):
             parameters: List[CoefIndex],
             priors: Optional[List[ss.rv_continuous]] = None,
             aliases: Optional[Dict[str, str]] = None,
+            **kwargs
     ):
         """
 
@@ -195,7 +214,7 @@ class BayesianObjectiveFunction(BaseObjectiveFunction):
             parameters: Parameters to be adjusted
             aliases: Aliases that map species in the experiment to the mechanism description
         """
-        super().__init__(exp_directory, mech_directory, parameters, aliases)
+        super().__init__(exp_directory, mech_directory, parameters, aliases, **kwargs)
         self.priors = priors
 
     def compute_log_probs(self, x: np.ndarray, uncertainty: float) -> np.ndarray:
