@@ -1,9 +1,6 @@
 """Utilities useful for using Frhodo from external optimizers"""
-import multiprocessing
-import warnings
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
-from copy import deepcopy
 from pathlib import Path
 from typing import List, Optional, Dict, Sequence, Tuple
 
@@ -13,6 +10,26 @@ from scipy.interpolate import interp1d
 
 from frhodo.api.driver import CoefIndex, FrhodoDriver, set_coefficients, get_coefficients, run_simulation
 from frhodo.calculate.mech_fcns import Chemical_Mechanism
+
+
+def _run_simulation(x, mech, parameters, observations, rxn_conditions, sim_kwargs):
+    """Private method to run the simulations. Intended to be run in a Process as the simulator can throw seg faults"""
+
+    # Update the parameters
+    set_coefficients(mech, dict(zip(parameters, x)))
+
+    # Run each simulation to each set of experimental data
+    sims = []
+    for sim_kwargs, rxn_cond in zip(sim_kwargs, rxn_conditions):
+        res = run_simulation(mech, rxn_cond, sim_kwargs)
+        sims.append(res)
+
+    # Interpolate simulation data over the same steps as the experiments
+    output = []
+    for sim, obs in zip(sims, observations):
+        sim_func = interp1d(sim[:, 0], sim[:, 1], kind='cubic', fill_value='extrapolate')
+        output.append(sim_func(obs[:, 0]))
+    return output
 
 
 class BaseObjectiveFunction:
@@ -83,6 +100,19 @@ class BaseObjectiveFunction:
         return self._weights
 
     @property
+    def sim_kwargs(self) -> List[dict]:
+        """Keyword arguments used to simulate each experiment"""
+        if self._sim_kwargs is None:
+            self.load_experiments()
+        return self._sim_kwargs.copy()
+
+    def rxn_conditions(self) -> List[Tuple[float, float, dict]]:
+        """Starting conditions for each experiment"""
+        if self._rxn_conditions is None:
+            self.load_experiments()
+        return self._rxn_conditions.copy()
+
+    @property
     def x(self) -> np.ndarray:
         """Get the current state of the coefficient being optimized
 
@@ -130,29 +160,15 @@ class BaseObjectiveFunction:
             Simulated for each experiment interpolated at the same time increments
             as :meth:`observations`.
         """
-        # Make a copy of the mech so we're threadsafe
-        mech = deepcopy(self.mech)
 
-        # Update the parameters
-        assert len(x) == len(self.parameters), f"Expected {len(self.parameters)} parameters but got {len(x)}"
-        set_coefficients(mech, dict(zip(self.parameters, x)))
-
-        # Run each simulation to each set of experimental data
-        sims = []
-        for sim_kwargs, rxn_cond in zip(self._sim_kwargs, self._rxn_conditions):
-            future = self._exec.submit(run_simulation, mech, rxn_cond, sim_kwargs)
-            try:
-                res = future.result()
-            except BrokenProcessPool:
-                raise ValueError('Running the simulation failed')
-            sims.append(res)
-
-        # Interpolate simulation data over the same steps as the experiments
-        output = []
-        for sim, obs in zip(sims, self.observations):
-            sim_func = interp1d(sim[:, 0], sim[:, 1], kind='cubic', fill_value='extrapolate')
-            output.append(sim_func(obs[:, 0]))
-        return output
+        # Submit the simulation as a subprocess
+        future = self._exec.submit(_run_simulation,
+                                   x, self.mech, self.parameters, self.observations,
+                                   self._rxn_conditions, self._sim_kwargs)
+        try:
+            return future.result()
+        except BrokenProcessPool:
+            raise ValueError(f'Process pool failed for: {x}')
 
     def compute_residuals(self, x: Sequence[float]) -> List[np.ndarray]:
         """Compute the residual between simulation and experiment
