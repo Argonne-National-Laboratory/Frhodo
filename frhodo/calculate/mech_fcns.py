@@ -4,16 +4,18 @@
 
 import os, io, stat, contextlib, pathlib, time
 from copy import deepcopy
+from pathlib import Path
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Tuple, Optional, Sequence, Union
 
 import cantera as ct
-from cantera import interrupts, cti2yaml#, ck2yaml, ctml2yaml
+from cantera import interrupts, cti2yaml  # , ck2yaml, ctml2yaml
 import numpy as np
 from timeit import default_timer as timer
 
 from . import reactors, shock_fcns, integrate
 from .reactors import Simulation_Result
-from .. import ck2yaml
+from .. import ck2yaml, soln2ck
 
 
 class Chemical_Mechanism:
@@ -21,35 +23,68 @@ class Chemical_Mechanism:
         self.isLoaded = False
         self.reactor = reactors.Reactor(self)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Save the current state of the gas as Chemkin Mech file
+        #  TODO: Figure out why we cannot save it to YML
+        with NamedTemporaryFile() as fp:
+            fp.close()
+            soln2ck.write(self.gas, fp.name)
+            with open(fp.name) as fp:
+                state['gas'] = fp.read()
+        return state
+
+    def __setstate__(self, state):
+        # Replace "gas" with a Cantera object
+        with TemporaryDirectory() as tmp:
+            # Convert the ChemKin output to YAML
+            #  First write the mechanism to disk as a chemkin file
+            tmp = Path(tmp)
+            ck_file = tmp / 'gas.mech'
+            with ck_file.open('w') as fp:
+                print(state.pop('gas'), file=fp)
+
+            #  Now convert it to a YAML
+            ct_file = tmp / 'gas.yaml'
+            ck2yaml.convert_mech(ck_file, thermo_file=None, transport_file=None, surface_file=None,
+                                 phase_name='gas', out_name=ct_file, quiet=False,
+                                 permissive=True)
+            state['gas'] = ct.Solution(yaml=ct_file.read_text())
+
+        self.__dict__.update(state)
+
     def load_mechanism(self, path, silent=False):
         def chemkin2cantera(path):
             if path['thermo'] is not None:
-                surfaces = ck2yaml.convert_mech(path['mech'], thermo_file=path['thermo'], transport_file=None, surface_file=None,
-                    phase_name='gas', out_name=path['Cantera_Mech'], quiet=False, permissive=True)
+                surfaces = ck2yaml.convert_mech(path['mech'], thermo_file=path['thermo'], transport_file=None,
+                                                surface_file=None,
+                                                phase_name='gas', out_name=path['Cantera_Mech'], quiet=False,
+                                                permissive=True)
             else:
                 surfaces = ck2yaml.convert_mech(path['mech'], thermo_file=None, transport_file=None, surface_file=None,
-                    phase_name='gas', out_name=path['Cantera_Mech'], quiet=False, permissive=True)
-           
+                                                phase_name='gas', out_name=path['Cantera_Mech'], quiet=False,
+                                                permissive=True)
+
             return surfaces
 
         def loader(self, path):
             # path is assumed to be the path dictionary
             surfaces = []
-            if path['mech'].suffix in ['.yaml', '.yml']:    # check if it's a yaml cantera file
+            if path['mech'].suffix in ['.yaml', '.yml']:  # check if it's a yaml cantera file
                 mech_path = str(path['mech'])
-            else:                                 # if not convert into yaml cantera file
+            else:  # if not convert into yaml cantera file
                 mech_path = str(path['Cantera_Mech'])
-                
+
                 if path['mech'].suffix == '.cti':
                     cti2yaml.convert(path['mech'], path['Cantera_Mech'])
                 elif path['mech'].suffix in ['.ctml', '.xml']:
                     raise Exception('not implemented')
-                    #ctml2yaml.convert(path['mech'], path['Cantera_Mech'])
-                else:                             # if not a cantera file, assume chemkin
+                    # ctml2yaml.convert(path['mech'], path['Cantera_Mech'])
+                else:  # if not a cantera file, assume chemkin
                     surfaces = chemkin2cantera(path)
-                          
-            print('Validating mechanism...', end='')    
-            try:                                            # This test taken from ck2cti
+
+            print('Validating mechanism...', end='')
+            try:  # This test taken from ck2cti
                 yaml_txt = path['Cantera_Mech'].read_text()
                 self.gas = ct.Solution(yaml=yaml_txt)
                 for surfname in surfaces:
@@ -58,7 +93,7 @@ class Chemical_Mechanism:
             except RuntimeError as e:
                 print('FAILED.')
                 print(e)
-   
+
         output = {'success': False, 'message': []}
         # Initialize and report any problems to log, not to console window
         stdout = io.StringIO()
@@ -73,31 +108,32 @@ class Chemical_Mechanism:
                 except:
                     pass
                     # output['message'].append('Error when loading mech:\n')
-        
+
         ct_out = stdout.getvalue()
         ct_err = stderr.getvalue().replace('INFO:root:', 'Warning: ')
-        
+
         if 'FAILED' in ct_out:
             output['success'] = False
             self.isLoaded = False
         elif 'PASSED' in ct_out:
             output['success'] = True
             self.isLoaded = True
-            
+
         for log_str in [ct_out, ct_err]:
             if log_str != '' and not silent:
-                if (path['Cantera_Mech'], pathlib.WindowsPath): # reformat string to remove \\ making it unable to be copy paste
+                if (path['Cantera_Mech'],
+                    pathlib.WindowsPath):  # reformat string to remove \\ making it unable to be copy paste
                     cantera_path = str(path['Cantera_Mech']).replace('\\', '\\\\')
                     log_str = log_str.replace(cantera_path, str(path['Cantera_Mech']))
                 output['message'].append(log_str)
                 output['message'].append('\n')
-        
+
         if self.isLoaded:
-            self.set_rate_expression_coeffs()   # set copy of coeffs
-            self.set_thermo_expression_coeffs()                   # set copy of thermo coeffs
+            self.set_rate_expression_coeffs()  # set copy of coeffs
+            self.set_thermo_expression_coeffs()  # set copy of thermo coeffs
 
         return output
-    
+
     def set_mechanism(self, mech_dict, species_dict={}, bnds=[]):
         def get_Arrhenius_parameters(entry):
             A = entry['pre_exponential_factor']
@@ -113,12 +149,12 @@ class Chemical_Mechanism:
             for n in range(len(species_dict)):
                 s_dict = species_dict[n]
                 s = ct.Species(name=s_dict['name'], composition=s_dict['composition'],
-                                  charge=s_dict['charge'], size=s_dict['size'])
+                               charge=s_dict['charge'], size=s_dict['size'])
                 thermo = s_dict['type'](s_dict['T_low'], s_dict['T_high'], s_dict['P_ref'], s_dict['coeffs'])
                 s.thermo = thermo
 
                 species.append(s)
-        
+
         # Set kinetics data
         rxns = []
         for rxnIdx in range(len(mech_dict)):
@@ -172,25 +208,26 @@ class Chemical_Mechanism:
 
             elif 'ChebyshevReaction' == mech_dict[rxnIdx]['rxnType']:
                 rxn = ct.ChebyshevReaction(mech_dict[rxnIdx]['reactants'], mech_dict[rxnIdx]['products'])
-                rxn.set_parameters(Tmin=mech_dict['Tmin'], Tmax=mech_dict['Tmax'], 
+                rxn.set_parameters(Tmin=mech_dict['Tmin'], Tmax=mech_dict['Tmax'],
                                    Pmin=mech_dict['Pmin'], Pmax=mech_dict['Pmax'],
                                    coeffs=mech_dict['coeffs'])
-            
+
             rxn.duplicate = mech_dict[rxnIdx]['duplicate']
             rxn.reversible = mech_dict[rxnIdx]['reversible']
             rxn.allow_negative_orders = True
             rxn.allow_nonreactant_orders = True
 
             rxns.append(rxn)
-        
+
         self.gas = ct.Solution(thermo='IdealGas', kinetics='GasKinetics',
                                species=species, reactions=rxns)
-        
-        self.set_rate_expression_coeffs(bnds)   # set copy of coeffs
-        self.set_thermo_expression_coeffs() # set copy of thermo coeffs
-    
-    def gas(self): return self.gas       
-    
+
+        self.set_rate_expression_coeffs(bnds)  # set copy of coeffs
+        self.set_thermo_expression_coeffs()  # set copy of thermo coeffs
+
+    def gas(self):
+        return self.gas
+
     def set_rate_expression_coeffs(self, bnds=[]):
         def copy_bnds(new_bnds, bnds, rxnIdx, bnds_type, keys=[]):
             if len(bnds) == 0: return new_bnds
@@ -198,7 +235,7 @@ class Chemical_Mechanism:
             if bnds_type == 'rate':
                 for key in ['value', 'type', 'opt']:
                     new_bnds[rxnIdx][key] = bnds['rate_bnds'][rxnIdx][key]
-            
+
             else:
                 bndsKey, attrs = keys
                 for coefName in attrs:
@@ -213,89 +250,103 @@ class Chemical_Mechanism:
         self.reset_mech = reset_mech = []
 
         for rxnIdx, rxn in enumerate(self.gas.reactions()):
-            rate_bnds.append({'value': np.nan, 'limits': Uncertainty('rate', rxnIdx, rate_bnds=rate_bnds), 'type': 'F', 'opt': False})
+            rate_bnds.append({'value': np.nan, 'limits': Uncertainty('rate', rxnIdx, rate_bnds=rate_bnds), 'type': 'F',
+                              'opt': False})
             rate_bnds = copy_bnds(rate_bnds, bnds, rxnIdx, 'rate')
             if type(rxn) in [ct.ElementaryReaction, ct.ThreeBodyReaction]:
-                attrs = [p for p in dir(rxn.rate) if not p.startswith('_')] # attributes not including __              
+                attrs = [p for p in dir(rxn.rate) if not p.startswith('_')]  # attributes not including __
                 coeffs.append([{attr: getattr(rxn.rate, attr) for attr in attrs}])
                 if type(rxn) is ct.ThreeBodyReaction:
                     coeffs[-1][0]['efficiencies'] = rxn.efficiencies
 
-                coeffs_bnds.append({'rate': {attr: {'resetVal': coeffs[-1][0][attr], 'value': np.nan, 
-                                    'limits': Uncertainty('coef', rxnIdx, key='rate', coef_name=attr, coeffs_bnds=coeffs_bnds),
-                                    'type': 'F', 'opt': False} for attr in attrs}})
-                
+                coeffs_bnds.append({'rate': {attr: {'resetVal': coeffs[-1][0][attr], 'value': np.nan,
+                                                    'limits': Uncertainty('coef', rxnIdx, key='rate', coef_name=attr,
+                                                                          coeffs_bnds=coeffs_bnds),
+                                                    'type': 'F', 'opt': False} for attr in attrs}})
+
                 coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', ['rate', attrs])
 
-                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__,
-                                    'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
-                                    'rxnCoeffs': deepcopy(coeffs[-1])})
-                
+                reset_mech.append(
+                    {'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__,
+                     'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
+                     'rxnCoeffs': deepcopy(coeffs[-1])})
+
             elif type(rxn) is ct.PlogReaction:
                 coeffs.append([])
                 coeffs_bnds.append({})
                 for n, rate in enumerate(rxn.rates):
-                    attrs = [p for p in dir(rate[1]) if not p.startswith('_')] # attributes not including __
+                    attrs = [p for p in dir(rate[1]) if not p.startswith('_')]  # attributes not including __
                     coeffs[-1].append({'Pressure': rate[0]})
                     coeffs[-1][-1].update({attr: getattr(rate[1], attr) for attr in attrs})
-                    if n == 0 or n == len(rxn.rates)-1: # only going to allow coefficient uncertainties to be placed on upper and lower pressures
+                    if n == 0 or n == len(
+                            rxn.rates) - 1:  # only going to allow coefficient uncertainties to be placed on upper and lower pressures
                         if n == 0:
                             key = 'low_rate'
                         else:
                             key = 'high_rate'
-                        coeffs_bnds[-1][key] = {attr: {'resetVal': coeffs[-1][-1][attr], 'value': np.nan, 
-                                                        'limits': Uncertainty('coef', rxnIdx, key=key, coef_name=attr, coeffs_bnds=coeffs_bnds),
-                                                        'type': 'F', 'opt': False} for attr in attrs}
+                        coeffs_bnds[-1][key] = {attr: {'resetVal': coeffs[-1][-1][attr], 'value': np.nan,
+                                                       'limits': Uncertainty('coef', rxnIdx, key=key, coef_name=attr,
+                                                                             coeffs_bnds=coeffs_bnds),
+                                                       'type': 'F', 'opt': False} for attr in attrs}
 
                         coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', [key, attrs])
 
-                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__,
-                                   'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
-                                   'rxnCoeffs': deepcopy(coeffs[-1])})
+                reset_mech.append(
+                    {'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__,
+                     'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
+                     'rxnCoeffs': deepcopy(coeffs[-1])})
 
             elif type(rxn) is ct.FalloffReaction:
                 coeffs_bnds.append({})
-                coeffs.append({'falloff_type': rxn.falloff.type, 'high_rate': [], 'low_rate': [], 'falloff_parameters': list(rxn.falloff.parameters), 
+                coeffs.append({'falloff_type': rxn.falloff.type, 'high_rate': [], 'low_rate': [],
+                               'falloff_parameters': list(rxn.falloff.parameters),
                                'default_efficiency': rxn.default_efficiency, 'efficiencies': rxn.efficiencies})
                 for key in ['low_rate', 'high_rate']:
                     rate = getattr(rxn, key)
-                    attrs = [p for p in dir(rate) if not p.startswith('_')] # attributes not including __
+                    attrs = [p for p in dir(rate) if not p.startswith('_')]  # attributes not including __
                     coeffs[-1][key] = {attr: getattr(rate, attr) for attr in attrs}
 
-                    coeffs_bnds[-1][key] = {attr: {'resetVal': coeffs[-1][key][attr], 'value': np.nan, 
-                                                    'limits': Uncertainty('coef', rxnIdx, key=key, coef_name=attr, coeffs_bnds=coeffs_bnds),
-                                                    'type': 'F', 'opt': False} for attr in attrs}
+                    coeffs_bnds[-1][key] = {attr: {'resetVal': coeffs[-1][key][attr], 'value': np.nan,
+                                                   'limits': Uncertainty('coef', rxnIdx, key=key, coef_name=attr,
+                                                                         coeffs_bnds=coeffs_bnds),
+                                                   'type': 'F', 'opt': False} for attr in attrs}
 
                     coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', [key, attrs])
 
                 key = 'falloff_parameters'
                 n_coef = len(rxn.falloff.parameters)
-                coeffs_bnds[-1][key] = {n: {'resetVal': coeffs[-1][key][n], 'value': np.nan, 
-                                            'limits': Uncertainty('coef', rxnIdx, key=key, coef_name=n, coeffs_bnds=coeffs_bnds), 
-                                            'type': 'F', 'opt': True} for n in range(0,n_coef)}
+                coeffs_bnds[-1][key] = {n: {'resetVal': coeffs[-1][key][n], 'value': np.nan,
+                                            'limits': Uncertainty('coef', rxnIdx, key=key, coef_name=n,
+                                                                  coeffs_bnds=coeffs_bnds),
+                                            'type': 'F', 'opt': True} for n in range(0, n_coef)}
 
-                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__,
-                                    'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
-                                    'falloffType': rxn.falloff.type, 'rxnCoeffs': deepcopy(coeffs[-1])})
-            
+                reset_mech.append(
+                    {'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__,
+                     'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
+                     'falloffType': rxn.falloff.type, 'rxnCoeffs': deepcopy(coeffs[-1])})
+
             elif type(rxn) is ct.ChebyshevReaction:
                 coeffs.append({})
                 coeffs_bnds.append({})
                 if len(bnds) == 0:
                     rate_bnds.append({})
-                
-                reset_coeffs = {'Pmin': rxn.Pmin, 'Pmax': rxn.Pmax, 'Tmin': rxn.Tmin, 'Tmax': rxn.Tmax, 'coeffs': rxn.coeffs}
-                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__,
-                                    'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
-                                    'rxnCoeffs': reset_coeffs})
+
+                reset_coeffs = {'Pmin': rxn.Pmin, 'Pmax': rxn.Pmax, 'Tmin': rxn.Tmin, 'Tmax': rxn.Tmax,
+                                'coeffs': rxn.coeffs}
+                reset_mech.append(
+                    {'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__,
+                     'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
+                     'rxnCoeffs': reset_coeffs})
 
             else:
                 coeffs.append({})
                 coeffs_bnds.append({})
                 if len(bnds) == 0:
                     rate_bnds.append({})
-                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__})
-                raise(f'{rxn} is a {rxn.__class__.__name__} and is currently unsupported in Frhodo, but this error should never be seen')
+                reset_mech.append(
+                    {'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__})
+                raise (
+                    f'{rxn} is a {rxn.__class__.__name__} and is currently unsupported in Frhodo, but this error should never be seen')
 
     def get_coeffs_keys(self, rxn, coefAbbr, rxnIdx=None):
         """Get the keys in a reaction dictionary associated that define the par"""
@@ -309,13 +360,13 @@ class Chemical_Mechanism:
                     for rxnIdx, mechRxn in enumerate(self.gas.reactions()):
                         if rxn is mechRxn:
                             break
-                
+
                 bnds_key = 'high_rate'
                 coef_key = len(self.coeffs[rxnIdx]) - 1
             elif 'low' in coefAbbr:
                 bnds_key = 'low_rate'
                 coef_key = 0
-                
+
         elif type(rxn) is ct.FalloffReaction:
             if 'high' in coefAbbr:
                 coef_key = bnds_key = 'high_rate'
@@ -329,7 +380,7 @@ class Chemical_Mechanism:
 
         return coef_key, bnds_key
 
-    def set_thermo_expression_coeffs(self):         # TODO Doesn't work with NASA 9
+    def set_thermo_expression_coeffs(self):  # TODO Doesn't work with NASA 9
         self.thermo_coeffs = []
         for i in range(self.gas.n_species):
             S = self.gas.species(i)
@@ -337,8 +388,8 @@ class Chemical_Mechanism:
                            'size': S.size, 'type': type(S.thermo), 'P_ref': S.thermo.reference_pressure,
                            'T_low': S.thermo.min_temp, 'T_high': S.thermo.max_temp,
                            'coeffs': np.array(S.thermo.coeffs),
-                           'h_scaler': 1, 's_scaler': 1,}
-            
+                           'h_scaler': 1, 's_scaler': 1, }
+
             self.thermo_coeffs.append(thermo_dict)
 
     def modify_reactions(self, coeffs, rxnIdxs: Optional[Union[int, float, Sequence[int]]] = ()):
@@ -350,12 +401,12 @@ class Chemical_Mechanism:
         """
         # TODO (wardlt): This function is only called with `self.mech` as inputs
         # TODO (sikes): Only works for Arrhenius equations currently
-        if not rxnIdxs:                     # if rxnNums does not exist, modify all
+        if not rxnIdxs:  # if rxnNums does not exist, modify all
             rxnIdxs = range(len(coeffs))
         else:
             if isinstance(rxnIdxs, (float, int)):  # if single reaction given, run that onee
                 rxnIdxs = [rxnIdxs]
-        
+
         for rxnIdx in rxnIdxs:
             rxn = self.gas.reaction(rxnIdx)
             rxnChanged = False
@@ -363,8 +414,8 @@ class Chemical_Mechanism:
                 for coefName in ['activation_energy', 'pre_exponential_factor', 'temperature_exponent']:
                     if coeffs[rxnIdx][0][coefName] != eval(f'rxn.rate.{coefName}'):
                         rxnChanged = True
-                
-                if rxnChanged:          # Update reaction rate
+
+                if rxnChanged:  # Update reaction rate
                     A = coeffs[rxnIdx][0]['pre_exponential_factor']
                     b = coeffs[rxnIdx][0]['temperature_exponent']
                     Ea = coeffs[rxnIdx][0]['activation_energy']
@@ -392,36 +443,36 @@ class Chemical_Mechanism:
                                     rxn.falloff = ct.TroeFalloff(coeffs[rxnIdx][key][:-1])
                                 else:
                                     rxn.falloff = ct.TroeFalloff(coeffs[rxnIdx][key])
-                            else:   # could also be SRI. For optimization this would need to be cast as Troe
+                            else:  # could also be SRI. For optimization this would need to be cast as Troe
                                 rxn.falloff = ct.SriFalloff(coeffs[rxnIdx][key])
 
-            elif type(rxn) is ct.ChebyshevReaction: 
-                 pass
+            elif type(rxn) is ct.ChebyshevReaction:
+                pass
             else:
                 continue
-            
+
             if rxnChanged:
                 self.gas.modify_reaction(rxnIdx, rxn)
 
         # Not sure if this is necessary, but it reduces strange behavior in incident shock reactor
-        #time.sleep(10E-3)        # TODO: if incident shock reactor is written in C++, this can likely be removed
-    
+        # time.sleep(10E-3)        # TODO: if incident shock reactor is written in C++, this can likely be removed
+
     def rxn2Troe(self, rxnIdx, HPL, LPL, eff={}):
         reactants = self.gas.reaction(rxnIdx).reactants
         products = self.gas.reaction(rxnIdx).products
         r = ct.FalloffReaction(reactants, products)
         print(r)
-        #r.high_rate = ct.Arrhenius(7.4e10, -0.37, 0.0)
-        #r.low_rate = ct.Arrhenius(2.3e12, -0.9, -1700*1000*4.184)
-        #r.falloff = ct.TroeFalloff((0.7346, 94, 1756, 5182))
-        #r.efficiencies = {'AR':0.7, 'H2':2.0, 'H2O':6.0}
+        # r.high_rate = ct.Arrhenius(7.4e10, -0.37, 0.0)
+        # r.low_rate = ct.Arrhenius(2.3e12, -0.9, -1700*1000*4.184)
+        # r.falloff = ct.TroeFalloff((0.7346, 94, 1756, 5182))
+        # r.efficiencies = {'AR':0.7, 'H2':2.0, 'H2O':6.0}
         print(dir(self.gas))
         print(self.gas.thermo_model)
         print(self.gas.kinetics_model)
 
         start = timer()
-        #self.gas.thermo_model
-        #self.gas.kinetics_model
+        # self.gas.thermo_model
+        # self.gas.kinetics_model
         self.gas = ct.Solution(thermo='IdealGas', kinetics='GasKinetics',
                                species=self.gas.species(), reactions=self.gas.reactions())
         print(timer() - start)
@@ -440,7 +491,7 @@ class Chemical_Mechanism:
                 T_high = S_initial.thermo.max_temp
                 P_ref = S_initial.thermo.reference_pressure
                 coeffs = S_initial.thermo.coeffs
-                
+
                 # Update thermo properties
                 coeffs[1:] *= multipliers[i]
                 S.thermo = ct.NasaPoly2(T_low, T_high, P_ref, coeffs)
@@ -454,13 +505,13 @@ class Chemical_Mechanism:
                 continue
 
             self.gas.modify_species(i, S)
-    
+
     def reset(self, rxnIdxs=None, coefNames=None):
         if rxnIdxs is None:
             rxnIdxs = range(self.gas.n_reactions)
-        elif type(rxnIdxs) is not list: # if not list then assume given single rxnIdx
+        elif type(rxnIdxs) is not list:  # if not list then assume given single rxnIdx
             rxnIdxs = [rxnIdxs]
-        
+
         # if not list then assume given single coefficient
         # if Arrhenius, expects list of coefficients. If Plog or Falloff expected [['high_rate', 'activation_energy'], ...]
         if coefNames is not None and type(coefNames) is not list:
@@ -468,9 +519,9 @@ class Chemical_Mechanism:
 
         prior_coeffs = deepcopy(self.coeffs)
         for rxnIdx in rxnIdxs:
-            if coefNames is None:   # resets all coefficients in rxn
+            if coefNames is None:  # resets all coefficients in rxn
                 self.coeffs[rxnIdx] = self.reset_mech[rxnIdx]['rxnCoeffs']
-            
+
             elif self.reset_mech[rxnIdx]['rxnType'] in ['ElementaryReaction', 'ThreeBodyReaction']:
                 for coefName in coefNames:
                     self.coeffs[rxnIdx][coefName] = self.reset_mech[rxnIdx]['rxnCoeffs'][coefName]
@@ -485,7 +536,8 @@ class Chemical_Mechanism:
             elif 'FalloffReaction' == self.reset_mech[rxnIdx]['rxnType']:
                 self.coeffs[rxnIdx]['falloff_type'] = self.reset_mech[rxnIdx]['falloffType']
                 for [limit_type, coefName] in coefNames:
-                    self.coeffs[rxnIdx][limit_type][coefName] = self.reset_mech[rxnIdx]['rxnCoeffs'][limit_type][coefName]
+                    self.coeffs[rxnIdx][limit_type][coefName] = self.reset_mech[rxnIdx]['rxnCoeffs'][limit_type][
+                        coefName]
 
         self.modify_reactions(self.coeffs)
 
@@ -506,23 +558,23 @@ class Chemical_Mechanism:
                 if species not in self.gas.species_names:
                     output['message'].append('Species: {:s} is not in the mechanism'.format(species))
                     return output
-            
+
             self.gas.TPX = T, P, X
 
         else:
             self.gas.TP = T, P
-            
+
         output['success'] = True
         return output
 
-    def M(self, rxn, TPX=[]):   # kmol/m^3
+    def M(self, rxn, TPX=[]):  # kmol/m^3
         def get_M(rxn):
             M = self.gas.density_mole
             if hasattr(rxn, 'efficiencies') and rxn.efficiencies:
                 M *= rxn.default_efficiency
                 for (s, conc) in zip(self.gas.species_names, self.gas.concentrations):
                     if s in rxn.efficiencies:
-                        M += conc*(rxn.efficiencies[s] - 1.0)
+                        M += conc * (rxn.efficiencies[s] - 1.0)
                     else:
                         M += conc
             return M
@@ -533,9 +585,9 @@ class Chemical_Mechanism:
             [T, P, X] = TPX
             M = []
             for i in range(0, len(T)):
-                self.set_TPX(T[i], P[i], X) # IF MIXTURE CHANGES THEN THIS NEEDS TO BE VARIABLE
+                self.set_TPX(T[i], P[i], X)  # IF MIXTURE CHANGES THEN THIS NEEDS TO BE VARIABLE
                 M.append(get_M(rxn))
-            
+
             M = np.array(M)
 
         return M
@@ -557,7 +609,7 @@ class Chemical_Mechanism:
         return self.reactor.run(reactor_choice, t_end, T_reac, P_reac, mix, **kwargs)
 
 
-class Uncertainty: # alternate name: why I hate pickle part 10
+class Uncertainty:  # alternate name: why I hate pickle part 10
     """Computes the uncertainty bounds for parameters"""
 
     def __init__(self, unc_type, rxnIdx, **kwargs):
@@ -585,9 +637,9 @@ class Uncertainty: # alternate name: why I hate pickle part 10
         if np.isnan(uncVal):
             return [np.nan, np.nan]
         elif uncType == 'F':
-            return np.sort([x/uncVal, x*uncVal], axis=0)
+            return np.sort([x / uncVal, x * uncVal], axis=0)
         elif uncType == '%':
-            return np.sort([x/(1 + uncVal), x*(1 + uncVal)], axis=0)
+            return np.sort([x / (1 + uncVal), x * (1 + uncVal)], axis=0)
         elif uncType == '±':
             return np.sort([x - uncVal, x + uncVal], axis=0)
         elif uncType == '+':
@@ -599,7 +651,7 @@ class Uncertainty: # alternate name: why I hate pickle part 10
 
     def __call__(self, x=None):
         if self.unc_type == 'rate':
-            #if x is None:    # defaults to giving current rate bounds
+            # if x is None:    # defaults to giving current rate bounds
             #    x = self.gas.forward_rate_constants[self.rxnIdx]
             rate_bnds = self.unc_dict['rate_bnds']
             unc_value = rate_bnds[self.rxnIdx]['value']
@@ -610,7 +662,7 @@ class Uncertainty: # alternate name: why I hate pickle part 10
             key = self.unc_dict['key']
             coefName = self.unc_dict['coef_name']
 
-            if key == 'falloff_parameters': # falloff parameters have no limits
+            if key == 'falloff_parameters':  # falloff parameters have no limits
                 return [np.nan, np.nan]
 
             coef_dict = coeffs_bnds[self.rxnIdx][key][coefName]

@@ -8,9 +8,8 @@ import numpy as np
 from scipy import stats as ss
 from scipy.interpolate import interp1d
 
-from frhodo.api.driver import CoefIndex, FrhodoDriver
-
-_frhodo: Optional[FrhodoDriver] = None
+from frhodo.api.driver import CoefIndex, FrhodoDriver, set_coefficients, get_coefficients, run_simulation
+from frhodo.calculate.mech_fcns import Chemical_Mechanism
 
 
 class BaseObjectiveFunction:
@@ -43,13 +42,11 @@ class BaseObjectiveFunction:
         self._frhodo: Optional[FrhodoDriver] = None
 
         # Make a placeholder for experimental data
+        self.mech: Optional[Chemical_Mechanism] = None
         self._observations: Optional[List[np.ndarray]] = None
         self._weights: Optional[List[np.ndarray]] = None
         self._sim_kwargs: Optional[List[dict]] = None
         self._rxn_conditions: Optional[List[Tuple[float, float, dict]]] = None
-
-        # Track whether the data has been loaded or not
-        self._loaded = False
 
     def __getstate__(self):
         if multiprocessing.get_start_method() != "spawn":
@@ -57,49 +54,19 @@ class BaseObjectiveFunction:
         state = self.__dict__.copy()
         return state
 
-    def set_driver(self, driver: FrhodoDriver):
-        """Set the driver to be used for this class
-
-        Use this if you have already launched Frhodo.
-
-        Args:
-            driver: Driver to use in place of creating a new one
-        """
-        global _frhodo
-        _frhodo = driver
-
-    @property
-    def frhodo(self) -> FrhodoDriver:
-        """Link to the underlying Frhodo instance"""
-        global _frhodo  # Use the module-level instance of Frhodo
-        # Launch if needed
-        if _frhodo is None:
-            _frhodo = FrhodoDriver.create_driver()
-
-        # Load in the data and mechanism
-        if not self._loaded:
-            _frhodo.load_files(
-                self._exp_directory,
-                self._mech_directory,
-                self._mech_directory / 'outputs',
-                aliases=self._aliases
-            )
-            assert self.observations is not None
-        return _frhodo
-
     @property
     def observations(self) -> List[np.ndarray]:
         """Experimental data less any regions that are masked out"""
         # Load the data in if needed
         if self._observations is None:
-            self._load_experiments()
+            self.load_experiments()
         return self._observations
 
     @property
     def weights(self) -> List[np.ndarray]:
         """Weights for each observation"""
         if self._observations is None:
-            self._load_experiments()
+            self.load_experiments()
         return self._weights
 
     @property
@@ -108,16 +75,29 @@ class BaseObjectiveFunction:
 
         This is either the initial values from loading the mechanism or the last values ran.
         """
-        return np.array(self.frhodo.get_coefficients(self.parameters))
+        return np.array(get_coefficients(self.mech, self.parameters))
 
-    def _load_experiments(self):
+    def load_experiments(self, frhodo: Optional[FrhodoDriver] = None):
         """Load observations and weights from disk
 
         Sets the values in `self._observations` and `self._weights`
         """
+
+        if frhodo is None:
+            frhodo = FrhodoDriver.create_driver()
+
+        # Use Frhodo to load the data
+        frhodo.load_files(
+            self._exp_directory,
+            self._mech_directory,
+            self._mech_directory / 'outputs',
+            aliases=self._aliases
+        )
+
+        # Extract the data
         self._observations = []
         self._weights = []
-        for obs, weights in zip(*self.frhodo.get_observables()):
+        for obs, weights in zip(*frhodo.get_observables()):
             # Find portions that are weighted sufficiently
             mask = weights > 1e-6
 
@@ -125,7 +105,8 @@ class BaseObjectiveFunction:
             self._observations.append(obs[mask, :])
             self._weights.append(weights[mask])
 
-        self._sim_kwargs, self._rxn_conditions = self.frhodo.get_simulator_inputs()
+        self._sim_kwargs, self._rxn_conditions = frhodo.get_simulator_inputs()
+        self.mech = frhodo.window.mech
 
     def run_simulations(self, x: Sequence[float]) -> List[np.ndarray]:
         """Run the simulations with a new set of parameters
@@ -139,17 +120,17 @@ class BaseObjectiveFunction:
 
         # Update the parameters
         assert len(x) == len(self.parameters), f"Expected {len(self.parameters)} parameters but got {len(x)}"
-        self.frhodo.set_coefficients(dict(zip(self.parameters, x)))
+        set_coefficients(self.mech, dict(zip(self.parameters, x)))
 
         # Run each simulation to each set of experimental data
         sims = []
         for sim_kwargs, rxn_cond in zip(self._sim_kwargs, self._rxn_conditions):
-            sims.append(self.frhodo.run_simulation_from_kwargs(sim_kwargs, rxn_cond))
+            sims.append(run_simulation(self.mech, rxn_cond, sim_kwargs))
 
         # Interpolate simulation data over the same steps as the experiments
         output = []
         for sim, obs in zip(sims, self.observations):
-            sim_func = interp1d(sim[:, 0], sim[:, 1], kind='cubic')
+            sim_func = interp1d(sim[:, 0], sim[:, 1], kind='cubic', fill_value='extrapolate')
             output.append(sim_func(obs[:, 0]))
         return output
 
@@ -225,8 +206,8 @@ class BayesianObjectiveFunction(BaseObjectiveFunction):
             output.append(ss.t(loc=0, scale=std, df=2.1).logpdf(resid).sum())
         return np.array(output)
 
-    def _load_experiments(self):
-        super()._load_experiments()
+    def load_experiments(self, frhodo: Optional[FrhodoDriver] = None):
+        super().load_experiments(frhodo)
 
         # Adjust the weights such that the largest is 1
         for i, weight in enumerate(self.weights):
