@@ -1,11 +1,11 @@
 """Testing the API components of Frhodo"""
 import numpy as np
+import pickle as pkl
 from pytest import fixture, mark
-from multiprocessing import Pool, set_start_method
+from multiprocessing import set_start_method
 
 from frhodo.api.driver import FrhodoDriver
 from frhodo.api.optimize import BayesianObjectiveFunction
-from frhodo.api import optimize
 
 
 @fixture
@@ -113,7 +113,6 @@ def test_fittable_parameters(loaded_frhodo):
 
 
 def test_optimizer(loaded_frhodo, example_dir, tmp_path):
-    set_start_method("spawn")  # Allows us to run >1 Frhodo instance
     opt = BayesianObjectiveFunction(
         exp_directory=example_dir / 'Experiment',
         mech_directory=example_dir / 'Mechanism',
@@ -121,7 +120,7 @@ def test_optimizer(loaded_frhodo, example_dir, tmp_path):
     )
 
     # Set the frhodo executable for that module (we can have only 1 per process)
-    optimize._frhodo = loaded_frhodo
+    opt.load_experiments(loaded_frhodo)
 
     # Test the state
     assert opt.weights[0].max() == 1
@@ -141,3 +140,7 @@ def test_optimizer(loaded_frhodo, example_dir, tmp_path):
     y0_repeat = opt(x0)
     assert y0 == y0_repeat
 
+    # Make sure it is serializable
+    opt2 = pkl.loads(pkl.dumps(opt))
+    y0_opt2 = opt2(x0)
+    assert np.isclose(y0, y0_opt2).all()

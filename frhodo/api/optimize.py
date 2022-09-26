@@ -1,6 +1,8 @@
 """Utilities useful for using Frhodo from external optimizers"""
 import multiprocessing
 import warnings
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 from typing import List, Optional, Dict, Sequence, Tuple
 
@@ -47,12 +49,6 @@ class BaseObjectiveFunction:
         self._weights: Optional[List[np.ndarray]] = None
         self._sim_kwargs: Optional[List[dict]] = None
         self._rxn_conditions: Optional[List[Tuple[float, float, dict]]] = None
-
-    def __getstate__(self):
-        if multiprocessing.get_start_method() != "spawn":
-            warnings.warn('You must set the multiprocessing start method to spawn so we can run >1 multiprocessing instance')
-        state = self.__dict__.copy()
-        return state
 
     @property
     def observations(self) -> List[np.ndarray]:
@@ -124,8 +120,14 @@ class BaseObjectiveFunction:
 
         # Run each simulation to each set of experimental data
         sims = []
-        for sim_kwargs, rxn_cond in zip(self._sim_kwargs, self._rxn_conditions):
-            sims.append(run_simulation(self.mech, rxn_cond, sim_kwargs))
+        with ProcessPoolExecutor(1) as exec:
+            for sim_kwargs, rxn_cond in zip(self._sim_kwargs, self._rxn_conditions):
+                exc = exec.submit(run_simulation, self.mech, rxn_cond, sim_kwargs)
+                try:
+                    res = exc.result()
+                except BrokenProcessPool:
+                    raise ValueError('Running the simulation failed')
+                sims.append(res)
 
         # Interpolate simulation data over the same steps as the experiments
         output = []
@@ -152,9 +154,16 @@ class BaseObjectiveFunction:
             output.append(np.subtract(sim, obs[:, 1]))
         return output
 
-    def __call__(self, x: np.ndarray, **kwargs):
+    def _call(self, x: np.ndarray, **kwargs):
         """Invoke the objective function"""
         raise NotImplementedError()
+
+    def __call__(self, x: np.ndarray, **kwargs):
+        """Invoke the objective function"""
+        try:
+            return self._call(x)
+        except ValueError:
+            return np.inf
 
 
 class BayesianObjectiveFunction(BaseObjectiveFunction):
@@ -213,7 +222,7 @@ class BayesianObjectiveFunction(BaseObjectiveFunction):
         for i, weight in enumerate(self.weights):
             self.weights[i] /= weight.max()
 
-    def __call__(self, x: np.ndarray, **kwargs):
+    def _call(self, x: np.ndarray, **kwargs):
         """Invoke the objective function
 
         Args:

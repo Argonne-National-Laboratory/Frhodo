@@ -47,7 +47,7 @@ class Chemical_Mechanism:
             #  Now convert it to a YAML
             ct_file = tmp / 'gas.yaml'
             ck2yaml.convert_mech(ck_file, thermo_file=None, transport_file=None, surface_file=None,
-                                 phase_name='gas', out_name=ct_file, quiet=False,
+                                 phase_name='gas', out_name=ct_file, quiet=True,
                                  permissive=True)
             state['gas'] = ct.Solution(yaml=ct_file.read_text())
 
