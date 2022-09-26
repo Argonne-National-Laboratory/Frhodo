@@ -5,6 +5,7 @@ from pytest import fixture, mark
 from multiprocessing import set_start_method
 
 from frhodo.api.driver import FrhodoDriver
+from frhodo.api.interface import compute_kinetic_coefficients
 from frhodo.api.optimize import BayesianObjectiveFunction
 
 
@@ -66,6 +67,11 @@ def test_update(loaded_frhodo, rxn_id, prs_id):
     # Get the initial reaction rates
     rates = loaded_frhodo.get_reaction_rates()
     assert rates.shape == (66, 1)
+
+    # Get them at a specific TPX
+    rxn_conditions = loaded_frhodo.get_simulator_inputs()[1][0]
+    rates_single = compute_kinetic_coefficients(loaded_frhodo.window.mech, rxn_conditions)
+    assert np.isclose(rates_single, rates[:, 0]).all()
 
     # Get the simulation before
     sim = loaded_frhodo.run_simulations()[0]

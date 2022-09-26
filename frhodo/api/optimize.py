@@ -8,7 +8,8 @@ import numpy as np
 from scipy import stats as ss
 from scipy.interpolate import interp1d
 
-from frhodo.api.driver import CoefIndex, FrhodoDriver, set_coefficients, get_coefficients, run_simulation
+from frhodo.api.driver import FrhodoDriver
+from frhodo.api.interface import set_coefficients, run_simulation, get_coefficients, CoefIndex
 from frhodo.calculate.mech_fcns import Chemical_Mechanism
 
 
@@ -31,7 +32,7 @@ def _run_simulation(x, mech, parameters, observations, rxn_conditions, sim_kwarg
         output.append(sim_func(obs[:, 0]))
     return output
 
-
+# TODO (wardlt): Add in the
 class BaseObjectiveFunction:
     """Base class for a Frhodo-based objective function
 
@@ -106,6 +107,7 @@ class BaseObjectiveFunction:
             self.load_experiments()
         return self._sim_kwargs.copy()
 
+    @property
     def rxn_conditions(self) -> List[Tuple[float, float, dict]]:
         """Starting conditions for each experiment"""
         if self._rxn_conditions is None:
