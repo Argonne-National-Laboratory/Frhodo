@@ -32,7 +32,7 @@ def _run_simulation(x, mech, parameters, observations, rxn_conditions, sim_kwarg
         output.append(sim_func(obs[:, 0]))
     return output
 
-# TODO (wardlt): Add in the
+
 class BaseObjectiveFunction:
     """Base class for a Frhodo-based objective function
 
@@ -44,6 +44,7 @@ class BaseObjectiveFunction:
             exp_directory: Path,
             mech_directory: Path,
             parameters: List[CoefIndex],
+            parameter_is_log: Optional[List[bool]] = None,
             aliases: Optional[Dict[str, str]] = None,
             num_workers: Optional[int] = None
     ):
@@ -52,7 +53,8 @@ class BaseObjectiveFunction:
         Args:
             exp_directory: Path to the experimental data
             mech_directory: Path to the mechanism file(s)
-            parameters: Parameters to be adjusted
+            parameters: Kinetic coefficients to be adjusted
+            parameter_is_log: Whether the input coefficient is a log value. Optional: All false
             aliases: Aliases that map species in the experiment to the mechanism description
             num_workers: Maximum number of parallel workers to allow
         """
@@ -63,6 +65,11 @@ class BaseObjectiveFunction:
         self._mech_directory = mech_directory
         self._aliases = aliases
         self._frhodo: Optional[FrhodoDriver] = None
+
+        # Determine whether the inputs are logs
+        if parameter_is_log is None:
+            parameter_is_log = [False] * len(parameters)
+        self.parameter_is_log = parameter_is_log.copy()
 
         # Make a placeholder for experimental data
         self.mech: Optional[Chemical_Mechanism] = None
@@ -114,13 +121,12 @@ class BaseObjectiveFunction:
             self.load_experiments()
         return self._rxn_conditions.copy()
 
-    @property
-    def x(self) -> np.ndarray:
-        """Get the current state of the coefficient being optimized
-
-        This is either the initial values from loading the mechanism or the last values ran.
-        """
-        return np.array(get_coefficients(self.mech, self.parameters))
+    def get_initial_values(self) -> np.ndarray:
+        """Get the initial values from loading the mechanism"""
+        return np.array([
+            np.log(x) if l else x for x, l in
+            zip(get_coefficients(self.mech, self.parameters),
+                self.parameter_is_log)])
 
     def load_experiments(self, frhodo: Optional[FrhodoDriver] = None):
         """Load observations and weights from disk
@@ -162,6 +168,9 @@ class BaseObjectiveFunction:
             Simulated for each experiment interpolated at the same time increments
             as :meth:`observations`.
         """
+
+        # Convert the inputs to real values, if needed
+        x = [np.exp(xi) if li else xi for xi, li in zip(x, self.parameter_is_log)]
 
         # Submit the simulation as a subprocess
         future = self._exec.submit(_run_simulation,
@@ -220,6 +229,7 @@ class BayesianObjectiveFunction(BaseObjectiveFunction):
             exp_directory: Path,
             mech_directory: Path,
             parameters: List[CoefIndex],
+            parameter_is_log: Optional[List[bool]] = None,
             priors: Optional[List[ss.rv_continuous]] = None,
             aliases: Optional[Dict[str, str]] = None,
             **kwargs
@@ -230,9 +240,10 @@ class BayesianObjectiveFunction(BaseObjectiveFunction):
             exp_directory: Path to the experimental data
             mech_directory: Path to the mechanism file(s)
             parameters: Parameters to be adjusted
+            parameter_is_log: Whether the input coefficient is a log value. Optional: All false
             aliases: Aliases that map species in the experiment to the mechanism description
         """
-        super().__init__(exp_directory, mech_directory, parameters, aliases, **kwargs)
+        super().__init__(exp_directory, mech_directory, parameters, parameter_is_log, aliases, **kwargs)
         self.priors = priors
 
     def compute_log_probs(self, x: np.ndarray, uncertainty: float) -> np.ndarray:

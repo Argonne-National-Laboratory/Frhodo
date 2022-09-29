@@ -130,10 +130,10 @@ def test_optimizer(loaded_frhodo, example_dir, tmp_path):
 
     # Test the state
     assert opt.weights[0].max() == 1
-    assert len(opt.x) == 1
+    assert len(opt.get_initial_values()) == 1
 
     # Make sure the optimizer produces different results with different inputs
-    x0 = opt.x.tolist()
+    x0 = opt.get_initial_values().tolist()
     x0.insert(0, 1e-4)
     y0 = opt(x0)
 
@@ -147,6 +147,15 @@ def test_optimizer(loaded_frhodo, example_dir, tmp_path):
     assert y0 == y0_repeat
 
     # Make sure it is serializable
-    opt2 = pkl.loads(pkl.dumps(opt))
+    opt2: BayesianObjectiveFunction = pkl.loads(pkl.dumps(opt))
     y0_opt2 = opt2(x0)
     assert np.isclose(y0, y0_opt2).all()
+
+    # Create another version where we test the log of the initial parameter
+    assert opt2.parameter_is_log == [False]
+    opt2.parameter_is_log = [True]
+    assert np.isclose(opt.get_initial_values(), np.exp(opt2.get_initial_values())).all()
+
+    x2 = [1e-4] + np.log(x0[1:]).tolist()
+    y2 = opt2(x2)
+    assert np.isclose(y0, y2).all()
