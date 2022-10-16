@@ -1010,7 +1010,7 @@ class Log:
                       'gold': QtGui.QColor(255, 191, 0)}
         self.current_color = self.color['base']
         self.blink_status = False
-        self.log.setTabStopWidth(QtGui.QFontMetricsF(self.log.font()).width(' ') * 6)
+        self.log.setTabStopWidth(int(QtGui.QFontMetricsF(self.log.font()).width(' ')) * 6)
         #font = QtGui.QFont("Courier New")
         #font.setStyleHint(QtGui.QFont.TypeWriter)
         #self.log.setCurrentFont(font)
