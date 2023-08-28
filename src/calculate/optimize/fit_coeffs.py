@@ -13,7 +13,8 @@ from timeit import default_timer as timer
 import itertools
 
 from calculate.convert_units import OoM, Bisymlog
-from calculate.optimize.misc_fcns import penalized_loss_fcn, set_arrhenius_bnds, min_pos_system_value, max_pos_system_value
+from calculate.optimize.misc_fcns import set_arrhenius_bnds, min_pos_system_value, max_pos_system_value
+from calculate.optimize.adaptive_loss import adaptive_weights
 
 Ru = ct.gas_constant
 # Ru = 1.98720425864083
@@ -425,10 +426,12 @@ class falloff_parameters:   # based on ln_Fcent
 
         resid = ln_Troe(T, M, *x) - self.ln_k
         #resid = self.ln_Troe(T, *x) - self.ln_k
-        if obj_type == 'obj_sum':              
-            obj_val = penalized_loss_fcn(resid, a=self.loss_alpha, c=self.loss_scale).sum()
+        if obj_type == 'obj_sum':
+            loss_weights, C, alpha = adaptive_weights(resid, weights=np.array([]), C_scalar=self.loss_scale, alpha=self.loss_alpha)
+            obj_val = np.sum(loss_weights*(resid**2))
         elif obj_type == 'obj':
-            obj_val = penalized_loss_fcn(resid, a=self.loss_alpha, c=self.loss_scale)
+            loss_weights, C, alpha = adaptive_weights(resid, weights=np.array([]), C_scalar=self.loss_scale, alpha=self.loss_alpha)
+            obj_val = loss_weights*(resid**2)
         elif obj_type == 'resid':
             obj_val = resid
 
@@ -927,22 +930,22 @@ def fit_generic(rates, T, P, X, rxnIdx, coefKeys, coefNames, is_falloff_limit, m
     coefNames = np.array(coefNames)
     bnds = np.array(bnds).copy()
 
-    if type(rxn) in [ct.ElementaryReaction, ct.ThreeBodyReaction]:
+    if type(rxn.rate) is ct.ArrheniusRate:
         # set x0 for all parameters
-        x0 = [mech.coeffs_bnds[rxnIdx]['rate'][coefName]['resetVal'] for coefName in mech.coeffs_bnds[rxnIdx]['rate']]
+        x0 = [mech.coeffs_bnds[rxnIdx]['rate'][coefName]['resetVal'] for coefName in default_arrhenius_coefNames]
         coeffs = fit_arrhenius(rates, T, x0=x0, coefNames=coefNames, bnds=bnds)
 
-        if type(rxn) is ct.ThreeBodyReaction and 'pre_exponential_factor' in coefNames:
+        if (rxn.reaction_type == "three-body") and ('pre_exponential_factor' in coefNames):
             A_idx = np.argwhere(coefNames == 'pre_exponential_factor')[0]
             coeffs[A_idx] = coeffs[A_idx]/mech.M(rxn)
     
-    elif type(rxn) in [ct.PlogReaction, ct.FalloffReaction]:
+    elif type(rxn.rate) in [ct.PlogRate, ct.FalloffRate, ct.TroeRate, ct.SriRate]:
         M = lambda T, P: mech.M(rxn, [T, P, X])
 
         # get x0 for all parameters
         x0 = []
-        for Initial_parameters in mech.coeffs_bnds[rxnIdx].values():
-            for coef in Initial_parameters.values():
+        for initial_parameters in mech.coeffs_bnds[rxnIdx].values():
+            for coef in initial_parameters.values():
                 x0.append(coef['resetVal'])
 
         # set coefNames to be optimized

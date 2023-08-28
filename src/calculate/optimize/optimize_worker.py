@@ -334,7 +334,7 @@ class Optimize:
             num_gen = int(np.ceil(1E20/pop_size))
 
         prob = pygmo.problem(pygmo_objective_fcn(self.obj_fcn, tuple(bnds)))
-        pop = pygmo.population(prob, pop_size)
+        pop = pygmo.population(prob, pop_size - 1)
         pop.push_back(x = x0)   # puts initial guess into the initial population
 
         # all coefficients/rules should be optimized if they're to be used
