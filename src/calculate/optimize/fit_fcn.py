@@ -14,7 +14,7 @@ from timeit import default_timer as timer
 
 from calculate.mech_fcns import Chemical_Mechanism
 from calculate.convert_units import OoM, Bisymlog
-from calculate.optimize.misc_fcns import weighted_quantile, outlier, penalized_loss_fcn
+from calculate.optimize.adaptive_loss import adaptive_weights, weighted_quantile
 from calculate.optimize.fit_coeffs import fit_coeffs
 from calculate.optimize.CheKiPEUQ_from_Frhodo import CheKiPEUQ_Frhodo_interface
 
@@ -44,8 +44,8 @@ def rescale_loss_fcn(x, loss, x_outlier=None, weights=[]):
         loss_trimmed = loss
 
     if len(weights) == len(x):
-        x_q1, x_q3 = weighted_quantile(x, [0.0, 1.0], weights=weights)
-        loss_q1, loss_q3 = weighted_quantile(loss_trimmed, [0.0, 1.0], weights=weights)
+        x_q1, x_q3 = weighted_quantile(x, np.array([0.0, 1.0]), weights=weights)
+        loss_q1, loss_q3 = weighted_quantile(loss_trimmed, np.array([0.0, 1.0]), weights=weights)
 
     else:
         x_q1, x_q3 = x.min(), x.max()
@@ -128,12 +128,10 @@ def calculate_residuals(args_list):
                 obs_sim_interp = obs_sim_interp_bisymlog
                 obs_bounds = bisymlog.transform(obs_bounds)  # THIS NEEDS TO BE CHECKED
         
-        resid_outlier = outlier(resid, c=loss_c, weights=weights)
-        loss = penalized_loss_fcn(resid, a=loss_alpha, c=resid_outlier, use_penalty=loss_penalty)
-            
-        #loss = rescale_loss_fcn(np.abs(resid), loss, resid_outlier, weights)
+        loss_weights, C, alpha = adaptive_weights(resid, weights, C_scalar=loss_c, alpha=loss_alpha)
+        agg_weights = weights*loss_weights
 
-        loss_sqr = (loss**2)*weights
+        loss_sqr = agg_weights*resid**2
         wgt_sum = weights.sum()
         N = wgt_sum - DoF
         if N <= 0:
@@ -147,17 +145,9 @@ def calculate_residuals(args_list):
         #loss_scalar = weighted_quantile(std_resid, 0.5, weights=weights)    # median value
                                                   
         if verbose:                                                                                                           
-            output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': resid_outlier,
-                      'loss': loss_scalar, 'weights': weights, 'obs_sim_interp': obs_sim_interp,
-                      'obs_exp': obs_exp}
-
-            if opt_type == 'Bayesian': # need to calculate aggregate weights to reduce outliers in bayesian
-                SSE = penalized_loss_fcn(resid/resid_outlier, use_penalty=False)
-                #SSE = penalized_loss_fcn(resid)
-                #SSE = rescale_loss_fcn(np.abs(resid), SSE, resid_outlier, weights)
-                loss_weights = loss/SSE # comparison is between selected loss fcn and SSE (L2 loss)
-                output['aggregate_weights'] = weights*loss_weights
-                output['obs_bounds'] = obs_bounds
+            output = {'chi_sqr': chi_sqr, 'resid': resid, 'resid_outlier': C, 'loss': loss_scalar, 
+                      'weights': loss_weights, 'aggregate_weights': weights*loss_weights, 
+                      'obs_sim_interp': obs_sim_interp, 'obs_exp': obs_exp, 'obs_bounds': obs_bounds}
 
             return output
                                                                                                                             
@@ -166,7 +156,7 @@ def calculate_residuals(args_list):
     
     def calc_density(x, data, dim=1):
         stdev = np.std(data)
-        [q1, q3] = weighted_quantile(data, [0.25, 0.75])
+        [q1, q3] = weighted_quantile(data, np.array([0.25, 0.75]))
         iqr = q3 - q1       # interquartile range   
         A = np.min([stdev, iqr/1.34])/stdev  # bandwidth is multiplied by std of sample
         bw = 0.9*A*len(data)**(-1./(dim+4))
@@ -392,17 +382,15 @@ class Fit_Fun:
             return obj_fcn, x, output_dict['shock']
        
     def calculate_obj_fcn(self, x, loss_resid, alpha, log_opt_rates, output_dict, obj_fcn_type='Residual', loss_outlier=0):
+        C = self.opt_settings['loss_c']
+
         if np.size(loss_resid) == 1:  # optimizing single experiment
             loss_outlier = 0
             loss_exp = loss_resid
         else:                   # optimizing multiple experiments
             loss_min = loss_resid.min()
-            loss_outlier = outlier(loss_resid, c=self.opt_settings['loss_c'])
-            if obj_fcn_type == 'Residual':
-                loss_exp = penalized_loss_fcn(loss_resid-loss_min, a=alpha, c=loss_outlier)
-            else:   # otherwise do not include penalty for Bayesian
-                loss_exp = penalized_loss_fcn(loss_resid-loss_min, a=alpha, c=loss_outlier, use_penalty=False)
-            #loss_exp = rescale_loss_fcn(loss_resid, loss_exp)
+            exp_loss_weights, C, alpha = adaptive_weights(loss_resid-loss_min, weights=np.array([]), C_scalar=C, alpha=alpha)
+            loss_exp = exp_loss_weights*(loss_resid-loss_min)**2
         
         self.loss_outlier = loss_outlier
 
@@ -420,9 +408,12 @@ class Fit_Fun:
             else:
                 loss_exp = rescale_loss_fcn(loss_resid, loss_exp)
                 aggregate_weights = np.array(output_dict['aggregate_weights'], dtype=object)
-                SSE = penalized_loss_fcn(loss_resid, mu=loss_min, use_penalty=False)
-                SSE = rescale_loss_fcn(loss_resid, SSE)
-                exp_loss_weights = loss_exp/SSE # comparison is between selected loss fcn and SSE (L2 loss)
+                exp_loss_weights, C, alpha = adaptive_weights(loss_resid, weights=np.array([]), C_scalar=C, alpha=alpha)
+
+                # SSE = penalized_loss_fcn(loss_resid, mu=loss_min, use_penalty=False)
+                # SSE = rescale_loss_fcn(loss_resid, SSE)
+                # exp_loss_weights = loss_exp/SSE # comparison is between selected loss fcn and SSE (L2 loss)
+
                 Bayesian_weights = np.concatenate(aggregate_weights.T*exp_loss_weights, axis=0).flatten()
             
             # need to normalize weight values between iterations

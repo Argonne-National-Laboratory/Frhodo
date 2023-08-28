@@ -5,10 +5,8 @@
 import sys, os, io, stat, contextlib, pathlib, time
 from copy import deepcopy
 import cantera as ct
-from cantera import interrupts, cti2yaml#, ck2yaml, ctml2yaml
 import numpy as np
 from calculate import shock_fcns, integrate
-import ck2yaml
 from timeit import default_timer as timer
 
 
@@ -301,8 +299,8 @@ class Reactor:
                         'HRR_tot', 'HRR', 'delta_h', 'delta_s', 
                         'eq_con', 'rate_con', 'rate_con_rev', 'net_ROP', 'for_ROP', 'rev_ROP']
 
-        num = {'reac': np.sum(gas.reactant_stoich_coeffs(), axis=0),
-               'prod': np.sum(gas.product_stoich_coeffs(), axis=0),
+        num = {'reac': np.sum(gas.reactant_stoich_coeffs, axis=0),
+               'prod': np.sum(gas.product_stoich_coeffs, axis=0),
                'rxns': gas.n_reactions}
         
         SIM = Simulation_Result(num, states, reactor_vars)

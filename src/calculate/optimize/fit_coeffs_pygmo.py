@@ -885,16 +885,16 @@ def fit_generic(rates, T, P, X, rxnIdx, coefKeys, coefNames, is_falloff_limit, m
     coefNames = np.array(coefNames)
     bnds = np.array(bnds).copy()
 
-    if type(rxn) in [ct.ElementaryReaction, ct.ThreeBodyReaction]:
+    if type(rxn.rate) == ct.ArrheniusRate:
         # set x0 for all parameters
         x0 = [mech.coeffs_bnds[rxnIdx]['rate'][coefName]['resetVal'] for coefName in mech.coeffs_bnds[rxnIdx]['rate']]
         coeffs = fit_arrhenius(rates, T, x0=x0, coefNames=coefNames, bnds=bnds)
 
-        if type(rxn) is ct.ThreeBodyReaction and 'pre_exponential_factor' in coefNames:
+        if (rxn.reaction_type == "three-body") and ('pre_exponential_factor' in coefNames):
             A_idx = np.argwhere(coefNames == 'pre_exponential_factor')[0]
             coeffs[A_idx] = coeffs[A_idx]/mech.M(rxn)
     
-    elif type(rxn) in [ct.PlogReaction, ct.FalloffReaction]:
+    elif type(rxn.rate) in [ct.PlogRate, ct.FalloffRate]:
         M = lambda T, P: mech.M(rxn, [T, P, X])
 
         # get x0 for all parameters
