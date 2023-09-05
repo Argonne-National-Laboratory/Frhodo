@@ -5,6 +5,7 @@
 import numpy as np
 import cantera as ct
 
+from calculate.mech_fcns import arrhenius_coefNames
 
 Ru = ct.gas_constant
 
@@ -13,8 +14,6 @@ max_pos_system_value = (np.finfo(float).max*(1E-20))**(1/2)
 min_neg_system_value = -max_pos_system_value
 T_min = 300
 T_max = 6000
-
-default_arrhenius_coefNames = ['activation_energy', 'pre_exponential_factor', 'temperature_exponent']
 
 
 def rates(rxn_coef_opt, mech):
@@ -33,7 +32,7 @@ def set_bnds(mech, rxnIdx, keys, coefNames):
     coef_bnds = {'lower': [], 'upper': [], 'exist': []}
             
     for coefNum, (key, coefName) in enumerate(zip(keys, coefNames)):
-        if coefName not in default_arrhenius_coefNames: continue    # skip anything not Arrhenius. Falloff follows this
+        if coefName not in arrhenius_coefNames: continue    # skip anything not Arrhenius. Falloff follows this
 
         coef_x0 = mech.coeffs_bnds[rxnIdx][key['coeffs_bnds']][coefName]['resetVal']
         coef_limits = mech.coeffs_bnds[rxnIdx][key['coeffs_bnds']][coefName]['limits']()

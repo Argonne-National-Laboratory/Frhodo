@@ -539,8 +539,8 @@ class Plot(Base_Plot):
         obj_fcn_type = parent.obj_fcn_type_box.currentText()
         if obj_fcn_type == 'Residual':
             self.ax[0].item['title'].set_text('Weighting')   # set title
-            self.update_xylim(self.ax[0], xlim=self.ax[0].get_xlim(),  ylim=[-0.1, 1.1], force_redraw=False)
-            for i in range(0,2):
+            self.update_xylim(self.ax[0], xlim=self.ax[0].get_xlim(), ylim=[-0.1, 1.1], force_redraw=False)
+            for i in range(0, 2):
                 self.ax[1].item['cutoff_line'][i].set_xdata([np.nan])
         else:
             self.ax[0].item['title'].set_text('Uncertainty')   # set title

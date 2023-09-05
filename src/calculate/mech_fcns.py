@@ -237,18 +237,17 @@ class Chemical_Mechanism:
             rate_bnds = copy_bnds(rate_bnds, bnds, rxnIdx, 'rate')
 
             rxn_type = self._reaction_type(rxn)
-            attrs = arrhenius_coefNames
 
             if rxn_type in ["Arrhenius Reaction", "Three Body Reaction"]:
-                coeffs.append([{attr: getattr(rxn.rate, attr) for attr in attrs}])
+                coeffs.append([{attr: getattr(rxn.rate, attr) for attr in arrhenius_coefNames}])
                 if rxn_type == "Three Body Reaction":
                     coeffs[-1][0]['efficiencies'] = rxn.third_body.efficiencies
 
                 coeffs_bnds.append({'rate': {attr: {'resetVal': coeffs[-1][0][attr], 'value': np.nan, 
                                     'limits': Uncertainty('coef', rxnIdx, key='rate', coef_name=attr, coeffs_bnds=coeffs_bnds),
-                                    'type': 'F', 'opt': False} for attr in attrs}})
+                                    'type': 'F', 'opt': False} for attr in arrhenius_coefNames}})
                 
-                coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', ['rate', attrs])
+                coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', ['rate', arrhenius_coefNames])
 
                 reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn_type,
                                     'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
@@ -259,7 +258,7 @@ class Chemical_Mechanism:
                 coeffs_bnds.append({})
                 for n, rate in enumerate(rxn.rate.rates):
                     coeffs[-1].append({'Pressure': rate[0]})
-                    coeffs[-1][-1].update({attr: getattr(rate[1], attr) for attr in attrs})
+                    coeffs[-1][-1].update({attr: getattr(rate[1], attr) for attr in arrhenius_coefNames})
                     if n == 0 or n == len(rxn.rate.rates)-1: # only going to allow coefficient uncertainties to be placed on upper and lower pressures
                         if n == 0:
                             key = 'low_rate'
@@ -267,9 +266,9 @@ class Chemical_Mechanism:
                             key = 'high_rate'
                         coeffs_bnds[-1][key] = {attr: {'resetVal': coeffs[-1][-1][attr], 'value': np.nan, 
                                                         'limits': Uncertainty('coef', rxnIdx, key=key, coef_name=attr, coeffs_bnds=coeffs_bnds),
-                                                        'type': 'F', 'opt': False} for attr in attrs}
+                                                        'type': 'F', 'opt': False} for attr in arrhenius_coefNames}
 
-                        coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', [key, attrs])
+                        coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', [key, arrhenius_coefNames])
 
                 reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn_type,
                                    'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
@@ -283,13 +282,13 @@ class Chemical_Mechanism:
                                'default_efficiency': rxn.third_body.default_efficiency, 'efficiencies': rxn.third_body.efficiencies})
                 for key in ['low_rate', 'high_rate']:
                     rate = getattr(rxn.rate, key)
-                    coeffs[-1][key] = {attr: getattr(rate, attr) for attr in attrs}
+                    coeffs[-1][key] = {attr: getattr(rate, attr) for attr in arrhenius_coefNames}
 
                     coeffs_bnds[-1][key] = {attr: {'resetVal': coeffs[-1][key][attr], 'value': np.nan, 
                                                     'limits': Uncertainty('coef', rxnIdx, key=key, coef_name=attr, coeffs_bnds=coeffs_bnds),
-                                                    'type': 'F', 'opt': False} for attr in attrs}
+                                                    'type': 'F', 'opt': False} for attr in arrhenius_coefNames}
 
-                    coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', [key, attrs])
+                    coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', [key, arrhenius_coefNames])
 
                 key = 'falloff_parameters'
                 n_coef = len(rxn.rate.falloff_coeffs)

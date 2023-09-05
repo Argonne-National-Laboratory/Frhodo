@@ -17,8 +17,9 @@ from calculate.optimize.fit_fcn import update_mech_coef_opt
 from calculate.optimize.misc_fcns import rates, set_bnds
 from calculate.optimize.fit_coeffs import fit_generic as Troe_fit
 
+from calculate.mech_fcns import arrhenius_coefNames
+
 Ru = ct.gas_constant
-default_arrhenius_coefNames = ['activation_energy', 'pre_exponential_factor', 'temperature_exponent']
 
 class Multithread_Optimize:
     def __init__(self, parent):
@@ -331,7 +332,7 @@ class Multithread_Optimize:
 
                             if type(rxn.rate) in [ct.FalloffRate, ct.TroeRate, ct.SriRate]:
                                 x = []
-                                for ArrheniusCoefName in default_arrhenius_coefNames:
+                                for ArrheniusCoefName in arrhenius_coefNames:
                                     x.append(mech.coeffs_bnds[rxnIdx][coef_type_key][ArrheniusCoefName]['resetVal'])
 
                                 rxn_rate_opt['x0'][i+n] = np.log(x[1]) + x[2]*np.log(T) - x[0]/(Ru*T)                        
@@ -409,7 +410,7 @@ class Multithread_Optimize:
 
                 n = 0
                 for key in ['low_rate', 'high_rate']:
-                    for coefName in default_arrhenius_coefNames:
+                    for coefName in arrhenius_coefNames:
                         rxn_coef['key'][n]['coeffs'] = key                          # change key value to match new reaction type
                         mech.coeffs[rxnIdx][key][coefName] = rxn_coef['coef_x0'][n] # updates new arrhenius values
 

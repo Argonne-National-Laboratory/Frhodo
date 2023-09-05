@@ -102,7 +102,7 @@ def extract_larger_delta_and_make_sigma_values(initial_guess, lower_bound, upper
         upper_delta = np.abs(upper_bound[index]-initial_guess[index])
         lower_delta = np.abs(lower_bound[index]-initial_guess[index])
         max_delta = np.max([upper_delta,lower_delta])
-        current_sigma = max_delta/np.float(sigma_multiple)
+        current_sigma = max_delta/float(sigma_multiple)
         sigma_values[index] = current_sigma
     return sigma_values
     
