@@ -72,7 +72,7 @@ class Worker(QRunnable):
             shock['weights_trim'] = weights[exp_bounds]
             shock['exp_data_trim'] = shock['exp_data'][exp_bounds,:]
             if 'abs_uncertainties' in shock:
-                shock['abs_uncertainties_trim'] = shock['abs_uncertainties'][exp_bounds,:]
+                shock['abs_uncertainties_trim'] = shock['abs_uncertainties'][exp_bounds, :]
     
     def optimize_coeffs(self):
         parent = self.parent

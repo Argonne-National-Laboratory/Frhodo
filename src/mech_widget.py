@@ -14,6 +14,17 @@ from qtpy import QtWidgets, QtGui, QtCore
 
 from timeit import default_timer as timer
 
+from calculate.mech_fcns import arrhenius_coefNames
+
+
+default_coef_abbreviation = {
+            "pre_exponential_factor": "A",
+            "temperature_exponent": "n",
+            "activation_energy": "Ea"}
+
+coef_abbreviation = {key: default_coef_abbreviation[key] for key in arrhenius_coefNames}
+
+
 def silentSetValue(obj, value):
     obj.blockSignals(True)           # stop changing text from signaling
     obj.setValue(value)
@@ -86,11 +97,6 @@ class Tree(QtCore.QObject):
         self._set_mech_tree(self.mech_tree_data)
 
     def _set_mech_tree_data(self, selection, mech):
-        coef_abbreviation = {
-            "pre_exponential_factor": "A",
-            "temperature_exponent": "n",
-            "activation_energy": "Ea"}
-
         parent = self.parent()
         data = []
         for rxnIdx, rxn in enumerate(mech.gas.reactions()):
@@ -101,7 +107,7 @@ class Tree(QtCore.QObject):
                 for coefName, coefAbbr in coef_abbreviation.items():
                     coeffs.append([coefAbbr, coefName, mech.coeffs[rxnIdx][0]])
                 
-                coeffs_order = [0, 1, 2] # order coeffs into A, n, Ea
+                coeffs_order = [1, 2, 0] # order coeffs into A, n, Ea
    
                 data.append({'num': rxnIdx, 'eqn': rxn.equation, 'type': rxn_type, 
                              'coeffs': coeffs, 'coeffs_order': coeffs_order})
@@ -124,7 +130,7 @@ class Tree(QtCore.QObject):
                     for coefName, coefAbbr in coef_abbreviation.items():
                         coeffs.append([f'{coefAbbr}_{key}', coefName, mech.coeffs[rxnIdx][n]])
 
-                coeffs_order = [0, 1, 2, 3, 4, 5] # order coeffs into A_high, n_high, Ea_high, A_low
+                coeffs_order = [1, 2, 0, 4, 5, 3] # order coeffs into A_high, n_high, Ea_high, A_low
 
                 data.append({'num': rxnIdx, 'eqn': rxn.equation, 'type': rxn_type, 
                              'coeffs': coeffs, 'coeffs_order': coeffs_order})
@@ -469,7 +475,6 @@ class Tree(QtCore.QObject):
         parent = self.parent()
 
         conv_type = 'Cantera2' + self.mech_tree_type
-        x0 = []
         for i, idxDict in enumerate(coef_opt):  # set changes to both spinboxes and backend coeffs
             rxnIdx, coefIdx = idxDict['rxnIdx'], idxDict['coefIdx']
             coeffs_key = idxDict['key']['coeffs']

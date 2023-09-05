@@ -175,10 +175,12 @@ class Base_Plot(QtCore.QObject):
         
         for (axis, lim) in zip(['x', 'y'], [xlim, ylim]):
             # Set Limits
-            if len(lim) == 0:
-                eval('self.set_' + axis + 'lim(axes, data["' + axis + '"])')
+            if len(lim) < 2:
+                eval(f'self.set_{axis}lim(axes, data["{axis}"])')
+            elif lim[0] == lim[1]:
+                pass
             else:
-                eval('axes.set_' + axis + 'lim(lim)')
+                eval(f'axes.set_{axis}lim(lim)')
             
             # If bisymlog, also update scaling, C
             if eval('axes.get_' + axis + 'scale()') == 'bisymlog':
