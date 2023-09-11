@@ -80,7 +80,10 @@ def excepthookDecorator(app, parent_path, shut_down):
 
         # call the default handler
         sys.__excepthook__(type, value, tback)
-        
-        Error_Window(app, path, text)    
+
+        if "Deprecat" in text or "deprecat" in text: # ignore deprecation warnings
+            pass
+        else:
+            Error_Window(app, path, text)    
         
     return excepthook

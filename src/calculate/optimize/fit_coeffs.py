@@ -429,6 +429,8 @@ class falloff_parameters:   # based on ln_Fcent
 
         resid = ln_Troe(T, M, *x) - self.ln_k
         #resid = self.ln_Troe(T, *x) - self.ln_k
+        resid = resid.flatten()
+
         if obj_type == 'obj_sum':
             loss_weights, C, alpha = adaptive_weights(resid, weights=np.array([]), C_scalar=self.loss_scale, alpha=self.loss_alpha)
             obj_val = np.sum(loss_weights*(resid**2))
