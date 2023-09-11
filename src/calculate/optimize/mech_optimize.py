@@ -384,7 +384,7 @@ class Multithread_Optimize:
             if type(rxn.rate) in [ct.FalloffRate, ct.TroeRate, ct.SriRate]:
                 lb = rxn_coef['coef_bnds']['lower']
                 ub = rxn_coef['coef_bnds']['upper']
-                if rxn.falloff.type == 'SRI':   
+                if type(rxn.rate) is not ct.TroeRate:   
                     rxns_changed.append(rxn_coef['rxnIdx'])
                     rxn_coef['coef_x0'] = Troe_fit(rates, T, P, X, rxnIdx, rxn_coef['key'], [], 
                                                rxn_coef['is_falloff_limit'], mech, [lb, ub], accurate_fit=True)

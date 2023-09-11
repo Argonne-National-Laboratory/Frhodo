@@ -394,6 +394,8 @@ class Optimize:
                                                     max_evaluations=max_eval,
                                                     max_cycles=1E30,
                                                     max_clock_time=max_time,
+                                                    init_sample_fraction=np.size(x0) + 1,
+                                                    max_random_init=np.size(x0) + 2,
                                                     minlp_solver_path=path['bonmin'], 
                                                     nlp_solver_path=path['ipopt'])
                 algo = rbfopt.RbfoptAlgorithm(settings, bb, init_node_pos=x0)

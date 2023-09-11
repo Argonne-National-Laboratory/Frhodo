@@ -111,7 +111,7 @@ class Tree(QtCore.QObject):
    
                 data.append({'num': rxnIdx, 'eqn': rxn.equation, 'type': rxn_type, 
                              'coeffs': coeffs, 'coeffs_order': coeffs_order})
-            elif type(rxn.rate) in [ct.PlogRate, ct.FalloffRate]:
+            elif type(rxn.rate) in [ct.PlogRate, ct.FalloffRate, ct.TroeRate, ct.SriRate]:
                 if type(rxn.rate) is ct.PlogRate:
                     rxn_type = 'Plog Reaction'
                 else:
