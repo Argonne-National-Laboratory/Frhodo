@@ -720,7 +720,7 @@ class series:
         
         parent.path['shock'] = parent.path_set.shock_paths(prefix='Shock', ext='exp')
         if len(parent.path['shock']) == 0:  # if there are no shocks in listed directory
-            parent.directory.update_icons(invalid = 'exp_main')
+            parent.directory.update_icons(invalid=['exp_main'])
             return
         
         if self.in_table and not self.in_table[-1]: # if list exists and last item not in table, clear it
