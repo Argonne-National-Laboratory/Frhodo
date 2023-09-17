@@ -156,14 +156,22 @@ class Chemical_Mechanism:
                 low_rate = ct.Arrhenius(A, b, Ea)
 
                 # falloff parameters
-                if mech_dict[rxnIdx]['rxnCoeffs']['falloff_type'] == 'Troe':
-                    falloff_coeffs = mech_dict[rxnIdx]['rxnCoeffs']['falloff_parameters']
+                falloff_type = mech_dict[rxnIdx]['rxnCoeffs']['falloff_type']
+                falloff_coeffs = mech_dict[rxnIdx]['rxnCoeffs']['falloff_parameters']
+
+                if falloff_type == 'Lindemann':
+                    rate = ct.LindemannRate(low_rate, high_rate, falloff_coeffs)
+
+                elif falloff_type == 'Tsang':
+                    rate = ct.TsangRate(low_rate, high_rate, falloff_coeffs)
+
+                elif falloff_type == 'Troe':
                     if falloff_coeffs[-1] == 0.0:
                         falloff_coeffs = falloff_coeffs[0:-1]
 
                     rate = ct.TroeRate(low_rate, high_rate, falloff_coeffs)
-                else:
-                    rate = ct.SriRate(low_rate, high_rate, mech_dict[rxnIdx]['rxnCoeffs']['falloff_parameters'])
+                elif falloff_type == 'SRI':
+                    rate = ct.SriRate(low_rate, high_rate, falloff_coeffs)
 
                 rxn = ct.FalloffReaction(mech_dict[rxnIdx]['reactants'], mech_dict[rxnIdx]['products'], rate)
 
@@ -203,7 +211,7 @@ class Chemical_Mechanism:
                 return "Arrhenius Reaction"
         elif type(rxn.rate) is ct.PlogRate:
             return "Plog Reaction"
-        elif type(rxn.rate) in [ct.FalloffRate, ct.TroeRate, ct.SriRate]:
+        elif type(rxn.rate) in [ct.FalloffRate, ct.LindemannRate, ct.TsangRate, ct.TroeRate, ct.SriRate]:
             return "Falloff Reaction"
         elif type(rxn.rate) is ct.ChebyshevRate:
             return "Chebyshev Reaction"
@@ -308,7 +316,7 @@ class Chemical_Mechanism:
                 
                 reset_coeffs = {'Pmin': rxn.rate.pressure_range[0], 'Pmax': rxn.rate.pressure_range[1], 
                                 'Tmin': rxn.rate.temperature_range[0], 'Tmax': rxn.rate.temperature_range[1], 
-                                'coeffs': rxn.data}
+                                'coeffs': rxn.rate.data}
                 reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn_type,
                                     'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
                                     'rxnCoeffs': reset_coeffs})

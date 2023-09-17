@@ -113,7 +113,7 @@ class Main(QMainWindow):
     
     def load_mech(self, event = None):
         def mechhasthermo(mech_path):
-            f = open(mech_path, 'r')
+            f = open(mech_path, 'r', errors='replace')
             while True:
                 line = f.readline()
                 if '!' in line[0:2]:
