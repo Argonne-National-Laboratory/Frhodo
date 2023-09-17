@@ -249,6 +249,16 @@ class SearchComboBox(QComboBox):
 class ItemSearchComboBox(SearchComboBox):   # track items in itemList
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setView(QTreeView())
+        self.view().setHeaderHidden(True)
+        self.view().setIndentation(0)
+        
+        self.view().header().setMinimumSectionSize(0)   # set minimum to 0
+        self.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        
+        #self.setModelColumn(1)  # sets column for text to the second column
+        self.view().setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+
         self.itemList = []
         self.completer.activated.connect(self.on_completer_activated)
     
@@ -268,15 +278,6 @@ class ItemSearchComboBox(SearchComboBox):   # track items in itemList
 class CheckableSearchComboBox(ItemSearchComboBox):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setView(QTreeView())
-        self.view().setHeaderHidden(True)
-        self.view().setIndentation(0)
-        
-        self.view().header().setMinimumSectionSize(0)   # set minimum to 0
-        self.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        
-        #self.setModelColumn(1)  # sets column for text to the second column
-        self.view().setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
         
         self.cb = parent.clipboard
 
