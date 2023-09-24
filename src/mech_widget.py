@@ -100,9 +100,9 @@ class Tree(QtCore.QObject):
         parent = self.parent()
         data = []
         for rxnIdx, rxn in enumerate(mech.gas.reactions()):
-            if type(rxn.rate) is ct.ArrheniusRate:
-                rxn_type = 'Arrhenius Reaction'
+            rxn_type = mech.reaction_type(rxn)
 
+            if type(rxn.rate) is ct.ArrheniusRate:
                 coeffs = [] # Setup Coeffs for Tree
                 for coefName, coefAbbr in coef_abbreviation.items():
                     coeffs.append([coefAbbr, coefName, mech.coeffs[rxnIdx][0]])
@@ -112,11 +112,6 @@ class Tree(QtCore.QObject):
                 data.append({'num': rxnIdx, 'eqn': rxn.equation, 'type': rxn_type, 
                              'coeffs': coeffs, 'coeffs_order': coeffs_order})
             elif type(rxn.rate) in [ct.PlogRate, ct.FalloffRate, ct.TroeRate, ct.SriRate]:
-                if type(rxn.rate) is ct.PlogRate:
-                    rxn_type = 'Plog Reaction'
-                else:
-                    rxn_type = 'Falloff Reaction'
-
                 coeffs = []
                 for key in ['high', 'low']:
                     if type(rxn.rate) is ct.PlogRate:
@@ -135,7 +130,8 @@ class Tree(QtCore.QObject):
                 data.append({'num': rxnIdx, 'eqn': rxn.equation, 'type': rxn_type, 
                              'coeffs': coeffs, 'coeffs_order': coeffs_order})
             else:
-                data.append({'num': rxnIdx, 'eqn': rxn.equation, 'type': str(type(rxn.rate))})
+
+                data.append({'num': rxnIdx, 'eqn': rxn.equation, 'type': rxn_type})
                 # raise Exception("Equation type is not currently implemented for:\n{:s}".format(rxn.equation))
             
         return data                

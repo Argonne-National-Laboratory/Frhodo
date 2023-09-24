@@ -203,7 +203,7 @@ class Chemical_Mechanism:
     def gas(self): return self.gas
 
 
-    def _reaction_type(self, rxn):
+    def reaction_type(self, rxn):
         if type(rxn.rate) is ct.ArrheniusRate:
             if rxn.reaction_type == "three-body":
                 return "Three Body Reaction"
@@ -214,7 +214,7 @@ class Chemical_Mechanism:
         elif type(rxn.rate) in [ct.FalloffRate, ct.LindemannRate, ct.TsangRate, ct.TroeRate, ct.SriRate]:
             return "Falloff Reaction"
         elif type(rxn.rate) is ct.ChebyshevRate:
-            return "Chebyshev Reaction"
+            return "Chebyshev Reaction"        
         else:
             return str(type(rxn.rate))
         
@@ -244,7 +244,7 @@ class Chemical_Mechanism:
             rate_bnds.append({'value': np.nan, 'limits': Uncertainty('rate', rxnIdx, rate_bnds=rate_bnds), 'type': 'F', 'opt': False})
             rate_bnds = copy_bnds(rate_bnds, bnds, rxnIdx, 'rate')
 
-            rxn_type = self._reaction_type(rxn)
+            rxn_type = self.reaction_type(rxn)
 
             if rxn_type in ["Arrhenius Reaction", "Three Body Reaction"]:
                 coeffs.append([{attr: getattr(rxn.rate, attr) for attr in arrhenius_coefNames}])
@@ -311,8 +311,6 @@ class Chemical_Mechanism:
             elif rxn_type == "Chebyshev Reaction":
                 coeffs.append({})
                 coeffs_bnds.append({})
-                if len(bnds) == 0:
-                    rate_bnds.append({})
                 
                 reset_coeffs = {'Pmin': rxn.rate.pressure_range[0], 'Pmax': rxn.rate.pressure_range[1], 
                                 'Tmin': rxn.rate.temperature_range[0], 'Tmax': rxn.rate.temperature_range[1], 
@@ -324,11 +322,10 @@ class Chemical_Mechanism:
             else:
                 coeffs.append({})
                 coeffs_bnds.append({})
-                if len(bnds) == 0:
-                    rate_bnds.append({})
                 reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn_type})
                 msg = f'{rxn} is a {rxn_type} and is currently unsupported in Frhodo'
                 raise(Exception(msg))
+            
 
     def get_coeffs_keys(self, rxn, coefAbbr, rxnIdx=None):
         if type(rxn.rate) is ct.ArrheniusRate:
