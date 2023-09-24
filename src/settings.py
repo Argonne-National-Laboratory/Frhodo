@@ -1029,6 +1029,8 @@ class series:
             if self.parent.mech_tree.rxn[rxnIdx]['rxnType'] in ['Arrhenius', 'Plog Reaction', 'Falloff Reaction']:
                 resetVal = mech.gas.forward_rate_constants[rxnIdx]
                 shock['rate_reset_val'].append(resetVal)
+                if 'limits' not in mech.rate_bnds[rxnIdx]:
+                    print(rxnIdx)
                 rate_bnds = mech.rate_bnds[rxnIdx]['limits'](resetVal)
                 shock['rate_bnds'].append(rate_bnds)
                 
