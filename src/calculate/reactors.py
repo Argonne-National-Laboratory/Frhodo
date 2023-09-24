@@ -360,8 +360,8 @@ class Reactor:
                         'delta_h', 'delta_s', 'eq_con', 'rate_con', 'rate_con_rev', 
                         'net_ROP', 'for_ROP', 'rev_ROP']
 
-        num = {'reac': np.sum(gas.reactant_stoich_coeffs(), axis=0),
-               'prod': np.sum(gas.product_stoich_coeffs(), axis=0),
+        num = {'reac': np.sum(gas.reactant_stoich_coeffs, axis=0),
+               'prod': np.sum(gas.product_stoich_coeffs, axis=0),
                'rxns': gas.n_reactions}
         
         SIM = Simulation_Result(num, states, reactor_vars)
@@ -421,8 +421,8 @@ class Reactor:
                         'delta_h', 'delta_s', 'eq_con', 'rate_con', 'rate_con_rev', 
                         'net_ROP', 'for_ROP', 'rev_ROP']
 
-        num = {'reac': np.sum(gas.reactant_stoich_coeffs(), axis=0),
-               'prod': np.sum(gas.product_stoich_coeffs(), axis=0),
+        num = {'reac': np.sum(gas.reactant_stoich_coeffs, axis=0),
+               'prod': np.sum(gas.product_stoich_coeffs, axis=0),
                'rxns': gas.n_reactions}
         
         SIM = Simulation_Result(num, states, reactor_vars)
