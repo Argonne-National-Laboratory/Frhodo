@@ -74,7 +74,6 @@ def RoundToSigFigs(x, p):
     mags = 10 ** (p - 1 - np.floor(np.log10(x_positive)))
     return np.round(x * mags) / mags
 
-
 class Convert_Units:
     def __init__(self, parent):
         self.parent = parent
