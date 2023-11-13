@@ -1,5 +1,5 @@
 # This file is part of Frhodo. Copyright © 2020, UChicago Argonne, LLC
-# and licensed under BSD-3-Clause. See License.txt in the top-level 
+# and licensed under BSD-3-Clause. See License.txt in the top-level
 # directory for license and copyright information.
 
 """
@@ -19,18 +19,16 @@ from scipy.integrate._ivp.common import EPS, OdeSolution
 from scipy.integrate._ivp.base import OdeSolver
 
 
-METHODS = {'RK23': RK23,
-           'RK45': RK45,
-           'Radau': Radau,
-           'BDF': BDF,
-           'LSODA': LSODA}
+METHODS = {"RK23": RK23, "RK45": RK45, "Radau": Radau, "BDF": BDF, "LSODA": LSODA}
 
 # Sikes: Modified for more explicit failure messages of my ODE (-3, -2, -1)
-MESSAGES = {-3: "Temperature is invalid",
-            -2: "Density is invalid",
-            -1: "Solver failed",
-            0: "The solver successfully reached the end of the integration interval.",
-            1: "A termination event occurred."}
+MESSAGES = {
+    -3: "Temperature is invalid",
+    -2: "Density is invalid",
+    -1: "Solver failed",
+    0: "The solver successfully reached the end of the integration interval.",
+    1: "A termination event occurred.",
+}
 
 
 class OdeResult(OptimizeResult):
@@ -83,8 +81,8 @@ def solve_event_equation(event, sol, t_old, t):
         Found solution.
     """
     from scipy.optimize import brentq
-    return brentq(lambda t: event(t, sol(t)), t_old, t,
-                  xtol=4 * EPS, rtol=4 * EPS)
+
+    return brentq(lambda t: event(t, sol(t)), t_old, t, xtol=4 * EPS, rtol=4 * EPS)
 
 
 def handle_events(sol, events, active_events, is_terminal, t_old, t):
@@ -126,8 +124,8 @@ def handle_events(sol, events, active_events, is_terminal, t_old, t):
         active_events = active_events[order]
         roots = roots[order]
         t = np.nonzero(is_terminal[active_events])[0][0]
-        active_events = active_events[:t + 1]
-        roots = roots[:t + 1]
+        active_events = active_events[: t + 1]
+        roots = roots[: t + 1]
         terminate = True
     else:
         terminate = False
@@ -152,15 +150,22 @@ def find_active_events(g, g_new, direction):
     up = (g <= 0) & (g_new >= 0)
     down = (g >= 0) & (g_new <= 0)
     either = up | down
-    mask = (up & (direction > 0) |
-            down & (direction < 0) |
-            either & (direction == 0))
+    mask = up & (direction > 0) | down & (direction < 0) | either & (direction == 0)
 
     return np.nonzero(mask)[0]
 
 
-def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
-              events=None, vectorized=False, **options):
+def solve_ivp(
+    fun,
+    t_span,
+    y0,
+    method="RK45",
+    t_eval=None,
+    dense_output=False,
+    events=None,
+    vectorized=False,
+    **options
+):
     """Solve an initial value problem for a system of ODEs.
     This function numerically integrates a system of ordinary differential
     equations given an initial value::
@@ -303,7 +308,7 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
         These parameters can be also used with ``jac=None`` to reduce the
         number of Jacobian elements estimated by finite differences.
     min_step : float, optional
-        The minimum allowed step size for 'LSODA' method. 
+        The minimum allowed step size for 'LSODA' method.
         By default `min_step` is zero.
     Returns
     -------
@@ -407,9 +412,11 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
      1.11088891e-01 1.11098890e+00 1.11099890e+01 2.00000000e+01]
     """
     if method not in METHODS and not (
-            inspect.isclass(method) and issubclass(method, OdeSolver)):
-        raise ValueError("`method` must be one of {} or OdeSolver class."
-                         .format(METHODS))
+        inspect.isclass(method) and issubclass(method, OdeSolver)
+    ):
+        raise ValueError(
+            "`method` must be one of {} or OdeSolver class.".format(METHODS)
+        )
 
     t0, tf = float(t_span[0]), float(t_span[1])
 
@@ -435,7 +442,7 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
 
     if method in METHODS:
         method = METHODS[method]
-        
+
     # Sikes: initializing with very large rates was failing, this is an ugly fix
     try:
         solver = method(fun, t0, y0, tf, vectorized=vectorized, **options)
@@ -446,11 +453,19 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
             status = -2
         else:
             status = -1
-            
+
         message = MESSAGES.get(status, None)
-        return OdeResult(t=np.array([t0]), y=np.array([y0]).T, nfev=0, njev=0, 
-                    nlu=0, status=status, message=message, success=False)
-        
+        return OdeResult(
+            t=np.array([t0]),
+            y=np.array([y0]).T,
+            nfev=0,
+            njev=0,
+            nlu=0,
+            status=status,
+            message=message,
+            success=False,
+        )
+
     if t_eval is None:
         ts = [t0]
         ys = [y0]
@@ -476,7 +491,7 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
     while status is None:
         # message = solver.step()
         # Sikes: Modified to catch exception
-        try:    
+        try:
             message = solver.step()
         except Exception as e:
             message = None
@@ -488,9 +503,9 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
                 status = -1
             break
 
-        if solver.status == 'finished':
+        if solver.status == "finished":
             status = 0
-        elif solver.status == 'failed':
+        elif solver.status == "failed":
             status = -1
             break
 
@@ -512,7 +527,8 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
                     sol = solver.dense_output()
 
                 root_indices, roots, terminate = handle_events(
-                    sol, events, active_events, is_terminal, t_old, t)
+                    sol, events, active_events, is_terminal, t_old, t
+                )
 
                 for e, te in zip(root_indices, roots):
                     t_events[e].append(te)
@@ -530,10 +546,10 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
         else:
             # The value in t_eval equal to t will be included.
             if solver.direction > 0:
-                t_eval_i_new = np.searchsorted(t_eval, t, side='right')
+                t_eval_i_new = np.searchsorted(t_eval, t, side="right")
                 t_eval_step = t_eval[t_eval_i:t_eval_i_new]
             else:
-                t_eval_i_new = np.searchsorted(t_eval, t, side='left')
+                t_eval_i_new = np.searchsorted(t_eval, t, side="left")
                 # It has to be done with two slice operations, because
                 # you can't slice to 0-th element inclusive using backward
                 # slicing.
@@ -545,7 +561,7 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
                 ts.append(t_eval_step)
                 ys.append(sol(t_eval_step))
                 t_eval_i = t_eval_i_new
-        
+
         if t_eval is not None and dense_output:
             ti.append(t)
 
@@ -569,6 +585,15 @@ def solve_ivp(fun, t_span, y0, method='RK45', t_eval=None, dense_output=False,
     else:
         sol = None
 
-    return OdeResult(t=ts, y=ys, sol=sol, t_events=t_events, nfev=solver.nfev,
-                     njev=solver.njev, nlu=solver.nlu, status=status,
-                     message=message, success=status >= 0)
+    return OdeResult(
+        t=ts,
+        y=ys,
+        sol=sol,
+        t_events=t_events,
+        nfev=solver.nfev,
+        njev=solver.njev,
+        nlu=solver.nlu,
+        status=status,
+        message=message,
+        success=status >= 0,
+    )

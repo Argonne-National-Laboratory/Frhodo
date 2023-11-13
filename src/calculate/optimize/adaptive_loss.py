@@ -93,7 +93,7 @@ def get_C(resid, mu, sigma, weights=np.array([]), C_scalar=1, quantile=0.25):
     if C == 0:
         C = OoM_numba(np.array([np.max(q13)]), method="floor")[0]
 
-    return C*C_scalar # decreasing outliers increases outlier rejection
+    return C * C_scalar  # decreasing outliers increases outlier rejection
 
 
 @numba.jit(nopython=True, error_model="numpy", cache=numba_cache)
@@ -152,14 +152,16 @@ def generalized_loss_weights(x: np.ndarray, a: float = 2, min_weight: float = 0.
     return w * (1 - min_weight) + min_weight
 
 
-# approximate partition function for C=1, tau(alpha < 0)=1E5, tau(alpha >= 0)=inf 
+# approximate partition function for C=1, tau(alpha < 0)=1E5, tau(alpha >= 0)=inf
 # error < 4E-7
 ln_Z_fit = BSpline.construct_fast(*tck)
 ln_Z_inf = 11.206072645530174
-def ln_Z(alpha, alpha_min=-1E6):
+
+
+def ln_Z(alpha, alpha_min=-1e6):
     if alpha <= alpha_min:
         return ln_Z_inf
-    
+
     return ln_Z_fit(alpha)
 
 
@@ -169,7 +171,9 @@ def penalized_loss_fcn(x, a=2, use_penalty=True):
     loss = generalized_loss_fcn(x, a)
 
     if use_penalty:
-        penalty = ln_Z(a, loss_alpha_min)      # approximate partition function for C=1, tau=10
+        penalty = ln_Z(
+            a, loss_alpha_min
+        )  # approximate partition function for C=1, tau=10
         loss += penalty
 
         if not np.isfinite(loss).all():
@@ -181,7 +185,7 @@ def penalized_loss_fcn(x, a=2, use_penalty=True):
     return loss
 
 
-@numba.jit(nopython=True, error_model='numpy', cache=numba_cache) 
+@numba.jit(nopython=True, error_model="numpy", cache=numba_cache)
 def alpha_scaled(s, a_max=2):
     if a_max == 2:
         a = 3
@@ -193,24 +197,24 @@ def alpha_scaled(s, a_max=2):
         if s > 1:
             s = 1
 
-        s_max = (1 - 2/(1 + 10**a))
-        s = (1 - 2/(1 + 10**(a*s**b)))/s_max
+        s_max = 1 - 2 / (1 + 10**a)
+        s = (1 - 2 / (1 + 10 ** (a * s**b))) / s_max
 
-        alpha = loss_alpha_min + (2 - loss_alpha_min)*s
-    
+        alpha = loss_alpha_min + (2 - loss_alpha_min) * s
+
     else:
         x0 = 1
-        k = 1.5 # 1 or 1.5, testing required
+        k = 1.5  # 1 or 1.5, testing required
 
         if s >= 1:
             return 100
         elif s <= 0:
             return -100
 
-        A = (np.exp((100 - x0)/k) + 1)/(1 - np.exp(200/k))
-        K = (1 - A)*np.exp((x0 - 100)/k) + 1
+        A = (np.exp((100 - x0) / k) + 1) / (1 - np.exp(200 / k))
+        K = (1 - A) * np.exp((x0 - 100) / k) + 1
 
-        alpha = x0 - k*np.log((K - A)/(s - A) - 1)
+        alpha = x0 - k * np.log((K - A) / (s - A) - 1)
 
     return alpha
 
@@ -247,8 +251,14 @@ def adaptive_loss_fcn(x, mu=0, c=1, alpha="adaptive", replace_nonfinite=True):
 
 # Assumes that x has not been standardized
 def adaptive_weights(
-    x, weights=np.array([]), C_scalar=1, alpha="adaptive", 
-    sigma=3, quantile=0.25, min_weight=0.00, replace_nonfinite=True
+    x,
+    weights=np.array([]),
+    C_scalar=1,
+    alpha="adaptive",
+    sigma=3,
+    quantile=0.25,
+    min_weight=0.00,
+    replace_nonfinite=True,
 ):
     x_no_outlier, _ = remove_outliers(x, sigma_threshold=sigma, quantile=0.25)
 

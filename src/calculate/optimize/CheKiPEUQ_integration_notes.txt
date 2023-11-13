@@ -43,5 +43,3 @@ Bayesian Notes: I have put comments labeling the below steps in the code.  To si
 NEXT STEPS AFTER THE ABOVE ITEMS ARE FIXED.
 
 #ATTENTION: Right now, the Bayesian parameter estimation is taking in the rate_val parameters and their bounds.  It is actually even better if we feed in the "logA" "n" and "Ea" values and their bounds.  I suggest that we fix the above issues first, and then do that after.  However, we should probably discuss what happens in fit_coeffs so I can implement the Bayesian part in the most logical way.
-
-

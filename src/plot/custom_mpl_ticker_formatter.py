@@ -1,16 +1,16 @@
 # This file is part of Frhodo. Copyright © 2020, UChicago Argonne, LLC
-# and licensed under BSD-3-Clause. See License.txt in the top-level 
+# and licensed under BSD-3-Clause. See License.txt in the top-level
 # directory for license and copyright information.
 
 import matplotlib as mpl
 import numpy as np
 
 
-class MathTextSciSIFormatter(mpl.ticker.ScalarFormatter): # format to SI OoM
+class MathTextSciSIFormatter(mpl.ticker.ScalarFormatter):  # format to SI OoM
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.set_powerlimits([0, 3])
-    
+
     def _set_order_of_magnitude(self):  # modified from matplotlib
         # if scientific notation is to be used, find the appropriate exponent
         # if using an numerical offset, find the exponent after applying the
@@ -41,9 +41,9 @@ class MathTextSciSIFormatter(mpl.ticker.ScalarFormatter): # format to SI OoM
                 oom = 0
             else:
                 oom = np.floor(np.log10(val))
-        if oom <= self._powerlimits[0]: # round down oom to nearest 3 to match SI
-            self.orderOfMagnitude = np.floor(oom/3)*3
+        if oom <= self._powerlimits[0]:  # round down oom to nearest 3 to match SI
+            self.orderOfMagnitude = np.floor(oom / 3) * 3
         elif oom >= self._powerlimits[1]:
-            self.orderOfMagnitude = np.floor(oom/3)*3
+            self.orderOfMagnitude = np.floor(oom / 3) * 3
         else:
             self.orderOfMagnitude = 0

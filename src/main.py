@@ -128,7 +128,7 @@ class Main(QMainWindow):
 
     def load_mech(self, event=None):
         def mechhasthermo(mech_path):
-            f = open(mech_path, "r")
+            f = open(mech_path, "r", errors="replace")
             while True:
                 line = f.readline()
                 if "!" in line[0:2]:
@@ -220,7 +220,8 @@ class Main(QMainWindow):
 
         # Initialize tables and trees
         self.tree.set_trees(self.mech)
-        self.mix.update_species()  # this was commented out, could be because multiple calls to solver from update_mix / setItems
+        # I don't know if the following line is necessary, uncommenting can result in multiple calls to solver from update_mix / setItems
+        # self.mix.update_species()
 
         tabIdx = self.plot_tab_widget.currentIndex()
         tabText = self.plot_tab_widget.tabText(tabIdx)
