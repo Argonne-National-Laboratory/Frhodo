@@ -177,8 +177,8 @@ def drhodz_per_rxn(states, L=0.1, As=0.2, A1=0.2, area_change=False, rxnNum=None
     T = states.T
     cp = states.cp_mass
     Wmix = states.mean_molecular_weight
-    nu_fwd = states.product_stoich_coeffs()
-    nu_rev = states.reactant_stoich_coeffs()
+    nu_fwd = states.product_stoich_coeffs
+    nu_rev = states.reactant_stoich_coeffs
     delta_N = np.sum(nu_fwd, axis=0) - np.sum(nu_rev, axis=0)
 
     if rxnNum is None:

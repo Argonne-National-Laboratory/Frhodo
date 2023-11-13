@@ -14,6 +14,17 @@ from qtpy import QtWidgets, QtGui, QtCore
 
 from timeit import default_timer as timer
 
+from calculate.mech_fcns import arrhenius_coefNames
+
+
+default_coef_abbreviation = {
+            "pre_exponential_factor": "A",
+            "temperature_exponent": "n",
+            "activation_energy": "Ea"}
+
+coef_abbreviation = {key: default_coef_abbreviation[key] for key in arrhenius_coefNames}
+
+
 def silentSetValue(obj, value):
     obj.blockSignals(True)           # stop changing text from signaling
     obj.setValue(value)
@@ -97,21 +108,21 @@ class Tree(QtCore.QObject):
         parent = self.parent()
         data = []
         for rxnIdx, rxn in enumerate(mech.gas.reactions()):
-            rxn_type = rxn.__class__.__name__.replace('Reaction', ' Reaction')
-            if type(rxn) in [ct.ElementaryReaction, ct.ThreeBodyReaction]:
+            rxn_type = mech.reaction_type(rxn)
+
+            if type(rxn.rate) is ct.ArrheniusRate:
                 coeffs = [] # Setup Coeffs for Tree
-                for coefName, coefVal in mech.coeffs[rxnIdx][0].items():
-                    coefAbbr = get_coef_abbreviation(coefName)
+                for coefName, coefAbbr in coef_abbreviation.items():
                     coeffs.append([coefAbbr, coefName, mech.coeffs[rxnIdx][0]])
                 
-                coeffs_order = [1, 2, 0] # Reorder coeffs into A, n, Ea
+                coeffs_order = [1, 2, 0] # order coeffs into A, n, Ea
    
-                data.append({'num': rxnIdx, 'eqn': rxn.equation, 'type': 'Arrhenius', 
+                data.append({'num': rxnIdx, 'eqn': rxn.equation, 'type': rxn_type, 
                              'coeffs': coeffs, 'coeffs_order': coeffs_order})
-            elif type(rxn) in [ct.PlogReaction, ct.FalloffReaction]:
+            elif type(rxn.rate) in [ct.PlogRate, ct.FalloffRate, ct.TroeRate, ct.SriRate]:
                 coeffs = []
                 for key in ['high', 'low']:
-                    if type(rxn) is ct.PlogReaction:
+                    if type(rxn.rate) is ct.PlogRate:
                         if key == 'high':
                             n = len(mech.coeffs[rxnIdx]) - 1
                         else:
@@ -119,12 +130,10 @@ class Tree(QtCore.QObject):
                     else:
                         n = f'{key}_rate'
 
-                    for coefName, coefVal in mech.coeffs[rxnIdx][n].items():
-                        if coefName == 'Pressure': continue # skip pressure
-                        coefAbbr = get_coef_abbreviation(coefName)                   
+                    for coefName, coefAbbr in coef_abbreviation.items():
                         coeffs.append([f'{coefAbbr}_{key}', coefName, mech.coeffs[rxnIdx][n]])
 
-                coeffs_order = [1, 2, 0, 4, 5, 3] # Reorder coeffs into A_high, n_high, Ea_high, A_low
+                coeffs_order = [1, 2, 0, 4, 5, 3] # order coeffs into A_high, n_high, Ea_high, A_low
 
                 data.append({'num': rxnIdx, 'eqn': rxn.equation, 'type': rxn_type, 
                              'coeffs': coeffs, 'coeffs_order': coeffs_order})
@@ -161,7 +170,7 @@ class Tree(QtCore.QObject):
         last_arrhenius = 0
         for i, rxn in enumerate(rxn_matrix):
             print(rxn)
-            if rxn['type'] != 'Arrhenius':
+            if rxn['type'] != 'Arrhenius Reaction':
                 if i > 0:
                     tree.setTabOrder(tree.rxn[i-1]['rateBox'], tree.rxn[i]['rateBox'])
             else:
@@ -206,7 +215,7 @@ class Tree(QtCore.QObject):
         # clear rows of qstandarditem (L1)
         L1.removeRows(0, L1.rowCount())
 
-        if rxn['type'] in ['Arrhenius', 'Plog Reaction', 'Falloff Reaction']:
+        if rxn['type'] in ['Arrhenius Reaction', 'Plog Reaction', 'Falloff Reaction']:
             widget = set_rate_widget(unc={'type': parent.mech.rate_bnds[rxnNum]['type'],
                                           'value': parent.mech.rate_bnds[rxnNum]['value']})
             widget.uncValBox.valueChanged.connect(self.update_uncertainties)       # no update between F and %
@@ -223,7 +232,7 @@ class Tree(QtCore.QObject):
                 conv_type = f'Cantera2{self.mech_tree_type}'
                 coef = self.convert._arrhenius(rxnNum, [coef], conv_type)[0]
 
-                if rxn['type'] == 'Arrhenius':
+                if rxn['type'] == 'Arrhenius Reaction':
                     bnds_key = 'rate'
                 elif rxn['type'] in ['Plog Reaction', 'Falloff Reaction']:
                     if 'high' in coef[0]:
@@ -374,7 +383,7 @@ class Tree(QtCore.QObject):
         rxn_rate = parent.series.rates(shock)   # update rates from settings
         if rxn_rate is None: return
         
-        num_reac_all = np.sum(parent.mech.gas.reactant_stoich_coeffs(), axis=0)
+        num_reac_all = np.sum(parent.mech.gas.reactant_stoich_coeffs, axis=0)
         
         if rxnNum is not None:
             if type(rxnNum) in [list, np.ndarray]:
@@ -439,7 +448,7 @@ class Tree(QtCore.QObject):
         
         for rxnNum in rxnNumRange:  # update all rate uncertainties
             rxn = parent.mech_tree.rxn[rxnNum]
-            if rxn['rxnType'] not in ['Arrhenius', 'Plog Reaction', 'Falloff Reaction']:   # skip if not allowable type
+            if rxn['rxnType'] not in ['Arrhenius Reaction', 'Plog Reaction', 'Falloff Reaction']:   # skip if not allowable type
                 mech.rate_bnds[rxnNum]['opt'] = False
                 continue
             if 'uncBox' not in rxn:
@@ -469,7 +478,6 @@ class Tree(QtCore.QObject):
         parent = self.parent()
 
         conv_type = 'Cantera2' + self.mech_tree_type
-        x0 = []
         for i, idxDict in enumerate(coef_opt):  # set changes to both spinboxes and backend coeffs
             rxnIdx, coefIdx = idxDict['rxnIdx'], idxDict['coefIdx']
             coeffs_key = idxDict['key']['coeffs']
@@ -520,7 +528,7 @@ class Tree(QtCore.QObject):
 
         for rxnNum in rxnNumRange:
             rxn = parent.mech_tree.rxn[rxnNum]
-            if (rxn['rxnType'] not in ['Arrhenius', 'Plog Reaction', 'Falloff Reaction'] or 'valueBox' not in rxn): continue
+            if (rxn['rxnType'] not in ['Arrhenius Reaction', 'Plog Reaction', 'Falloff Reaction'] or 'valueBox' not in rxn): continue
             
 
             valBoxes = parent.mech_tree.rxn[rxnNum]['valueBox']
@@ -587,7 +595,7 @@ class Tree(QtCore.QObject):
                 sender.info['hasExpanded'] = True
                 self._set_mech_widgets(sender)
         
-            if sender.info['rxnType'] in ['Arrhenius', 'Plog Reaction', 'Falloff Reaction']:
+            if sender.info['rxnType'] in ['Arrhenius Reaction', 'Plog Reaction', 'Falloff Reaction']:
                 for box in parent.mech_tree.rxn[rxnNum]['uncBox']:
                     # box.blockSignals(True)
                     box.setValue(-1)
@@ -623,7 +631,7 @@ class Tree(QtCore.QObject):
         popup_menu.addAction('Reset All', lambda: self._reset_all())
         
         # this causes independent/dependent to not show if right click is not on rxn
-        if rxn is not None and 'Arrhenius' in rxn['rxnType']: 
+        if rxn is not None and 'Arrhenius Reaction' in rxn['rxnType']: 
             popup_menu.addSeparator()
             
             dependentAction = QAction('Set Dependent', checkable=True)
@@ -639,7 +647,7 @@ class Tree(QtCore.QObject):
         self.run_sim_on_change = False
         mech = parent.mech
         for rxn in parent.mech_tree.rxn:
-            if (rxn['rxnType'] not in ['Arrhenius', 'Plog Reaction', 'Falloff Reaction']
+            if (rxn['rxnType'] not in ['Arrhenius Reaction', 'Plog Reaction', 'Falloff Reaction']
                 or 'valueBox' not in rxn): continue # only reset Arrhenius boxes
 
             for box in rxn['valueBox']:
@@ -879,7 +887,7 @@ class rateExpCoefficient(QWidget):  # rate expression coefficient
 
                 
 class rxnRate(QWidget):
-    def __init__(self, parent, info, rxnType='Arrhenius', label='', *args, **kwargs):
+    def __init__(self, parent, info, rxnType='Arrhenius Reaction', label='', *args, **kwargs):
         QWidget.__init__(self, parent)
         self.parent = parent
         
@@ -905,7 +913,7 @@ class rxnRate(QWidget):
         layout.addItem(spacer, 0, 1)
         layout.addWidget(self.valueBox, 0, 2)
         
-        if rxnType in ['Arrhenius', 'Plog Reaction', 'Falloff Reaction']:
+        if rxnType in ['Arrhenius Reaction', 'Plog Reaction', 'Falloff Reaction']:
             info['mainValueBox'] = self.valueBox
 
             if 'unc_value' in kwargs and 'unc_type' in kwargs:

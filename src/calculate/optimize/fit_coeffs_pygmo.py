@@ -15,6 +15,8 @@ import itertools
 from calculate.convert_units import OoM
 from calculate.optimize.misc_fcns import penalized_loss_fcn, set_arrhenius_bnds
 
+from calculate.mech_fcns import arrhenius_coefNames
+
 Ru = ct.gas_constant
 # Ru = 1.98720425864083
 
@@ -26,10 +28,11 @@ min_log_val = np.log10(min_pos_system_value)
 max_log_val = np.log10(max_pos_system_value)
 ln_k_max = np.log(1E60) # max_log_val
 
-default_arrhenius_coefNames = ['activation_energy', 'pre_exponential_factor', 'temperature_exponent']
-default_Troe_coefNames = ['activation_energy_0', 'pre_exponential_factor_0', 'temperature_exponent_0', 
-                          'activation_energy_inf', 'pre_exponential_factor_inf', 'temperature_exponent_inf', 
-                          'A', 'T3', 'T1', 'T2']
+default_arrhenius_coefNames = arrhenius_coefNames
+
+falloff_coefNames = ['A', 'T3', 'T1', 'T2']
+default_Troe_coefNames = [f"{coefName}_{suffix}" for suffix in ["0", "inf"] for coefName in arrhenius_coefNames]
+default_Troe_coefNames.extend(falloff_coefNames)
 
 troe_falloff_0 = [[1.0,   1E-30,  1E-30,   1500],   # (0, 0, 0)
                   [0.6,     200,    600,   1200],   # (0, 0, 0)
@@ -885,16 +888,16 @@ def fit_generic(rates, T, P, X, rxnIdx, coefKeys, coefNames, is_falloff_limit, m
     coefNames = np.array(coefNames)
     bnds = np.array(bnds).copy()
 
-    if type(rxn) in [ct.ElementaryReaction, ct.ThreeBodyReaction]:
+    if type(rxn.rate) == ct.ArrheniusRate:
         # set x0 for all parameters
         x0 = [mech.coeffs_bnds[rxnIdx]['rate'][coefName]['resetVal'] for coefName in mech.coeffs_bnds[rxnIdx]['rate']]
         coeffs = fit_arrhenius(rates, T, x0=x0, coefNames=coefNames, bnds=bnds)
 
-        if type(rxn) is ct.ThreeBodyReaction and 'pre_exponential_factor' in coefNames:
+        if (rxn.reaction_type == "three-body") and ('pre_exponential_factor' in coefNames):
             A_idx = np.argwhere(coefNames == 'pre_exponential_factor')[0]
             coeffs[A_idx] = coeffs[A_idx]/mech.M(rxn)
     
-    elif type(rxn) in [ct.PlogReaction, ct.FalloffReaction]:
+    elif type(rxn.rate) in [ct.PlogRate, ct.FalloffRate]:
         M = lambda T, P: mech.M(rxn, [T, P, X])
 
         # get x0 for all parameters

@@ -1,0 +1,23 @@
+name: frhodo
+channels:
+  - numba
+  - cantera
+  - conda-forge
+  - defaults
+dependencies:
+  - cantera=3.0.0
+  - ipopt=3.14.12
+  - matplotlib=3.7.2
+  - nlopt=2.7.1
+  - numba=0.57.1
+  - numpy=1.24.4
+  - pygmo=2.19.5
+  - pyqt=5.15.9
+  - qt=5.15.8
+  - qtpy=2.4.0
+  - requests=2.31.0
+  - scipy=1.11.2
+  - tabulate=0.9.0
+  - pip:
+    - dtcwt==0.12.0
+    - rbfopt==4.2.6

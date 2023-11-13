@@ -72,7 +72,7 @@ class Worker(QRunnable):
             shock['weights_trim'] = weights[exp_bounds]
             shock['exp_data_trim'] = shock['exp_data'][exp_bounds,:]
             if 'abs_uncertainties' in shock:
-                shock['abs_uncertainties_trim'] = shock['abs_uncertainties'][exp_bounds,:]
+                shock['abs_uncertainties_trim'] = shock['abs_uncertainties'][exp_bounds, :]
     
     def optimize_coeffs(self):
         parent = self.parent
@@ -334,7 +334,7 @@ class Optimize:
             num_gen = int(np.ceil(1E20/pop_size))
 
         prob = pygmo.problem(pygmo_objective_fcn(self.obj_fcn, tuple(bnds)))
-        pop = pygmo.population(prob, pop_size)
+        pop = pygmo.population(prob, pop_size - 1)
         pop.push_back(x = x0)   # puts initial guess into the initial population
 
         # all coefficients/rules should be optimized if they're to be used
@@ -394,6 +394,8 @@ class Optimize:
                                                     max_evaluations=max_eval,
                                                     max_cycles=1E30,
                                                     max_clock_time=max_time,
+                                                    init_sample_fraction=np.size(x0) + 1,
+                                                    max_random_init=np.size(x0) + 2,
                                                     minlp_solver_path=path['bonmin'], 
                                                     nlp_solver_path=path['ipopt'])
                 algo = rbfopt.RbfoptAlgorithm(settings, bb, init_node_pos=x0)

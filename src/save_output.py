@@ -4,8 +4,9 @@
 
 import numpy as np
 from tabulate import tabulate
-import soln2ck
 import pathlib
+
+from cantera.yaml2ck import convert as soln2ck
 # from cantera import ck2cti        # Maybe later use ck2cti.Parser.writeCTI to write cti file
 
 class Save:
@@ -178,4 +179,4 @@ class Save:
         if not path:
             path = self.path['Mech.ck']
         
-        soln2ck.write(gas, path, self.path['Cantera_Mech'])
+        soln2ck(gas, mechanism_path=path, sort_species="molar-mass", overwrite=True)

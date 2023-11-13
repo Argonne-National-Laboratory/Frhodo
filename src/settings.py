@@ -720,7 +720,7 @@ class series:
         
         parent.path['shock'] = parent.path_set.shock_paths(prefix='Shock', ext='exp')
         if len(parent.path['shock']) == 0:  # if there are no shocks in listed directory
-            parent.directory.update_icons(invalid = 'exp_main')
+            parent.directory.update_icons(invalid=['exp_main'])
             return
         
         if self.in_table and not self.in_table[-1]: # if list exists and last item not in table, clear it
@@ -1029,6 +1029,8 @@ class series:
             if self.parent.mech_tree.rxn[rxnIdx]['rxnType'] in ['Arrhenius', 'Plog Reaction', 'Falloff Reaction']:
                 resetVal = mech.gas.forward_rate_constants[rxnIdx]
                 shock['rate_reset_val'].append(resetVal)
+                if 'limits' not in mech.rate_bnds[rxnIdx]:
+                    print(rxnIdx)
                 rate_bnds = mech.rate_bnds[rxnIdx]['limits'](resetVal)
                 shock['rate_bnds'].append(rate_bnds)
                 

@@ -5,11 +5,13 @@
 import os, io, stat, contextlib, pathlib, time
 from copy import deepcopy
 import cantera as ct
-from cantera import interrupts, cti2yaml#, ck2yaml, ctml2yaml
+from cantera import cti2yaml, ck2yaml
 import numpy as np
 from calculate import reactors, shock_fcns, integrate
-import ck2yaml
 from timeit import default_timer as timer
+
+
+arrhenius_coefNames = ['activation_energy', 'pre_exponential_factor', 'temperature_exponent']
 
 
 class Chemical_Mechanism:
@@ -20,17 +22,17 @@ class Chemical_Mechanism:
     def load_mechanism(self, path, silent=False):
         def chemkin2cantera(path):
             if path['thermo'] is not None:
-                surfaces = ck2yaml.convert_mech(path['mech'], thermo_file=path['thermo'], transport_file=None, surface_file=None,
+                gas = ck2yaml.convert_mech(path['mech'], thermo_file=path['thermo'], transport_file=None, surface_file=None,
                     phase_name='gas', out_name=path['Cantera_Mech'], quiet=False, permissive=True)
             else:
-                surfaces = ck2yaml.convert_mech(path['mech'], thermo_file=None, transport_file=None, surface_file=None,
+                gas = ck2yaml.convert_mech(path['mech'], thermo_file=None, transport_file=None, surface_file=None,
                     phase_name='gas', out_name=path['Cantera_Mech'], quiet=False, permissive=True)
            
-            return surfaces
+            return gas
 
         def loader(self, path):
             # path is assumed to be the path dictionary
-            surfaces = []
+            gas = []
             if path['mech'].suffix in ['.yaml', '.yml']:    # check if it's a yaml cantera file
                 mech_path = str(path['mech'])
             else:                                 # if not convert into yaml cantera file
@@ -42,14 +44,14 @@ class Chemical_Mechanism:
                     raise Exception('not implemented')
                     #ctml2yaml.convert(path['mech'], path['Cantera_Mech'])
                 else:                             # if not a cantera file, assume chemkin
-                    surfaces = chemkin2cantera(path)
+                    gas = chemkin2cantera(path)
                           
-            print('Validating mechanism...', end='')    
+            print('Validating mechanism...', end='')
             try:                                            # This test taken from ck2cti
                 yaml_txt = path['Cantera_Mech'].read_text()
                 self.gas = ct.Solution(yaml=yaml_txt)
-                for surfname in surfaces:
-                    phase = ct.Interface(mech_path, surfname, [self.gas])
+                for gas_name in gas:
+                    phase = ct.Interface(mech_path, gas_name, [self.gas])
                 print('PASSED.')
             except RuntimeError as e:
                 print('FAILED.')
@@ -79,12 +81,15 @@ class Chemical_Mechanism:
         elif 'PASSED' in ct_out:
             output['success'] = True
             self.isLoaded = True
+
+            n_species = self.gas.n_species
+            n_rxn = self.gas.n_reactions
+
+            output['message'].append(f'Wrote YAML mechanism file to {path["Cantera_Mech"]}.')
+            output['message'].append(f'Mechanism contains {n_species} species and {n_rxn} reactions.')
             
         for log_str in [ct_out, ct_err]:
             if log_str != '' and not silent:
-                if (path['Cantera_Mech'], pathlib.WindowsPath): # reformat string to remove \\ making it unable to be copy paste
-                    cantera_path = str(path['Cantera_Mech']).replace('\\', '\\\\')
-                    log_str = log_str.replace(cantera_path, str(path['Cantera_Mech']))
                 output['message'].append(log_str)
                 output['message'].append('\n')
         
@@ -118,64 +123,74 @@ class Chemical_Mechanism:
         # Set kinetics data
         rxns = []
         for rxnIdx in range(len(mech_dict)):
-            if 'ElementaryReaction' == mech_dict[rxnIdx]['rxnType']:
-                rxn = ct.ElementaryReaction(mech_dict[rxnIdx]['reactants'], mech_dict[rxnIdx]['products'])
-                rxn.allow_negative_pre_exponential_factor = True
-
+            if 'Arrhenius Reaction' == mech_dict[rxnIdx]['rxnType']:
                 A, b, Ea = get_Arrhenius_parameters(mech_dict[rxnIdx]['rxnCoeffs'][0])
-                rxn.rate = ct.Arrhenius(A, b, Ea)
+                rate = ct.ArrheniusRate(A, b, Ea)
 
-            elif 'ThreeBodyReaction' == mech_dict[rxnIdx]['rxnType']:
-                rxn = ct.ThreeBodyReaction(mech_dict[rxnIdx]['reactants'], mech_dict[rxnIdx]['products'])
+                rxn = ct.Reaction(mech_dict[rxnIdx]['reactants'], mech_dict[rxnIdx]['products'], rate)
 
+            elif 'Three Body Reaction' == mech_dict[rxnIdx]['rxnType']:
                 A, b, Ea = get_Arrhenius_parameters(mech_dict[rxnIdx]['rxnCoeffs'][0])
-                rxn.rate = ct.Arrhenius(A, b, Ea)
+                rate = ct.ArrheniusRate(A, b, Ea)
+                
+                rxn = ct.ThreeBodyReaction(mech_dict[rxnIdx]['reactants'], mech_dict[rxnIdx]['products'], rate)
                 rxn.efficiencies = mech_dict[rxnIdx]['rxnCoeffs'][0]['efficiencies']
 
-            elif 'PlogReaction' == mech_dict[rxnIdx]['rxnType']:
-                rxn = ct.PlogReaction(mech_dict[rxnIdx]['reactants'], mech_dict[rxnIdx]['products'])
-
+            elif 'Plog Reaction' == mech_dict[rxnIdx]['rxnType']:
                 rates = []
                 for plog in mech_dict[rxnIdx]['rxnCoeffs']:
                     pressure = plog['Pressure']
                     A, b, Ea = get_Arrhenius_parameters(plog)
                     rates.append((pressure, ct.Arrhenius(A, b, Ea)))
 
-                rxn.rates = rates
+                rate = ct.PlogRate(rates)
+                rxn = ct.Reaction(mech_dict[rxnIdx]['reactants'], mech_dict[rxnIdx]['products'], rate)
 
-            elif 'FalloffReaction' == mech_dict[rxnIdx]['rxnType']:
-                rxn = ct.FalloffReaction(mech_dict[rxnIdx]['reactants'], mech_dict[rxnIdx]['products'])
-
+            elif 'Falloff Reaction' == mech_dict[rxnIdx]['rxnType']:
                 # high pressure limit
                 A, b, Ea = get_Arrhenius_parameters(mech_dict[rxnIdx]['rxnCoeffs']['high_rate'])
-                rxn.high_rate = ct.Arrhenius(A, b, Ea)
+                high_rate = ct.Arrhenius(A, b, Ea)
 
                 # low pressure limit
                 A, b, Ea = get_Arrhenius_parameters(mech_dict[rxnIdx]['rxnCoeffs']['low_rate'])
-                rxn.low_rate = ct.Arrhenius(A, b, Ea)
+                low_rate = ct.Arrhenius(A, b, Ea)
 
                 # falloff parameters
-                if mech_dict[rxnIdx]['rxnCoeffs']['falloff_type'] == 'Troe':
-                    falloff_param = mech_dict[rxnIdx]['rxnCoeffs']['falloff_parameters']
-                    if falloff_param[-1] == 0.0:
-                        falloff_param = falloff_param[0:-1]
+                falloff_type = mech_dict[rxnIdx]['rxnCoeffs']['falloff_type']
+                falloff_coeffs = mech_dict[rxnIdx]['rxnCoeffs']['falloff_parameters']
 
-                    rxn.falloff = ct.TroeFalloff(falloff_param)
-                else:
-                    rxn.falloff = ct.SriFalloff(mech_dict[rxnIdx]['rxnCoeffs']['falloff_parameters'])
+                if falloff_type == 'Lindemann':
+                    rate = ct.LindemannRate(low_rate, high_rate, falloff_coeffs)
+
+                elif falloff_type == 'Tsang':
+                    rate = ct.TsangRate(low_rate, high_rate, falloff_coeffs)
+
+                elif falloff_type == 'Troe':
+                    if falloff_coeffs[-1] == 0.0:
+                        falloff_coeffs = falloff_coeffs[0:-1]
+
+                    rate = ct.TroeRate(low_rate, high_rate, falloff_coeffs)
+                elif falloff_type == 'SRI':
+                    rate = ct.SriRate(low_rate, high_rate, falloff_coeffs)
+
+                rxn = ct.FalloffReaction(mech_dict[rxnIdx]['reactants'], mech_dict[rxnIdx]['products'], rate)
 
                 rxn.efficiencies = mech_dict[rxnIdx]['rxnCoeffs']['efficiencies']
 
-            elif 'ChebyshevReaction' == mech_dict[rxnIdx]['rxnType']:
-                rxn = ct.ChebyshevReaction(mech_dict[rxnIdx]['reactants'], mech_dict[rxnIdx]['products'])
-                rxn.set_parameters(Tmin=mech_dict['Tmin'], Tmax=mech_dict['Tmax'], 
-                                   Pmin=mech_dict['Pmin'], Pmax=mech_dict['Pmax'],
-                                   coeffs=mech_dict['coeffs'])
+            elif 'Chebyshev Reaction' == mech_dict[rxnIdx]['rxnType']:
+                rxn = ct.ChebyshevRate([mech_dict['Tmin'], mech_dict['Tmax']],
+                                       [mech_dict['Pmin'], mech_dict['Pmax']],
+                                       mech_dict['coeffs'])
+                
+                rxn = ct.Reaction(mech_dict[rxnIdx]['reactants'], mech_dict[rxnIdx]['products'], rate)
             
             rxn.duplicate = mech_dict[rxnIdx]['duplicate']
             rxn.reversible = mech_dict[rxnIdx]['reversible']
             rxn.allow_negative_orders = True
             rxn.allow_nonreactant_orders = True
+
+            if hasattr(rxn, "allow_negative_pre_exponential_factor"):
+                rxn.allow_negative_pre_exponential_factor = True
 
             rxns.append(rxn)
         
@@ -185,7 +200,24 @@ class Chemical_Mechanism:
         self.set_rate_expression_coeffs(bnds)   # set copy of coeffs
         self.set_thermo_expression_coeffs() # set copy of thermo coeffs
     
-    def gas(self): return self.gas       
+    def gas(self): return self.gas
+
+
+    def reaction_type(self, rxn):
+        if type(rxn.rate) is ct.ArrheniusRate:
+            if rxn.reaction_type == "three-body":
+                return "Three Body Reaction"
+            else:
+                return "Arrhenius Reaction"
+        elif type(rxn.rate) is ct.PlogRate:
+            return "Plog Reaction"
+        elif type(rxn.rate) in [ct.FalloffRate, ct.LindemannRate, ct.TsangRate, ct.TroeRate, ct.SriRate]:
+            return "Falloff Reaction"
+        elif type(rxn.rate) is ct.ChebyshevRate:
+            return "Chebyshev Reaction"        
+        else:
+            return str(type(rxn.rate))
+        
     
     def set_rate_expression_coeffs(self, bnds=[]):
         def copy_bnds(new_bnds, bnds, rxnIdx, bnds_type, keys=[]):
@@ -211,94 +243,96 @@ class Chemical_Mechanism:
         for rxnIdx, rxn in enumerate(self.gas.reactions()):
             rate_bnds.append({'value': np.nan, 'limits': Uncertainty('rate', rxnIdx, rate_bnds=rate_bnds), 'type': 'F', 'opt': False})
             rate_bnds = copy_bnds(rate_bnds, bnds, rxnIdx, 'rate')
-            if type(rxn) in [ct.ElementaryReaction, ct.ThreeBodyReaction]:
-                attrs = [p for p in dir(rxn.rate) if not p.startswith('_')] # attributes not including __              
-                coeffs.append([{attr: getattr(rxn.rate, attr) for attr in attrs}])
-                if type(rxn) is ct.ThreeBodyReaction:
-                    coeffs[-1][0]['efficiencies'] = rxn.efficiencies
+
+            rxn_type = self.reaction_type(rxn)
+
+            if rxn_type in ["Arrhenius Reaction", "Three Body Reaction"]:
+                coeffs.append([{attr: getattr(rxn.rate, attr) for attr in arrhenius_coefNames}])
+                if rxn_type == "Three Body Reaction":
+                    coeffs[-1][0]['efficiencies'] = rxn.third_body.efficiencies
 
                 coeffs_bnds.append({'rate': {attr: {'resetVal': coeffs[-1][0][attr], 'value': np.nan, 
                                     'limits': Uncertainty('coef', rxnIdx, key='rate', coef_name=attr, coeffs_bnds=coeffs_bnds),
-                                    'type': 'F', 'opt': False} for attr in attrs}})
+                                    'type': 'F', 'opt': False} for attr in arrhenius_coefNames}})
                 
-                coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', ['rate', attrs])
+                coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', ['rate', arrhenius_coefNames])
 
-                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__,
+                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn_type,
                                     'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
                                     'rxnCoeffs': deepcopy(coeffs[-1])})
                 
-            elif type(rxn) is ct.PlogReaction:
+            elif rxn_type == "Plog Reaction":
                 coeffs.append([])
                 coeffs_bnds.append({})
-                for n, rate in enumerate(rxn.rates):
-                    attrs = [p for p in dir(rate[1]) if not p.startswith('_')] # attributes not including __
+                for n, rate in enumerate(rxn.rate.rates):
                     coeffs[-1].append({'Pressure': rate[0]})
-                    coeffs[-1][-1].update({attr: getattr(rate[1], attr) for attr in attrs})
-                    if n == 0 or n == len(rxn.rates)-1: # only going to allow coefficient uncertainties to be placed on upper and lower pressures
+                    coeffs[-1][-1].update({attr: getattr(rate[1], attr) for attr in arrhenius_coefNames})
+                    if n == 0 or n == len(rxn.rate.rates)-1: # only going to allow coefficient uncertainties to be placed on upper and lower pressures
                         if n == 0:
                             key = 'low_rate'
                         else:
                             key = 'high_rate'
                         coeffs_bnds[-1][key] = {attr: {'resetVal': coeffs[-1][-1][attr], 'value': np.nan, 
                                                         'limits': Uncertainty('coef', rxnIdx, key=key, coef_name=attr, coeffs_bnds=coeffs_bnds),
-                                                        'type': 'F', 'opt': False} for attr in attrs}
+                                                        'type': 'F', 'opt': False} for attr in arrhenius_coefNames}
 
-                        coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', [key, attrs])
+                        coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', [key, arrhenius_coefNames])
 
-                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__,
+                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn_type,
                                    'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
                                    'rxnCoeffs': deepcopy(coeffs[-1])})
 
-            elif type(rxn) is ct.FalloffReaction:
+            elif rxn_type == "Falloff Reaction":
                 coeffs_bnds.append({})
-                coeffs.append({'falloff_type': rxn.falloff.type, 'high_rate': [], 'low_rate': [], 'falloff_parameters': list(rxn.falloff.parameters), 
-                               'default_efficiency': rxn.default_efficiency, 'efficiencies': rxn.efficiencies})
+                fallof_type = rxn.reaction_type.split('-')[1]
+
+                coeffs.append({'falloff_type': fallof_type, 'high_rate': [], 'low_rate': [], 'falloff_parameters': list(rxn.rate.falloff_coeffs), 
+                               'default_efficiency': rxn.third_body.default_efficiency, 'efficiencies': rxn.third_body.efficiencies})
                 for key in ['low_rate', 'high_rate']:
-                    rate = getattr(rxn, key)
-                    attrs = [p for p in dir(rate) if not p.startswith('_')] # attributes not including __
-                    coeffs[-1][key] = {attr: getattr(rate, attr) for attr in attrs}
+                    rate = getattr(rxn.rate, key)
+                    coeffs[-1][key] = {attr: getattr(rate, attr) for attr in arrhenius_coefNames}
 
                     coeffs_bnds[-1][key] = {attr: {'resetVal': coeffs[-1][key][attr], 'value': np.nan, 
                                                     'limits': Uncertainty('coef', rxnIdx, key=key, coef_name=attr, coeffs_bnds=coeffs_bnds),
-                                                    'type': 'F', 'opt': False} for attr in attrs}
+                                                    'type': 'F', 'opt': False} for attr in arrhenius_coefNames}
 
-                    coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', [key, attrs])
+                    coeffs_bnds = copy_bnds(coeffs_bnds, bnds, rxnIdx, 'coeffs', [key, arrhenius_coefNames])
 
                 key = 'falloff_parameters'
-                n_coef = len(rxn.falloff.parameters)
+                n_coef = len(rxn.rate.falloff_coeffs)
                 coeffs_bnds[-1][key] = {n: {'resetVal': coeffs[-1][key][n], 'value': np.nan, 
                                             'limits': Uncertainty('coef', rxnIdx, key=key, coef_name=n, coeffs_bnds=coeffs_bnds), 
                                             'type': 'F', 'opt': True} for n in range(0,n_coef)}
 
-                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__,
+                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn_type,
                                     'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
-                                    'falloffType': rxn.falloff.type, 'rxnCoeffs': deepcopy(coeffs[-1])})
+                                    'falloffType': fallof_type, 'rxnCoeffs': deepcopy(coeffs[-1])})
             
-            elif type(rxn) is ct.ChebyshevReaction:
+            elif rxn_type == "Chebyshev Reaction":
                 coeffs.append({})
                 coeffs_bnds.append({})
-                if len(bnds) == 0:
-                    rate_bnds.append({})
                 
-                reset_coeffs = {'Pmin': rxn.Pmin, 'Pmax': rxn.Pmax, 'Tmin': rxn.Tmin, 'Tmax': rxn.Tmax, 'coeffs': rxn.coeffs}
-                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__,
+                reset_coeffs = {'Pmin': rxn.rate.pressure_range[0], 'Pmax': rxn.rate.pressure_range[1], 
+                                'Tmin': rxn.rate.temperature_range[0], 'Tmax': rxn.rate.temperature_range[1], 
+                                'coeffs': rxn.rate.data}
+                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn_type,
                                     'duplicate': rxn.duplicate, 'reversible': rxn.reversible, 'orders': rxn.orders,
                                     'rxnCoeffs': reset_coeffs})
 
             else:
                 coeffs.append({})
                 coeffs_bnds.append({})
-                if len(bnds) == 0:
-                    rate_bnds.append({})
-                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn.__class__.__name__})
-                raise(f'{rxn} is a {rxn.__class__.__name__} and is currently unsupported in Frhodo, but this error should never be seen')
+                reset_mech.append({'reactants': rxn.reactants, 'products': rxn.products, 'rxnType': rxn_type})
+                msg = f'{rxn} is a {rxn_type} and is currently unsupported in Frhodo'
+                raise(Exception(msg))
+            
 
     def get_coeffs_keys(self, rxn, coefAbbr, rxnIdx=None):
-        if type(rxn) in [ct.ElementaryReaction, ct.ThreeBodyReaction]:
+        if type(rxn.rate) is ct.ArrheniusRate:
             bnds_key = 'rate'
             coef_key = 0
 
-        elif type(rxn) is ct.PlogReaction:
+        elif type(rxn.rate) is ct.PlogRate:
             if 'high' in coefAbbr:
                 if rxnIdx is None:  # get reaction index if not provided
                     for rxnIdx, mechRxn in enumerate(self.gas.reactions()):
@@ -311,7 +345,7 @@ class Chemical_Mechanism:
                 bnds_key = 'low_rate'
                 coef_key = 0
                 
-        elif type(rxn) is ct.FalloffReaction:
+        elif type(rxn.rate) in [ct.FalloffRate, ct.TroeRate, ct.SriRate]:
             if 'high' in coefAbbr:
                 coef_key = bnds_key = 'high_rate'
             elif 'low' in coefAbbr:
@@ -343,7 +377,8 @@ class Chemical_Mechanism:
         for rxnIdx in rxnIdxs:
             rxn = self.gas.reaction(rxnIdx)
             rxnChanged = False
-            if type(rxn) in [ct.ElementaryReaction, ct.ThreeBodyReaction]:
+
+            if type(rxn.rate) is ct.ArrheniusRate:
                 for coefName in ['activation_energy', 'pre_exponential_factor', 'temperature_exponent']:
                     if coeffs[rxnIdx][0][coefName] != eval(f'rxn.rate.{coefName}'):
                         rxnChanged = True
@@ -352,34 +387,42 @@ class Chemical_Mechanism:
                     A = coeffs[rxnIdx][0]['pre_exponential_factor']
                     b = coeffs[rxnIdx][0]['temperature_exponent']
                     Ea = coeffs[rxnIdx][0]['activation_energy']
-                    rxn.rate = ct.Arrhenius(A, b, Ea)
+                    rxn.rate = ct.ArrheniusRate(A, b, Ea)
 
-            elif type(rxn) is ct.FalloffReaction:
-                for key in ['low_rate', 'high_rate', 'falloff_parameters']:
+            elif type(rxn.rate) in [ct.FalloffRate, ct.TroeRate, ct.SriRate]:
+                rate_dict = {'low_rate': None, 'high_rate': None, 'falloff_parameters': None}
+                for key in rate_dict.keys():
                     if 'rate' in key:
                         for coefName in ['activation_energy', 'pre_exponential_factor', 'temperature_exponent']:
-                            if coeffs[rxnIdx][key][coefName] != eval(f'rxn.{key}.{coefName}'):
+                            if coeffs[rxnIdx][key][coefName] != eval(f'rxn.rate.{key}.{coefName}'):
                                 rxnChanged = True
 
                                 A = coeffs[rxnIdx][key]['pre_exponential_factor']
                                 b = coeffs[rxnIdx][key]['temperature_exponent']
                                 Ea = coeffs[rxnIdx][key]['activation_energy']
-                                setattr(rxn, key, ct.Arrhenius(A, b, Ea))
+                                rate_dict[key] = ct.Arrhenius(A, b, Ea)
                                 break
                     else:
-                        length_different = len(coeffs[rxnIdx][key]) != len(rxn.falloff.parameters)
-                        if length_different or (coeffs[rxnIdx][key] != rxn.falloff.parameters).any():
+                        length_different = len(coeffs[rxnIdx][key]) != len(rxn.rate.falloff_coeffs)
+                        if length_different or (coeffs[rxnIdx][key] != rxn.rate.falloff_coeffs).any():
                             rxnChanged = True
 
                             if coeffs[rxnIdx]['falloff_type'] == 'Troe':
                                 if coeffs[rxnIdx][key][-1] == 0.0:
-                                    rxn.falloff = ct.TroeFalloff(coeffs[rxnIdx][key][:-1])
+                                    rate_dict[key] = coeffs[rxnIdx][key][:-1]
                                 else:
-                                    rxn.falloff = ct.TroeFalloff(coeffs[rxnIdx][key])
+                                    rate_dict[key] = coeffs[rxnIdx][key]
                             else:   # could also be SRI. For optimization this would need to be cast as Troe
-                                rxn.falloff = ct.SriFalloff(coeffs[rxnIdx][key])
+                                rate_dict[key] = ct.SriFalloff(coeffs[rxnIdx][key])
+                
+                if coeffs[rxnIdx]['falloff_type'] == 'Troe':
+                    rate = ct.TroeRate(rate_dict['low_rate'], rate_dict['high_rate'], rate_dict['falloff_parameters'])
+                else:
+                    rate = ct.SriRate(rate_dict['low_rate'], rate_dict['high_rate'], rate_dict['falloff_parameters'])
 
-            elif type(rxn) is ct.ChebyshevReaction: 
+                rxn.rate = rate
+
+            elif type(rxn.rate) is ct.ChebyshevRate:
                  pass
             else:
                 continue
@@ -393,7 +436,7 @@ class Chemical_Mechanism:
     def rxn2Troe(self, rxnIdx, HPL, LPL, eff={}):
         reactants = self.gas.reaction(rxnIdx).reactants
         products = self.gas.reaction(rxnIdx).products
-        r = ct.FalloffReaction(reactants, products)
+        r = ct.FalloffRate(reactants, products)
         print(r)
         #r.high_rate = ct.Arrhenius(7.4e10, -0.37, 0.0)
         #r.low_rate = ct.Arrhenius(2.3e12, -0.9, -1700*1000*4.184)
@@ -455,18 +498,18 @@ class Chemical_Mechanism:
             if coefNames is None:   # resets all coefficients in rxn
                 self.coeffs[rxnIdx] = self.reset_mech[rxnIdx]['rxnCoeffs']
             
-            elif self.reset_mech[rxnIdx]['rxnType'] in ['ElementaryReaction', 'ThreeBodyReaction']:
+            elif self.reset_mech[rxnIdx]['rxnType'] in ['Arrhenius Reaction', 'Three Body Reaction']:
                 for coefName in coefNames:
                     self.coeffs[rxnIdx][coefName] = self.reset_mech[rxnIdx]['rxnCoeffs'][coefName]
 
-            elif 'PlogReaction' == self.reset_mech[rxnIdx]['rxnType']:
+            elif 'Plog Reaction' == self.reset_mech[rxnIdx]['rxnType']:
                 for [limit_type, coefName] in coefNames:
                     if limit_type == 'low_rate':
                         self.coeffs[rxnIdx][0][coefName] = self.reset_mech[rxnIdx]['rxnCoeffs'][0][coefName]
                     elif limit_type == 'high_rate':
                         self.coeffs[rxnIdx][-1][coefName] = self.reset_mech[rxnIdx]['rxnCoeffs'][-1][coefName]
 
-            elif 'FalloffReaction' == self.reset_mech[rxnIdx]['rxnType']:
+            elif 'Falloff Reaction' == self.reset_mech[rxnIdx]['rxnType']:
                 self.coeffs[rxnIdx]['falloff_type'] = self.reset_mech[rxnIdx]['falloffType']
                 for [limit_type, coefName] in coefNames:
                     self.coeffs[rxnIdx][limit_type][coefName] = self.reset_mech[rxnIdx]['rxnCoeffs'][limit_type][coefName]
@@ -502,11 +545,11 @@ class Chemical_Mechanism:
     def M(self, rxn, TPX=[]):   # kmol/m^3
         def get_M(rxn):
             M = self.gas.density_mole
-            if hasattr(rxn, 'efficiencies') and rxn.efficiencies:
-                M *= rxn.default_efficiency
+            if rxn.third_body is not None:
+                M *= rxn.third_body.default_efficiency
                 for (s, conc) in zip(self.gas.species_names, self.gas.concentrations):
-                    if s in rxn.efficiencies:
-                        M += conc*(rxn.efficiencies[s] - 1.0)
+                    if s in rxn.third_body.efficiencies:
+                        M += conc*(rxn.third_body.efficiencies[s] - 1.0)
                     else:
                         M += conc
             return M

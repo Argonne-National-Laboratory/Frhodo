@@ -2,20 +2,71 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level 
 # directory for license and copyright information.
 
+import sys
 import numpy as np
 import cantera as ct
-import sys
+import numba
+
 
 conv2ct = {'torr': 101325/760, 'kPa': 1E3, 'atm': 101325, 'bar': 100000, 
            'psi': 4.4482216152605/0.00064516, 'cm/s': 1E-2, 'mm/μs': 1000, 
            'ft/s': 1/3.28084, 'in/s': 1/39.37007874, 'mph': 1609.344/60**2,
            'kcal': 1/4184, 'cal': 1/4.184}
 
+
+@numba.jit(nopython=True, cache=True)
+def OoM_numba(x, method="round"):
+    """
+    This function calculates the order of magnitude (OoM) of each element in the input array 'x' using the specified method.
+    
+    Parameters:
+    x (numpy array): The input array for which the OoM is to be calculated.
+    method (str): The method to be used for calculating the OoM. It can be one of the following:
+                  "round" - round to the nearest integer (default)
+                  "floor" - round down to the nearest integer
+                  "ceil" - round up to the nearest integer
+                  "exact" - return the exact OoM without rounding
+
+    Returns:
+    x_OoM (numpy array): The array of the same shape as 'x' containing the OoM of each element in 'x'.
+    """
+
+    x_OoM = np.empty_like(x)
+    for i, xi in enumerate(x):
+        if xi == 0.0:
+            x_OoM[i] = 1.0
+
+        elif method.lower() == "floor":
+            x_OoM[i] = np.floor(np.log10(np.abs(xi)))
+
+        elif method.lower() == "ceil":
+            x_OoM[i] = np.ceil(np.log10(np.abs(xi)))
+
+        elif method.lower() == "round":
+            x_OoM[i] = np.round(np.log10(np.abs(xi)))
+
+        else:  # "exact"
+            x_OoM[i] = np.log10(np.abs(xi))
+
+    return x_OoM
+
+
 def OoM(x):
+    is_array = True
+    if any([isinstance(x, _type) for _type in [int, float]]):
+           is_array = False
+           x = np.array([x])
+
     if not isinstance(x, np.ndarray):
         x = np.array(x)
+    
     x[x==0] = 1                       # if zero, make OoM 0
-    return np.floor(np.log10(np.abs(x)))
+
+    if is_array:
+        return OoM_numba(x, method="floor")
+    else:
+        return OoM_numba(x, method="floor")[0]
+
 
 def RoundToSigFigs(x, p):
     x = np.asarray(x)

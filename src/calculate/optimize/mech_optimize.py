@@ -17,8 +17,9 @@ from calculate.optimize.fit_fcn import update_mech_coef_opt
 from calculate.optimize.misc_fcns import rates, set_bnds
 from calculate.optimize.fit_coeffs import fit_generic as Troe_fit
 
+from calculate.mech_fcns import arrhenius_coefNames
+
 Ru = ct.gas_constant
-default_arrhenius_coefNames = ['activation_energy', 'pre_exponential_factor', 'temperature_exponent']
 
 class Multithread_Optimize:
     def __init__(self, parent):
@@ -241,10 +242,10 @@ class Multithread_Optimize:
 
             rxn_coef['coef_bnds'] = set_bnds(mech, rxnIdx, rxn_coef['key'], rxn_coef['coefName'])
 
-            if type(rxn) in [ct.ElementaryReaction, ct.ThreeBodyReaction]:
+            if type(rxn.rate) is ct.ArrheniusRate:
                 P = P_median
 
-            elif type(rxn) is ct.PlogReaction:
+            elif type(rxn.rate) is ct.PlogRate:
                 P = []
                 for PlogRxn in mech.coeffs[rxnIdx]:
                     P.append(PlogRxn['Pressure'])
@@ -252,17 +253,17 @@ class Multithread_Optimize:
                 if len(P) < 4:
                     P = np.geomspace(np.min(P), np.max(P), 4)
 
-            if type(rxn) is ct.FalloffReaction:
+            if type(rxn.rate) in [ct.FalloffRate, ct.TroeRate, ct.SriRate]:
                 P = np.linspace(P_bnds[0], P_bnds[1], 3)
 
             # set rxn_coef dict
-            if type(rxn) in [ct.ElementaryReaction, ct.ThreeBodyReaction]:
+            if type(rxn.rate) is ct.ArrheniusRate:
                 n_coef = len(rxn_coef['coefIdx'])
                 rxn_coef['invT'] = np.linspace(*invT_bnds, n_coef)
                 rxn_coef['T'] = np.divide(10000, rxn_coef['invT'])
                 rxn_coef['P'] = np.ones_like(rxn_coef['T'])*P
 
-            elif type(rxn) in [ct.PlogReaction, ct.FalloffReaction]:
+            elif type(rxn.rate) in [ct.PlogRate, ct.FalloffRate, ct.TroeRate, ct.SriRate]:
                 rxn_coef['invT'] = []
                 rxn_coef['P'] = []
 
@@ -280,7 +281,7 @@ class Multithread_Optimize:
                         rxn_coef['P'].append(np.ones(n_coef)*P[-1]) # will evaluate HPL if HPL is constrained, else this value
                 
                 # set conditions for middle conditions (coefficients are always unbounded)
-                if type(rxn) is ct.PlogReaction:
+                if type(rxn.rate) is ct.PlogRate:
                     invT = np.linspace(*invT_bnds, 3)
 
                     P, invT = np.meshgrid(P[1:-1], invT)
@@ -314,7 +315,7 @@ class Multithread_Optimize:
             rxn = mech.gas.reaction(rxnIdx)
             rate_bnds_val = mech.rate_bnds[rxnIdx]['value']
             rate_bnds_type = mech.rate_bnds[rxnIdx]['type']
-            if type(rxn) in [ct.PlogReaction, ct.FalloffReaction]: # if falloff, change arrhenius rates to LPL/HPL if they are not constrained
+            if type(rxn.rate) in [ct.PlogRate, ct.FalloffRate, ct.TroeRate, ct.SriRate]: # if falloff, change arrhenius rates to LPL/HPL if they are not constrained
                 key_list = np.array([x['coeffs_bnds'] for x in rxn_coef['key']])
                 key_count = collections.Counter(key_list)
 
@@ -329,9 +330,9 @@ class Multithread_Optimize:
                         if np.any(rxn_coef['coef_bnds']['exist'][idx_match]) or key_count[coef_type_key] < 3:
                             rxn_coef['is_falloff_limit'][n] = True
 
-                            if type(rxn) is ct.FalloffReaction:
+                            if type(rxn.rate) in [ct.FalloffRate, ct.TroeRate, ct.SriRate]:
                                 x = []
-                                for ArrheniusCoefName in default_arrhenius_coefNames:
+                                for ArrheniusCoefName in arrhenius_coefNames:
                                     x.append(mech.coeffs_bnds[rxnIdx][coef_type_key][ArrheniusCoefName]['resetVal'])
 
                                 rxn_rate_opt['x0'][i+n] = np.log(x[1]) + x[2]*np.log(T) - x[0]/(Ru*T)                        
@@ -373,17 +374,17 @@ class Multithread_Optimize:
         for rxn_coef_idx, rxn_coef in enumerate(self.rxn_coef_opt):      # TODO: RXN_COEF_OPT INCORRECT FOR CHANGING RXN TYPES
             rxnIdx = rxn_coef['rxnIdx']
             rxn = mech.gas.reaction(rxnIdx)
-            if type(rxn) in [ct.ElementaryReaction, ct.ThreeBodyReaction]:
+            if type(rxn.rate) is ct.ArrheniusRate:
                 continue    # arrhenius type equations don't need to be converted
 
             T, P, X = rxn_coef['T'], rxn_coef['P'], rxn_coef['X']
             M = lambda T, P: mech.M(rxn, [T, P, X])
             rates = np.exp(self.rxn_rate_opt['x0'][i:i+len(T)])
 
-            if type(rxn) is ct.FalloffReaction:
+            if type(rxn.rate) in [ct.FalloffRate, ct.TroeRate, ct.SriRate]:
                 lb = rxn_coef['coef_bnds']['lower']
                 ub = rxn_coef['coef_bnds']['upper']
-                if rxn.falloff.type == 'SRI':   
+                if type(rxn.rate) is not ct.TroeRate:   
                     rxns_changed.append(rxn_coef['rxnIdx'])
                     rxn_coef['coef_x0'] = Troe_fit(rates, T, P, X, rxnIdx, rxn_coef['key'], [], 
                                                rxn_coef['is_falloff_limit'], mech, [lb, ub], accurate_fit=True)
@@ -409,7 +410,7 @@ class Multithread_Optimize:
 
                 n = 0
                 for key in ['low_rate', 'high_rate']:
-                    for coefName in default_arrhenius_coefNames:
+                    for coefName in arrhenius_coefNames:
                         rxn_coef['key'][n]['coeffs'] = key                          # change key value to match new reaction type
                         mech.coeffs[rxnIdx][key][coefName] = rxn_coef['coef_x0'][n] # updates new arrhenius values
 
@@ -419,7 +420,7 @@ class Multithread_Optimize:
 
                 # set reset_mech for new mechanism
                 generate_new_mech = True
-                reset_mech[rxnIdx]['rxnType'] = 'FalloffReaction'
+                reset_mech[rxnIdx]['rxnType'] = 'Falloff Reaction'
                 reset_mech[rxnIdx]['rxnCoeffs'] = mech.coeffs[rxnIdx]
 
             i += len(T)
