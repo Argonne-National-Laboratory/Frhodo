@@ -97,6 +97,14 @@ class Tree(QtCore.QObject):
         self._set_mech_tree(self.mech_tree_data)
 
     def _set_mech_tree_data(self, selection, mech):
+        def get_coef_abbreviation(coefName):
+            if 'activation_energy' == coefName:
+                return 'Ea'
+            elif 'pre_exponential_factor' == coefName:
+                return 'A'
+            elif 'temperature_exponent' == coefName:
+                return 'n'
+
         parent = self.parent()
         data = []
         for rxnIdx, rxn in enumerate(mech.gas.reactions()):
@@ -130,7 +138,6 @@ class Tree(QtCore.QObject):
                 data.append({'num': rxnIdx, 'eqn': rxn.equation, 'type': rxn_type, 
                              'coeffs': coeffs, 'coeffs_order': coeffs_order})
             else:
-
                 data.append({'num': rxnIdx, 'eqn': rxn.equation, 'type': rxn_type})
                 # raise Exception("Equation type is not currently implemented for:\n{:s}".format(rxn.equation))
             

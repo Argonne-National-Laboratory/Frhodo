@@ -176,8 +176,8 @@ class parameter_estimation:
             if len(self.UserInput.responses['responses_observed_weighting']) > 0:
                 UserInput.responses_observed_weighting = np.array(nestedObjectsFunctions.makeAtLeast_2dNested(UserInput.responses['responses_observed_weighting']))
                 UserInput.responses_observed_weighting = nestedObjectsFunctions.convertInternalToNumpyArray_2dNested(UserInput.responses_observed_weighting)
-                UserInput.responses_observed_weighting = UserInput.responses_observed_weighting.astype(float)
-                UserInput.responses_observed_weight_coefficients = copy.deepcopy(UserInput.responses_observed_weighting).astype(float) #initialize the weight_coefficients
+                UserInput.responses_observed_weighting = UserInput.responses_observed_weighting.astype(np.float)
+                UserInput.responses_observed_weight_coefficients = copy.deepcopy(UserInput.responses_observed_weighting).astype(np.float) #initialize the weight_coefficients
                 #We'll apply it 1 response at a time.
                 for responseIndex, responseWeightingArray in enumerate(UserInput.responses_observed_weighting):
                     if 0 in responseWeightingArray: #we can't have zeros in weights. So if we have any zeros, we will set the weighting of those to 1E6 times less than other values.

@@ -79,7 +79,6 @@ def set_bnds(mech, rxnIdx, keys, coefNames):
 
     return coef_bnds
 
-
 def set_arrhenius_bnds(x0, coefNames):
     bnds = [[], []]
     for n, coefName in enumerate(coefNames):
