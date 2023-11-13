@@ -127,6 +127,7 @@ Development/Documentation
 Development/Extras
 Paths/
 .vs/
+.vscode/
 #*.7z
 #*.ini
 #*.log
