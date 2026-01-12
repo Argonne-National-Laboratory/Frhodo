@@ -237,7 +237,6 @@ def drhodz_per_rxn(states, L=0.1, As=0.2, A1=0.2, area_change=False, rxnNum=None
 Written by Travis Sikes
 """
 
-
 # Normal Shock Solver
 class Properties:
     def __init__(self, gas, shock_vars, parent=None):
@@ -302,32 +301,54 @@ class Properties:
 
         return M1
 
-    def _perfect_gas_shock(self):
+    def _perfect_gas_shock(self, rel_tol=1e-2):
         zone = self.zone
         gas = self.gas
 
         T1 = zone[1]["T"]
         P1 = zone[1]["P"]
         self._set_gas(zone[1]["T"], zone[1]["P"], zone[1]["X"])
+        gamma1 = gas.cp / gas.cv
         # self.gas.equilibrate('TP', rtol=1.0e-6, maxiter=5000)    # If needed add to _Frosh too
 
         M1 = zone[1]["Mach"] = self._mach()
 
-        # Used often so save some computations!
-        gamma = self.gas.cp / self.gas.cv
-        gp = gamma + 1
-        gp_gm = gp / (gamma - 1)
+        for i in range(10):    
+            if i == 0:
+                gamma2 = gamma5 = gamma1
 
-        # Solve perfect gas shock equations for zone 2
-        P2_P1 = 1 + 2 * gamma / gp * (M1**2 - 1)
-        zone[2]["P"] = P1 * P2_P1
-        zone[2]["T"] = T1 * (P2_P1 * (gp_gm + P2_P1) / (1 + gp_gm * P2_P1))
+            else:
+                self._set_gas(zone[2]["T"], zone[2]["P"], zone[1]["X"]) # assuming frozen chemistry
+                gamma2 = np.mean([gamma1, self.gas.cp / self.gas.cv])
 
-        # Solve perfect gas shock equations for zone 5
-        P5_P2 = ((gp_gm + 2) * P2_P1 - 1) / (P2_P1 + gp_gm)
-        zone[5]["P"] = P5_P2 * zone[2]["P"]
-        T5_T2 = P5_P2 * (gp_gm + P5_P2) / (1 + gp_gm * P5_P2)
-        zone[5]["T"] = T5_T2 * zone[2]["T"]
+                self._set_gas(zone[5]["T"], zone[5]["P"], zone[1]["X"]) # assuming frozen chemistry
+                gamma5 = np.mean([gamma2, self.gas.cp / self.gas.cv])
+
+            gp2 = gamma2 + 1
+            gp_gm2 = gp2 / (gamma2 - 1)
+
+            gp5 = gamma5 + 1
+            gp_gm5 = gp5 / (gamma5 - 1)
+
+            # Solve perfect gas shock equations for zone 2
+            P2_P1 = 1 + 2 * gamma2 / gp2 * (M1**2 - 1)
+            zone[2]["P"] = P1 * P2_P1
+            zone[2]["T"] = T1 * (P2_P1 * (gp_gm2 + P2_P1) / (1 + gp_gm2 * P2_P1))
+
+            # Solve perfect gas shock equations for zone 5
+            P5_P2 = ((gp_gm5 + 2) * P2_P1 - 1) / (P2_P1 + gp_gm5)
+            zone[5]["P"] = P5_P2 * zone[2]["P"]
+            T5_T2 = P5_P2 * (gp_gm5 + P5_P2) / (1 + gp_gm5 * P5_P2)
+            zone[5]["T"] = T5_T2 * zone[2]["T"]
+
+            if i > 0:
+                current = np.array([zone[2]["T"], zone[2]["P"], zone[5]["T"], zone[5]["P"]])
+                rel_diff = (current - prior) / prior
+                
+                if np.mean(np.abs(rel_diff)) < rel_tol:
+                    break
+            
+            prior = np.array([zone[2]["T"], zone[2]["P"], zone[5]["T"], zone[5]["P"]])
 
     def _perfect_gas_shock_zero(self, vars, knownVals, x):
         self.zone[1]["P"] = x[0]
@@ -385,8 +406,7 @@ class Properties:
             zero = [
                 (P2 / P1 - 1)
                 + (u1s * (a - 1) / (R * T1)),  # Conservation of Momentum, inc shock
-                (2 / u1s * (h2 - h1))
-                + (a**2 - 1),  # Conservation of Energy, inc shock
+                (2 / u1s * (h2 - h1)) + (a**2 - 1),  # Conservation of Energy, inc shock
                 (P5 / P2 - 1)
                 + (
                     u1s / (R * T2) * (1 - a) ** 2 / (b - 1)
