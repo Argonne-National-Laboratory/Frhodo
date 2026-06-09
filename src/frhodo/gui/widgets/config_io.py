@@ -17,6 +17,7 @@ from frhodo.common.errors import SchemaVersionError
 from frhodo.common.config import FrhodoConfig
 
 
+
 def _set_box(box, val):
     """Best-effort set of a Qt input box; missing setters are no-ops."""
     try:
@@ -60,6 +61,11 @@ class GUI_settings:
         else:
             self.config = FrhodoConfig()
 
+        self.apply_config_to_boxes()
+
+    def apply_config_to_boxes(self):
+        """Drive the Qt input boxes from ``self.config`` (no disk read)."""
+        parent = self.parent
         cfg = self.config
 
         _set_box(parent.T1_units_box, f"[{cfg.experiment.temperature_units.zone_1}]")
@@ -136,6 +142,15 @@ class GUI_settings:
         parent.path_file_box.setPlainText(cfg.directory.directory_file)
 
     def save(self, save_all: bool = False):
+        self.pull_config_from_boxes()
+
+        with io.open(
+            self.parent.path["default_config"], "w", encoding="utf-8",
+        ) as f:
+            f.write(self.config.to_yaml_text())
+
+    def pull_config_from_boxes(self):
+        """Read the Qt input boxes back onto ``self.config`` (no disk write)."""
         parent = self.parent
         cfg = self.config
 
@@ -209,8 +224,3 @@ class GUI_settings:
 
         cfg.plot.x_scale = parent.plot.signal.ax[1].get_xscale()
         cfg.plot.y_scale = parent.plot.signal.ax[1].get_yscale()
-
-        with io.open(
-            parent.path["default_config"], "w", encoding="utf-8",
-        ) as f:
-            f.write(cfg.to_yaml_text())

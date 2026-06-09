@@ -224,7 +224,9 @@ class DataSetsTable(QTableWidget):
             self.include_box.append(QCheckBox())
             self.include_box[-1].info = {"shock_num": shock_num, "shock_idx": idx}
             self.include_box[-1].toggled.connect(self._toggle_checkbox)
-            self.include_box[-1].setChecked(False)
+            self.include_box[-1].blockSignals(True)
+            self.include_box[-1].setChecked(bool(self.shock[idx].include))
+            self.include_box[-1].blockSignals(False)
             self.include_box[-1].setFocusPolicy(QtCore.Qt.NoFocus)
             # create layout to center checkbox in cell
             checkbox_layout = QHBoxLayout(cell_widget)

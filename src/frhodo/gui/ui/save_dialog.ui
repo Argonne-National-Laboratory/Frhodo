@@ -20,7 +20,7 @@
    <enum>Qt::StrongFocus</enum>
   </property>
   <property name="windowTitle">
-   <string>Save Simulation</string>
+   <string>Save</string>
   </property>
   <property name="windowIcon">
    <iconset>

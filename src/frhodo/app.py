@@ -13,7 +13,7 @@ if "microsoft" in platform.uname().release.lower() and os.path.isdir("/mnt/wslg/
     os.environ.setdefault("QT_QPA_PLATFORM", "wayland")
     os.environ["XDG_RUNTIME_DIR"] = "/mnt/wslg/runtime-dir"
 
-from qtpy.QtWidgets import QMainWindow, QApplication, QMessageBox
+from qtpy.QtWidgets import QMainWindow, QApplication, QMessageBox, QFileDialog
 from qtpy import uic, QtCore, QtGui
 
 import numpy as np
@@ -36,6 +36,7 @@ from frhodo.simulation.shock.state import (
 import platformdirs
 
 from frhodo.gui.runtime_paths import RuntimePaths
+from frhodo.gui import session
 from frhodo.gui.state import (
     LoadState, RunControlState, ShockSelectionState, TimeUncertaintyState,
 )
@@ -151,6 +152,7 @@ class Main(QMainWindow):
         self.save_sim = save_widget.Save_Dialog(self)
         self.save_sim_button.clicked.connect(self.save_sim.execute)
         self.action_Save.triggered.connect(self.save_sim.execute)
+        self.action_Open.triggered.connect(self.load_session)
 
         if _startup_failed:
             sys.exit()
@@ -296,6 +298,32 @@ class Main(QMainWindow):
             ].emit(observable)
         elif tabText == "Sim Explorer":
             self.sim_explorer.update_all_main_parameter()
+
+    def load_session(self, event=None):
+        if not getattr(self, "user_settings", None):
+            return
+
+        cfg_session = self.user_settings.config.session
+        start_dir = cfg_session.last_session_file
+        if not start_dir:
+            start_dir = str(self.path.get("sim_main", ""))
+
+        chosen, _selected = QFileDialog.getOpenFileName(
+            self, "Load Session", start_dir,
+            "Frhodo Session (*{:s})".format(session.SESSION_SUFFIX),
+        )
+        if not chosen:
+            return
+
+        restored, partial = session.read_session_file(self, chosen)
+        cfg_session.last_session_file = chosen
+
+        msg = "Loaded session {:s}: {:d} reactions restored".format(
+            pathlib.Path(chosen).name, len(restored),
+        )
+        if partial:
+            msg += ", {:d} flagged for review".format(len(partial))
+        self.log.append(msg)
 
     def shock_choice_changed(self, event):
         if (

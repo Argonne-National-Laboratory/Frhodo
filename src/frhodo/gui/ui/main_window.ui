@@ -1269,7 +1269,7 @@ p, li { white-space: pre-wrap; }
             <item row="0" column="2">
              <widget class="QPushButton" name="save_sim_button">
               <property name="text">
-               <string>Save Simulation</string>
+               <string>Save</string>
               </property>
              </widget>
             </item>
@@ -4468,10 +4468,10 @@ p, li { white-space: pre-wrap; }
   </widget>
   <action name="action_Open">
    <property name="text">
-    <string>&amp;Open</string>
+    <string>&amp;Load</string>
    </property>
    <property name="toolTip">
-    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; text-decoration: underline;&quot;&gt;O&lt;/span&gt;pen&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; text-decoration: underline;&quot;&gt;L&lt;/span&gt;oad session&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+O</string>

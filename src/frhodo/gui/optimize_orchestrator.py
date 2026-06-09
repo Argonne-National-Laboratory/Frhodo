@@ -5,6 +5,7 @@ finalization. Drives the Qt :class:`Worker` off the GUI thread and
 receives engine events through :class:`frhodo.api.OptimizationCallbacks`.
 """
 import multiprocessing as mp
+import pathlib
 import traceback
 from timeit import default_timer as timer
 from typing import Any
@@ -13,6 +14,7 @@ import numpy as np
 from qtpy.QtCore import Qt, QObject, QRunnable, Signal
 from scipy import stats
 
+from frhodo.gui import session
 from frhodo.gui.workers.optimize_worker import Worker, WorkerInputs
 from frhodo.optimize.cost.fit_fcn import update_mech_coef_opt
 from frhodo.optimize.cost.settings import CostSettings
@@ -76,6 +78,9 @@ class Multithread_Optimize:
         self.abort = False
         self._last_plot_timer = 0.0
         self._time_between_plots = 0.0
+        self._last_snapshot_timer = 0.0
+        self._snapshot_interval = 0.0
+        self._autosnapshot_failed = False
         self.coef_opt: list = []
         self.rxn_coef_opt: list = []
         self.rxn_rate_opt: dict = {}
@@ -180,6 +185,11 @@ class Multithread_Optimize:
             alert=False,
         )
         parent.plot.opt.clear_plot()
+
+        self._snapshot_interval = parent.user_settings.config.session.snapshot_interval_s
+        self._last_snapshot_timer = timer()
+        self._autosnapshot_failed = False
+        self._write_autosnapshot()
 
         self.worker = Worker(
             self._build_worker_inputs(self.shocks2run, max_processors),
@@ -411,6 +421,35 @@ class Multithread_Optimize:
                 self._time_between_plots = current_time_to_plot * 0.1
 
             self._last_plot_timer = timer()
+
+        if timer() - self._last_snapshot_timer > self._snapshot_interval:
+            self._write_autosnapshot()
+            self._last_snapshot_timer = timer()
+
+    def _write_autosnapshot(self) -> None:
+        """Write the crash-recovery session snapshot if enabled.
+
+        A snapshot failure must never abort the run, so it is caught and
+        logged once.
+        """
+        parent = self.parent
+        if not parent.user_settings.config.session.autosnapshot_enabled:
+            return
+
+        sim_main = parent.path.get("sim_main")
+        if not sim_main:
+            return
+
+        target = pathlib.Path(sim_main) / session.AUTOSAVE_NAME
+        try:
+            session.write_session_file(parent, target)
+        except Exception:
+            if not self._autosnapshot_failed:
+                self._autosnapshot_failed = True
+                parent.log.append(
+                    f"Auto-snapshot failed:\n{traceback.format_exc()}",
+                    alert=True,
+                )
 
     def _on_worker_progress(self, perc_completed, time_left) -> None:
         self.parent.update_progress(perc_completed, time_left)

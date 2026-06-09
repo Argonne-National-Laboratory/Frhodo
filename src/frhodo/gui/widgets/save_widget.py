@@ -2,7 +2,10 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level
 # directory for license and copyright information.
 
-import os, pathlib, sys
+import os
+import pathlib
+import sys
+
 from copy import deepcopy
 
 from qtpy.QtWidgets import (
@@ -26,6 +29,7 @@ from qtpy import uic, QtCore, QtGui
 import numpy as np
 
 from frhodo.common.units import PRESSURE_UNITS, pa_per_unit
+from frhodo.gui import session
 from frhodo.gui.state import SaveDialogState
 
 
@@ -93,11 +97,13 @@ class Save_Dialog(QDialog, QApplication):
         sim_layout.addWidget(self.frame_2, 1, 1)
 
         mech_page = self._build_mechanism_page()
+        session_page = self._build_session_page()
 
         self.outer_tab_widget = QTabWidget(self)
         self.outer_tab_widget.setObjectName("outer_tab_widget")
         self.outer_tab_widget.addTab(sim_page, "Simulation")
         self.outer_tab_widget.addTab(mech_page, "Mechanism")
+        self.outer_tab_widget.addTab(session_page, "Session")
         self.outer_tab_widget.currentChanged.connect(self._on_outer_tab_changed)
 
         new_layout = QVBoxLayout()
@@ -152,14 +158,58 @@ class Save_Dialog(QDialog, QApplication):
 
         return page
 
+    def _build_session_page(self) -> QWidget:
+        page = QWidget()
+        layout = QGridLayout(page)
+
+        info = QLabel(
+            "Save the entire GUI state — directory paths, preferences, "
+            "per-shock weights, and per-reaction uncertainties — to a "
+            ".frhodo file. Restore it later from the Load button in the "
+            "toolbar."
+        )
+        info.setWordWrap(True)
+        info.setAlignment(QtCore.Qt.AlignTop)
+        layout.addWidget(info, 0, 0, 1, 2)
+
+        self.autosnapshot_box = QCheckBox(
+            "Auto-snapshot the session before optimizing and periodically "
+            "during the run"
+        )
+        self.autosnapshot_box.setToolTip(
+            "Writes session_autosave.frhodo to the simulation directory so a "
+            "crash mid-optimization is recoverable."
+        )
+        layout.addWidget(self.autosnapshot_box, 1, 0, 1, 2)
+
+        interval_row = QHBoxLayout()
+        interval_row.addWidget(QLabel("Snapshot every"))
+        self.snapshot_interval_box = QDoubleSpinBox()
+        self.snapshot_interval_box.setRange(1.0, 3600.0)
+        self.snapshot_interval_box.setDecimals(0)
+        self.snapshot_interval_box.setSuffix(" s")
+        interval_row.addWidget(self.snapshot_interval_box)
+        interval_row.addStretch(1)
+        layout.addLayout(interval_row, 2, 0, 1, 2)
+
+        self.autosnapshot_box.toggled.connect(self.snapshot_interval_box.setEnabled)
+        layout.setRowStretch(3, 1)
+
+        return page
+
     def _refresh_mech_info_label(self):
         gas = getattr(self.parent.mech, "gas", None)
         if gas is None:
             self.mech_info_label.setText("No mechanism loaded.")
+
             return
 
         mech_path = self.parent.path.get("mech")
-        name = pathlib.Path(mech_path).name if mech_path else "(unknown)"
+        if mech_path:
+            name = pathlib.Path(mech_path).name
+        else:
+            name = "(unknown)"
+
         self.mech_info_label.setText(
             "Mechanism: {name}\n"
             "Species: {n_species}\n"
@@ -200,6 +250,7 @@ class Save_Dialog(QDialog, QApplication):
             if event.modifiers() == QtCore.Qt.ControlModifier:
                 if event.key() in [QtCore.Qt.Key_S, QtCore.Qt.Key_Return]:
                     self.accept()
+
                     return True
 
         # if output times is empty set integrator_time to True
@@ -272,6 +323,10 @@ class Save_Dialog(QDialog, QApplication):
                     match_type=QtCore.Qt.MatchContains,
                 )
 
+        cfg_session = self.parent.user_settings.config.session
+        self.autosnapshot_box.setChecked(cfg_session.autosnapshot_enabled)
+        self.snapshot_interval_box.setValue(cfg_session.snapshot_interval_s)
+
         self._refresh_mech_info_label()
         self._on_outer_tab_changed(self.outer_tab_widget.currentIndex())
 
@@ -328,7 +383,10 @@ class Save_Dialog(QDialog, QApplication):
             self.state.output_time_offset = 0.0
 
     def accept(self):
-        if self.outer_tab_widget.currentIndex() == 1:
+        index = self.outer_tab_widget.currentIndex()
+        if index == 2:
+            self._save_session()
+        elif index == 1:
             self._save_mechanism()
         else:
             self._save_simulation()
@@ -342,6 +400,38 @@ class Save_Dialog(QDialog, QApplication):
         parent.run_single(t_save=self.state.output_time)
         parent.save.all(parent.SIM, self.state.model_dump())
         parent.directory.update_icons()
+
+    def _default_session_dir(self) -> str:
+        sim_main = self.parent.path.get("sim_main")
+        if sim_main and pathlib.Path(sim_main).exists():
+            start_dir = str(sim_main)
+        else:
+            start_dir = str(pathlib.Path.cwd())
+
+        return start_dir
+
+    def _save_session(self):
+        parent = self.parent
+        cfg_session = parent.user_settings.config.session
+        cfg_session.autosnapshot_enabled = self.autosnapshot_box.isChecked()
+        cfg_session.snapshot_interval_s = self.snapshot_interval_box.value()
+
+        start_dir = cfg_session.last_session_file or self._default_session_dir()
+        chosen, _selected = QFileDialog.getSaveFileName(
+            self, "Save Session", start_dir,
+            "Frhodo Session (*{:s})".format(session.SESSION_SUFFIX),
+        )
+        if chosen:
+            path = pathlib.Path(chosen)
+            if path.suffix.lower() != session.SESSION_SUFFIX:
+                path = path.with_suffix(session.SESSION_SUFFIX)
+
+            session.write_session_file(
+                parent, path, comment=self.comment_box.toPlainText(),
+            )
+            cfg_session.last_session_file = str(path)
+
+        parent.user_settings.save()
 
     def _save_mechanism(self):
         if hasattr(self.parent, "tree"):
@@ -402,11 +492,17 @@ class Save_Dialog(QDialog, QApplication):
         depend on composition).
         """
         shock = getattr(self.parent, "display_shock", None)
-        mix = getattr(shock, "thermo_mix", None) if shock is not None else None
-        if mix:
-            return dict(mix)
+        if shock is not None:
+            mix = getattr(shock, "thermo_mix", None)
+        else:
+            mix = None
 
-        return {self.parent.mech.gas.species_names[0]: 1.0}
+        if mix:
+            composition = dict(mix)
+        else:
+            composition = {self.parent.mech.gas.species_names[0]: 1.0}
+
+        return composition
 
     def reject(self):
         super().reject()

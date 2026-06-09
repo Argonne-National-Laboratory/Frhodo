@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt
 from frhodo.common.errors import SchemaVersionError
 
 
+
 class TemperatureUnits(BaseModel):
     zone_1: str = "K"
     zone_2: str = "K"
@@ -111,12 +112,18 @@ class PlotSettings(BaseModel):
     y_scale: str = "abslog"
 
 
+class SessionSettings(BaseModel):
+    """Whole-session save/load behavior."""
+    autosnapshot_enabled: bool = True
+    snapshot_interval_s: PositiveFloat = 30.0
+    last_session_file: str = ""
+
+
 class FrhodoConfig(BaseModel):
     """Root model for ``default_config.yaml``.
 
-    Unknown top-level fields are ignored on load (forward-compat) but
-    a bumped ``schema_version`` raises :class:`SchemaVersionError`
-    instead of silently downgrading.
+    Unknown top-level fields are ignored on load; an unsupported
+    ``schema_version`` raises :class:`SchemaVersionError`.
     """
 
     schema_version: Literal[2] = 2
@@ -125,6 +132,7 @@ class FrhodoConfig(BaseModel):
     reactor: ReactorSettings = Field(default_factory=ReactorSettings)
     optimization: OptimizationSettings = Field(default_factory=OptimizationSettings)
     plot: PlotSettings = Field(default_factory=PlotSettings)
+    session: SessionSettings = Field(default_factory=SessionSettings)
 
     model_config = ConfigDict(extra="ignore", validate_assignment=True)
 
@@ -150,11 +158,13 @@ class FrhodoConfig(BaseModel):
 
     def to_yaml_text(self) -> str:
         """Serialize the config to YAML text in canonical order."""
-        return yaml.safe_dump(
+        text = yaml.safe_dump(
             self.model_dump(mode="json"),
             sort_keys=False,
             allow_unicode=True,
         )
+
+        return text
 
 
 Composition = dict[str, float]
