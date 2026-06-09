@@ -59,6 +59,7 @@ from frhodo.optimize.algorithm_settings import AlgorithmSettings, AlgorithmStage
 from frhodo.optimize.cost.settings import CostSettings
 from frhodo.optimize.parameters import OptimizableSet
 from frhodo.optimize.request import OptimizationRequest
+from frhodo.optimize.residual import OptimizeRunInputs
 from frhodo.optimize.spec import (
     CoefUncertainty,
     OptimizableRate,
@@ -66,6 +67,7 @@ from frhodo.optimize.spec import (
     OptimizableSpecBuilder,
     RateUncertainty,
 )
+
 
 
 _YAML_SUFFIXES = (".yaml", ".yml")
@@ -445,8 +447,12 @@ def run_shock_tubes(
         initargs = (str(Path(mech)),)
         init = _spawn_worker_init
     else:
-        _FORK_HANDOFF.mech = _resolve_mech(mech) if isinstance(mech, ChemicalMechanism) else None
-        _FORK_HANDOFF.mech_path = None if _FORK_HANDOFF.mech is not None else str(Path(mech))
+        if isinstance(mech, ChemicalMechanism):
+            _FORK_HANDOFF.mech = _resolve_mech(mech)
+            _FORK_HANDOFF.mech_path = None
+        else:
+            _FORK_HANDOFF.mech = None
+            _FORK_HANDOFF.mech_path = str(Path(mech))
         ctx = mp.get_context("fork")
         initargs = ()
         init = _fork_worker_init
@@ -616,7 +622,6 @@ def optimize_residual(
 
     from frhodo.simulation.mechanism.coef_helpers import rates as compute_rates
     from frhodo.optimize.parameters import build_rxn_coef_opt, build_rxn_rate_opt
-    from frhodo.optimize.residual import OptimizeRunInputs
 
     cb = callbacks or OptimizationCallbacks()
 
@@ -711,19 +716,39 @@ def _run_optimization_engine(
             max_processors=inputs.max_processors,
         ))
 
-    progress_adapter = _ProgressAdapter(cb.on_iteration) if cb.on_iteration else None
-    if progress_adapter is not None and cb.on_progress is not None:
-        def raw_progress(update):
-            progress_adapter(update)
-            cb.on_progress(update)
+    on_iteration = cb.on_iteration
+    if on_iteration is not None:
+        progress_adapter = _ProgressAdapter(on_iteration)
+    else:
+        progress_adapter = None
+
+    on_progress = cb.on_progress
+    if progress_adapter is not None and on_progress is not None:
+        emit_iteration = progress_adapter
+        emit_progress = on_progress
+
+        def _combined_progress(update: Mapping) -> None:
+            emit_iteration(update)
+            emit_progress(update)
+
+        raw_progress = _combined_progress
     elif progress_adapter is not None:
         raw_progress = progress_adapter
-    elif cb.on_progress is not None:
-        raw_progress = cb.on_progress
+    elif on_progress is not None:
+        raw_progress = on_progress
     else:
         raw_progress = None
 
-    log_cb = (lambda msg: cb.log(str(msg))) if cb.log is not None else None
+    log_fn = cb.log
+    if log_fn is not None:
+        emit_log = log_fn
+
+        def _log_cb(msg: object) -> None:
+            emit_log(str(msg))
+
+        log_cb = _log_cb
+    else:
+        log_cb = None
     shock_provider = (
         cb.display_shock_provider
         if cb.display_shock_provider is not None

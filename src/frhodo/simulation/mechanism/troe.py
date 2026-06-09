@@ -674,12 +674,10 @@ class Troe:
         }
 
     def fit(self):
-        """NN multistart + AUGLAG polish; return the fitted subset and fit RMS.
+        """NN multistart + AUGLAG polish; return the fitted coefficients.
 
-        Returns:
-            ``(coeffs, log_rms)`` — ``coeffs`` is an ``np.ndarray`` matching
-            ``coefNames`` (linear-space ``A``, not ``ln A``); ``log_rms`` is
-            the rate-space log-RMS of the fit over the sampling grid.
+        Returns an ``np.ndarray`` matching ``coefNames`` (linear-space
+        ``A``, not ``ln A``).
         """
         idx_A = self.alter_idx["pre_exponential_factor"]
         idx_all = self.alter_idx["all"]
@@ -695,9 +693,8 @@ class Troe:
             and _physically_valid(x, T_2d)
         ):
             coeffs = x[idx_all]
-            log_rms = float(ms["fval"])
 
-            return coeffs, log_rms
+            return coeffs
 
         x0 = deepcopy(x)
         x0[idx_A] = np.log(x0[idx_A])
@@ -707,9 +704,8 @@ class Troe:
         x = res["x"]
 
         coeffs = x[idx_all]
-        log_rms = float(res["fval"])
 
-        return coeffs, log_rms
+        return coeffs
 
     def _reshape_to_meshgrid(self):
         """Build (n_P, n_T) T/M/ln_k arrays from the 1D inputs. n_T must be

@@ -574,7 +574,12 @@ def calculate_residuals(mech, args_list):
             return loss_scalar
 
     def calc_density(x, data, dim=1):
+        data = np.asarray(data, dtype=float)
+        x = np.asarray(x, dtype=float)
         stdev = np.std(data)
+        if stdev == 0:  # constant residuals -> singular KDE covariance
+            return np.zeros_like(x)
+
         [q1, q3] = weighted_quantile(data, np.array([0.25, 0.75]))
         iqr = q3 - q1  # interquartile range
         A = (
@@ -582,7 +587,12 @@ def calculate_residuals(mech, args_list):
         )  # bandwidth is multiplied by std of sample
         bw = 0.9 * A * len(data) ** (-1.0 / (dim + 4))
 
-        return stats.gaussian_kde(data, bw_method=bw)(x)
+        try:
+            density = stats.gaussian_kde(data, bw_method=bw)(x)
+        except (np.linalg.LinAlgError, ValueError):
+            density = np.zeros_like(x)
+
+        return density
 
     if len(args_list) == 5:
         var, coef_opt, x, shock, fixed_t_unc = args_list

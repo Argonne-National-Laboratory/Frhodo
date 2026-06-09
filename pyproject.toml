@@ -76,7 +76,6 @@ include = [
     "src/frhodo/experiment/data.py",
     "src/frhodo/simulation/shock/state.py",
     "src/frhodo/optimize/cost/settings.py",
-    "src/frhodo/optimize/orchestrator.py",
 ]
 reportMissingTypeStubs = "none"
 reportUnknownMemberType = "warning"

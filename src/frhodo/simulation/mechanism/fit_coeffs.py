@@ -140,7 +140,6 @@ def fit_generic(
     P = np.array(P)
     coefNames = np.array(coefNames)
     bnds = np.array(bnds).copy()
-    rms = None
 
     if type(rxn.rate) is ct.ArrheniusRate:
         x0 = [
@@ -149,7 +148,7 @@ def fit_generic(
         ]
         coeffs = fit_arrhenius(rates, T, x0=x0, coefNames=coefNames, bnds=bnds)
         if coeffs is None:
-            return None, None
+            return None
 
         if rxn.reaction_type.startswith("three-body") and (
             "pre_exponential_factor" in coefNames
@@ -200,7 +199,7 @@ def fit_generic(
             bnds=bnds,
             is_falloff_limit=is_falloff_limit,
         )
-        coeffs, rms = Troe_parameters.fit()
+        coeffs = Troe_parameters.fit()
 
     else:
         raise ValueError(
@@ -208,7 +207,7 @@ def fit_generic(
             f"{type(rxn.rate).__name__}"
         )
 
-    return coeffs, rms
+    return coeffs
 
 
 def fit_coeffs(
@@ -231,7 +230,7 @@ def fit_coeffs(
     if len(coefNames) == 0:
         return
 
-    coeffs, _ = fit_generic(
+    coeffs = fit_generic(
         rates,
         T,
         P,

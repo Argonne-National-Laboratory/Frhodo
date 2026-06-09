@@ -23,7 +23,13 @@ def test_pyright_clean():
         check=False,
         text=True,
     )
-    last_line = (result.stdout.strip().splitlines() or [""])[-1]
-    assert "0 errors" in last_line, (
+    summary = next(
+        (
+            line for line in reversed(result.stdout.splitlines())
+            if "error" in line and "warning" in line
+        ),
+        "",
+    )
+    assert "0 errors" in summary, (
         f"pyright reported errors:\n{result.stdout}\n{result.stderr}"
     )

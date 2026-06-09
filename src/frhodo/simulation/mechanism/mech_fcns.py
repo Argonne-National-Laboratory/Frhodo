@@ -802,7 +802,7 @@ class ChemicalMechanism:
 
             if isinstance(rxn.rate, _FALLOFF_FAMILY):
                 rxns_changed.append(rxnIdx)
-                rxn_coef["coef_x0"], _ = fit_generic(
+                rxn_coef["coef_x0"] = fit_generic(
                     rates, T, P, X, rxnIdx, rxn_coef["key"], [],
                     rxn_coef["is_falloff_limit"], self, [lb, ub],
                 )
@@ -810,7 +810,7 @@ class ChemicalMechanism:
                 self.coeffs[rxnIdx]["falloff_parameters"] = rxn_coef["coef_x0"][-4:]
             else:
                 rxns_changed.append(rxnIdx)
-                rxn_coef["coef_x0"], _ = fit_generic(
+                rxn_coef["coef_x0"] = fit_generic(
                     rates, T, P, X, rxnIdx, rxn_coef["key"],
                     rxn_coef["coefName"], rxn_coef["is_falloff_limit"],
                     self, [lb, ub],

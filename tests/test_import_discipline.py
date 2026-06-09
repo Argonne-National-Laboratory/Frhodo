@@ -73,7 +73,7 @@ def _modules_in_layer(layer: str) -> list[pathlib.Path]:
 
 
 def _violations_for(module_path: pathlib.Path, forbidden: set[str]) -> list[str]:
-    source = module_path.read_text()
+    source = module_path.read_text(encoding="utf-8")
     bad = []
     for imp in _imports(source):
         for prefix in forbidden:

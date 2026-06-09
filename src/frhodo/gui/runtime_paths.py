@@ -8,6 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 
+
 class RuntimePaths(BaseModel):
     """Fixed-at-startup file-system paths.
 
@@ -33,6 +34,9 @@ class RuntimePaths(BaseModel):
     graphics: Path = Field(
         description="``package/ui/graphics`` — icons and decorations for the GUI.",
     )
+    troe_captures: Path = Field(
+        description="``appdata/troe_captures`` — default destination for NN training-data capture.",
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
@@ -43,11 +47,14 @@ class RuntimePaths(BaseModel):
         Derived fields are constructed from the two inputs; callers
         should not pass them directly so they can't drift.
         """
-        return cls(
+        paths = cls(
             package=package,
             main=package.parent,
             appdata=appdata,
             default_config=appdata / "default_config.yaml",
             cantera_mech=appdata / "generated_mech.yaml",
             graphics=package / "ui" / "graphics",
+            troe_captures=appdata / "troe_captures",
         )
+
+        return paths
