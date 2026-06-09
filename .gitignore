@@ -121,10 +121,7 @@ venv.bak/
 .mypy_cache/
 
 # Development Folders
-Development/Franklin
-Development/Old Versions
-Development/Documentation
-Development/Extras
+development/
 Paths/
 .vs/
 .vscode/
@@ -135,3 +132,12 @@ Paths/
 
 *.pyproj
 *.user
+
+# uv — Frhodo is a library; resolve per-environment instead of pinning a lockfile
+uv.lock
+
+# Claude
+CLAUDE.md
+claude_style_check.py
+.pre-commit-config.yaml
+.claude/

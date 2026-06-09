@@ -1,0 +1,41 @@
+cff-version: 1.2.0
+message: "If you use Frhodo in your research, please cite the paper below."
+title: Frhodo
+abstract: >-
+  GUI-based Python application to simulate shock-tube chemical kinetics
+  experiments and optimize Arrhenius reaction-rate coefficients, using
+  Cantera as the chemistry solver.
+type: software
+authors:
+  - family-names: Sikes
+    given-names: Travis
+    affiliation: Argonne National Laboratory
+  - family-names: Tranter
+    given-names: Robert S.
+    affiliation: Argonne National Laboratory
+license: BSD-3-Clause
+version: 2.0.0
+repository-code: "https://github.com/Argonne-National-Laboratory/Frhodo"
+url: "https://github.com/Argonne-National-Laboratory/Frhodo"
+keywords:
+  - chemical kinetics
+  - shock tube
+  - Cantera
+  - Arrhenius
+  - mechanism optimization
+preferred-citation:
+  type: article
+  title: "Frhodo: A program for simulating chemical kinetic measurements and optimizing kinetic mechanisms"
+  authors:
+    - family-names: Sikes
+      given-names: Travis
+    - family-names: Tranter
+      given-names: Robert S.
+  journal: Combustion and Flame
+  publisher:
+    name: Elsevier
+  volume: 257
+  start: 112509
+  year: 2023
+  month: 11
+  doi: 10.1016/j.combustflame.2022.112509

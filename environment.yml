@@ -1,0 +1,33 @@
+# Conda development environment for Frhodo.
+#
+# pyproject.toml is the source of truth for dependencies; this file provisions
+# the compiled/scientific stack from conda-forge. After creating the env,
+# install Frhodo itself with:
+#
+#   conda env create -f environment.yml
+#   conda activate frhodo
+#   pip install -e .
+#
+# pygmo (optional optimizer backend) is on conda-forge for Linux/macOS only:
+#   conda install -c conda-forge pygmo
+name: frhodo
+channels:
+  - conda-forge
+dependencies:
+  - python >=3.10,<3.13
+  - cantera >=3.1,<3.3
+  - numpy >=1.24,<2.5
+  - scipy >=1.10
+  - pydantic >=2
+  - pyyaml
+  - tabulate
+  - qtpy
+  - pyqt
+  - matplotlib
+  - numba
+  - nlopt >=2.10
+  - platformdirs
+  - requests
+  - pip
+  - pip:
+      - rbfopt>=4.3

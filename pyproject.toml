@@ -1,0 +1,87 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "frhodo"
+version = "2.0.0"
+description = "Shock-tube reaction kinetics simulation and Arrhenius coefficient optimization"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE.txt" }
+authors = [{ name = "Travis Sikes" }]
+dependencies = [
+    "cantera>=3.1,<3.3",
+    "numpy>=1.24,<2.5",
+    "scipy>=1.10",
+    "scikit-learn>=1.3",
+    "pydantic>=2",
+    "pyyaml",
+    "tabulate",
+    "qtpy",
+    "nlopt>=2.10",
+    "rbfopt>=4.3",
+    "platformdirs",
+    "requests",
+]
+
+[project.urls]
+Homepage = "https://github.com/Argonne-National-Laboratory/Frhodo"
+Repository = "https://github.com/Argonne-National-Laboratory/Frhodo"
+Issues = "https://github.com/Argonne-National-Laboratory/Frhodo/issues"
+
+[project.optional-dependencies]
+compute = ["matplotlib", "numba"]
+gui = ["PyQt5", "matplotlib", "numba"]
+optimize = ["pygmo; sys_platform != 'win32'"]
+dev = ["pytest", "pytest-qt", "pyright"]
+train = ["torch"]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu124", marker = "extra == 'train'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[project.scripts]
+frhodo = "frhodo.app:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/frhodo"]
+include = ["src/frhodo/**/*.npz"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "gui: requires Qt; runs offscreen",
+    "slow: long-running scientific or optimization tests",
+]
+
+[tool.ruff.lint]
+select = ["FA"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/frhodo/_vendor/*" = ["ALL"]
+
+[tool.pyright]
+include = [
+    "src/frhodo/api.py",
+    "src/frhodo/common/config.py",
+    "src/frhodo/common/errors.py",
+    "src/frhodo/experiment/data.py",
+    "src/frhodo/simulation/shock/state.py",
+    "src/frhodo/optimize/cost/settings.py",
+    "src/frhodo/optimize/orchestrator.py",
+]
+reportMissingTypeStubs = "none"
+reportUnknownMemberType = "warning"
+reportUnknownArgumentType = "warning"
+reportUnknownVariableType = "warning"
+reportUnknownParameterType = "warning"
+reportMissingParameterType = "warning"
+reportMissingTypeArgument = "warning"
