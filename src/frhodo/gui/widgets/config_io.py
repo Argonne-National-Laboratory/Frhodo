@@ -224,3 +224,11 @@ class GUI_settings:
 
         cfg.plot.x_scale = parent.plot.signal.ax[1].get_xscale()
         cfg.plot.y_scale = parent.plot.signal.ax[1].get_yscale()
+
+        cfg.window.maximized = parent.isMaximized()
+        if not parent.isMaximized():
+            cfg.window.width = parent.width()
+            cfg.window.height = parent.height()
+        sizes = parent.splitter.sizes()
+        if sizes:
+            cfg.window.option_panel_width = sizes[0]

@@ -91,6 +91,12 @@ class Main(QMainWindow):
         within a grace period. Falls back to ``os._exit`` only if a
         worker still hasn't released after the timeout.
         """
+        if hasattr(self, "user_settings"):
+            try:
+                self.user_settings.save()  # persist window/panel geometry
+            except Exception:
+                pass  # a save failure must never block shutdown
+
         if hasattr(self, "optimize"):
             self.optimize.abort_workers()
 
@@ -114,7 +120,6 @@ class Main(QMainWindow):
         )
         self.path_set = settings.Path(self, path)
         uic.loadUi(str(self.runtime_paths.package / "ui" / "main_window.ui"), self)  # ~0.4 sec
-        self.splitter.moveSplitter(0, 1)  # moves splitter 0 as close to 1 as possible
         self.setWindowIcon(
             QtGui.QIcon(str(self.runtime_paths.graphics / "main_icon.png"))
         )
@@ -175,6 +180,7 @@ class Main(QMainWindow):
 
         self.user_settings = config_io.GUI_settings(self)
         self.user_settings.load()
+        self._restore_window_layout()
 
         self.load_state.load_full_series = self.load_full_series_box.isChecked()
 
@@ -194,6 +200,32 @@ class Main(QMainWindow):
         self.run_control.run_block = False
         self.run_single()
         msgBox.close()
+
+    def _restore_window_layout(self):
+        """Apply the saved window size and options-panel width.
+
+        On first run (no saved width) the panel is sized to the tab
+        bar's preferred width at the current DPI so all tabs show
+        without scroll buttons; the minimum width is the lower bound.
+        """
+        win_cfg = self.user_settings.config.window
+
+        if win_cfg.maximized:
+            self.showMaximized()
+        elif win_cfg.width and win_cfg.height:
+            self.resize(win_cfg.width, win_cfg.height)
+
+        self.app.processEvents()
+
+        floor = self.option_tab_widget.minimumWidth()
+        if win_cfg.option_panel_width:
+            panel_width = max(win_cfg.option_panel_width, floor)
+        else:
+            tab_bar = self.option_tab_widget.tabBar()
+            panel_width = max(tab_bar.sizeHint().width() + 24, floor)
+
+        total = self.splitter.width()
+        self.splitter.setSizes([panel_width, max(1, total - panel_width)])
 
     def load_mech(self, event=None):
         def mechhasthermo(mech_path):

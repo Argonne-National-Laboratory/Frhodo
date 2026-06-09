@@ -843,10 +843,10 @@ class Mix_Table(QtCore.QObject):
 
         header = self.table.horizontalHeader()
         header.setStyleSheet(" ".join(stylesheet))
-        header.setSectionResizeMode(0, QtWidgets.QHeaderView.Interactive)
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.Fixed)
-        header.resizeSection(2, 60)  # Force size of Mol Frac column
+        header.resizeSection(2, 64)  # Force size of Mol Frac column
         header.setFixedHeight(24)
 
         self.setItems(species=[], exp_mix=[], alias=[])

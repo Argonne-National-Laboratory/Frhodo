@@ -119,6 +119,18 @@ class SessionSettings(BaseModel):
     last_session_file: str = ""
 
 
+class WindowSettings(BaseModel):
+    """Persisted main-window geometry and options-panel width.
+
+    ``None`` width/height means no saved size yet (first run); the
+    options panel then sizes to fit the tab bar at the current DPI.
+    """
+    width: PositiveInt | None = None
+    height: PositiveInt | None = None
+    maximized: bool = False
+    option_panel_width: PositiveInt | None = None
+
+
 class FrhodoConfig(BaseModel):
     """Root model for ``default_config.yaml``.
 
@@ -133,6 +145,7 @@ class FrhodoConfig(BaseModel):
     optimization: OptimizationSettings = Field(default_factory=OptimizationSettings)
     plot: PlotSettings = Field(default_factory=PlotSettings)
     session: SessionSettings = Field(default_factory=SessionSettings)
+    window: WindowSettings = Field(default_factory=WindowSettings)
 
     model_config = ConfigDict(extra="ignore", validate_assignment=True)
 
