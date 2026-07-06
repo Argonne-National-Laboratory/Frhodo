@@ -39,7 +39,6 @@ class OptimizeRunInputs:
     time_unc: float
     cost_settings: "CostSettings"
     opt_settings_optimize: dict
-    dist: Any
     multiprocessing: bool = True
     max_processors: int = 1
     random_t_uncertainty: bool = True

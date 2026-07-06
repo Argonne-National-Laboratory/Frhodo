@@ -64,6 +64,32 @@ class TestRegularizedShifts:
             f"(noise={noise_c:.2e}, T={T_c:.2e})"
         )
 
+    def test_small_window_gives_distinct_converged_shifts(self):
+        """At a realistic 0.5 µs window with collinear features, every
+        CV path fit must converge (no ConvergenceWarning) and the model
+        must produce per-shock shifts — not one shared intercept."""
+        import warnings
+
+        from sklearn.exceptions import ConvergenceWarning
+
+        rng = np.random.default_rng(0)
+        conds, T = _synthetic_conditions(20, rng)
+        dt_true = 2.0e-7 + 2.5e-7 * (T - 1500.0) / 500.0
+        t_star = dt_true + rng.normal(0.0, 8.0e-8, T.size)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ConvergenceWarning)
+            shifts, info = regularized_shifts(conds, t_star, t_unc=5.0e-7)
+
+        assert info["model"] is not None
+        spread = np.ptp(shifts)
+        assert spread > 0.5 * np.ptp(dt_true), (
+            f"shifts collapsed toward one shared value: spread "
+            f"{spread:.3g}s vs true spread {np.ptp(dt_true):.3g}s"
+        )
+        r = np.corrcoef(shifts, dt_true)[0, 1]
+        assert r > 0.9, f"shifts should track the true trend (r={r:.3f})"
+
     def test_predictions_clamped_to_t_unc(self):
         rng = np.random.default_rng(2)
         conds, T = _synthetic_conditions(30, rng)

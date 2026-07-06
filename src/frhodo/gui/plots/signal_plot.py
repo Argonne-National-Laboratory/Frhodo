@@ -175,10 +175,28 @@ class Plot(Base_Plot):
             [], [], color="0", facecolors="0", linewidth=0.5, alpha=0.85, zorder=2
         )
         self.ax[1].item["sim_data"] = self.ax[1].add_line(
-            mpl.lines.Line2D([], [], c="#0C94FC", zorder=4)
+            mpl.lines.Line2D([], [], c="#0C94FC", zorder=4, label="Simulation")
         )
         self.ax[1].item["history_data"] = []
         self.lastRxnNum = None
+
+        # Optimization overlay: per-shock start / best / current sim traces
+        # populated during a run and navigable afterward. Hidden until the
+        # Optimization-tab checkbox turns them on.
+        self.ax[1].item["opt_start"] = self.ax[1].add_line(
+            mpl.lines.Line2D([], [], c="0.5", ls="--", lw=1.2, zorder=2.5,
+                             visible=False, label="Start")
+        )
+        self.ax[1].item["opt_best"] = self.ax[1].add_line(
+            mpl.lines.Line2D([], [], c="#2CA02C", lw=1.6, zorder=3.0,
+                             visible=False, label="Best")
+        )
+        self.ax[1].item["opt_current"] = self.ax[1].add_line(
+            mpl.lines.Line2D([], [], c="#FF7F0E", lw=1.0, alpha=0.7, zorder=2.7,
+                             visible=False, label="Current")
+        )
+        self._opt_overlay = {}
+        self._opt_overlay_visible = False
 
         self.ax[1].text(
             0.5,
@@ -566,6 +584,101 @@ class Plot(Base_Plot):
         self.ax[1].item["sim_data"].set_xdata([])
         self.ax[1].item["sim_data"].set_ydata([])
 
+    def _opt_overlay_lines(self):
+        lines = {
+            "start": self.ax[1].item["opt_start"],
+            "best": self.ax[1].item["opt_best"],
+            "current": self.ax[1].item["opt_current"],
+        }
+
+        return lines
+
+    def _sync_sim_legend(self):
+        """Show a legend only while multiple simulations are drawn: the
+        optimization overlay and/or populated history lines. A lone live
+        sim trace carries no legend."""
+        handles = [
+            line for line in self._opt_overlay_lines().values()
+            if line.get_visible()
+        ]
+        for entry in self.ax[1].item["history_data"]:
+            if entry["rxnNum"] is not None and len(entry["line"].get_xdata()):
+                handles.append(entry["line"])
+        sim_data = self.ax[1].item["sim_data"]
+        if handles and sim_data.get_visible():
+            handles.append(sim_data)
+
+        legend = self.ax[1].get_legend()
+        if len(handles) >= 2:
+            cb_pos = self.cbax.get_position()
+            self.ax[1].legend(handles=handles, loc="upper right",
+                              bbox_to_anchor=(cb_pos.x0 - 0.005, cb_pos.y1),
+                              bbox_transform=self.fig.transFigure,
+                              fontsize="small", frameon=False)
+        elif legend is not None:
+            legend.remove()
+
+    def reset_opt_overlay(self):
+        """Drop the stashed run traces and blank the overlay lines."""
+        self._opt_overlay = {}
+        for line in self._opt_overlay_lines().values():
+            line.set_xdata([])
+            line.set_ydata([])
+            line.set_visible(False)
+        self.ax[1].item["sim_data"].set_visible(True)
+        self._sync_sim_legend()
+
+    def ingest_opt_traces(self, sim_traces):
+        """Merge shipped per-shock start/best/current traces into the stash,
+        keyed by shock number. Absent kinds keep their cached copy."""
+        if not sim_traces:
+            return
+        for kind in ("start", "best", "current"):
+            traces = sim_traces.get(kind)
+            if traces is None:
+                continue
+            for tr in traces:
+                slot = self._opt_overlay.setdefault(int(tr["num"]), {})
+                slot[kind] = (
+                    np.asarray(tr["t"], dtype=float),
+                    np.asarray(tr["obs"], dtype=float),
+                    float(tr["t_offset"]),
+                )
+
+    def refresh_opt_overlay(self):
+        """Set the displayed shock's start/best/current overlay lines from
+        the stash. Lines stay hidden when the overlay is off or the shock
+        has no stashed trace. While the overlay draws, the live sim trace
+        hides — its content duplicates the overlay's ``current`` line."""
+        num = getattr(self.parent.display_shock, "num", None)
+        if num is None:
+            slot = None
+        else:
+            slot = self._opt_overlay.get(int(num))
+        drawing = False
+        for kind, line in self._opt_overlay_lines().items():
+            if slot is not None:
+                entry = slot.get(kind)
+            else:
+                entry = None
+            if self._opt_overlay_visible and entry is not None:
+                t, obs, t_offset = entry
+                line.set_xdata(t + t_offset)
+                line.set_ydata(obs)
+                line.set_visible(True)
+                drawing = True
+            else:
+                line.set_visible(False)
+        self.ax[1].item["sim_data"].set_visible(not drawing)
+        self._sync_sim_legend()
+
+    def set_opt_overlay_visible(self, visible):
+        """Toggle the overlay; repaints immediately when the Signal/Sim
+        tab is showing, otherwise the next tab switch paints it."""
+        self._opt_overlay_visible = bool(visible)
+        self.refresh_opt_overlay()
+        self._draw_event()
+
     def update_sim(self, t, observable, rxnChanged=False):
         time_offset = self.parent.display_shock.time_offset
         exp_data = self.parent.display_shock.exp_data
@@ -608,7 +721,9 @@ class Plot(Base_Plot):
             for n in range(0, len(line)):
                 line[n]["line"].set_xdata([])
                 line[n]["line"].set_ydata([])
+                line[n]["line"].set_label("_history")
                 line[n]["rxnNum"] = None
+            self._sync_sim_legend()
 
         numHist = self.parent.num_sim_lines_box.value()
         rxnHist = self.parent.rxn_change_history
@@ -642,5 +757,7 @@ class Plot(Base_Plot):
 
         hist = self.ax[1].item["history_data"][n]
         hist["rxnNum"] = rxnHist[-1]
+        hist["line"].set_label(f"R{rxnHist[-1] + 1}")
         hist["line"].set_xdata(self.ax[1].item["sim_data"].get_xdata())
         hist["line"].set_ydata(self.ax[1].item["sim_data"].get_ydata())
+        self._sync_sim_legend()

@@ -618,8 +618,6 @@ def optimize_residual(
         :class:`OptimizationResult`. Always populated even on abort
         or failure; check ``success`` and ``aborted``.
     """
-    import scipy.stats
-
     from frhodo.simulation.mechanism.coef_helpers import rates as compute_rates
     from frhodo.optimize.parameters import build_rxn_coef_opt, build_rxn_rate_opt
 
@@ -678,7 +676,6 @@ def optimize_residual(
         time_unc=request.time_uncertainty,
         cost_settings=request.cost,
         opt_settings_optimize=request.algorithm.to_legacy_dict(),
-        dist=scipy.stats.norm,
         multiprocessing=request.multiprocessing,
         max_processors=request.max_processors,
         random_t_uncertainty=request.random_t_uncertainty,

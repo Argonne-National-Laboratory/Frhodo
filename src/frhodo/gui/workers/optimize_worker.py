@@ -15,6 +15,7 @@ import numpy as np
 from qtpy.QtCore import QObject, QRunnable, Signal, Slot
 
 from frhodo.api import OptimizationCallbacks, _run_optimization_engine
+from frhodo.gui.views import compute_arrhenius_lines
 from frhodo.optimize.residual import OptimizeRunInputs
 from frhodo.simulation.mechanism.coef_helpers import rates
 
@@ -43,9 +44,9 @@ class WorkerInputs:
     time_unc_random: bool
     max_processors: int
     multiprocessing: bool
-    dist: Any
     display_shock_provider: Callable[[], object]
     worker_pool: Any = None  # PersistentWorkerPool
+    view_context: Any = None  # frhodo.gui.views.ViewContext
 
 
 class Worker(QRunnable):
@@ -70,10 +71,28 @@ class Worker(QRunnable):
         margin = 1e-9 * (ub - lb)
         self.initial_scalers = np.clip(initial_scalers, lb + margin, ub - margin)
 
+    def _emit_update(self, update: dict) -> None:
+        """Augment the raw progress update with the view payload.
+
+        Runs synchronously inside the engine's progress callback — on
+        the optimizer thread, where the mechanism's coefficients match
+        the evaluation that produced the update — then hands the dict
+        to the queued Qt signal.
+        """
+        context = self.inputs.view_context
+        if context is not None and update.get("stat_plot"):
+            try:
+                update["views"] = compute_arrhenius_lines(
+                    self.inputs.mech, context, self.inputs.shocks2run,
+                )
+            except Exception:
+                update["views"] = {}
+        self.signals.update.emit(update)
+
     def optimize_coeffs(self):
         inputs = self.inputs
         callbacks = OptimizationCallbacks(
-            on_progress=self.signals.update.emit,
+            on_progress=self._emit_update,
             log=self.signals.log.emit,
             abort=lambda: self._abort,
             display_shock_provider=inputs.display_shock_provider,
@@ -90,7 +109,6 @@ class Worker(QRunnable):
             time_unc=inputs.time_unc_value,
             cost_settings=inputs.cost_settings,
             opt_settings_optimize=inputs.opt_settings,
-            dist=inputs.dist,
             multiprocessing=inputs.multiprocessing,
             max_processors=inputs.max_processors,
             random_t_uncertainty=inputs.time_unc_random,

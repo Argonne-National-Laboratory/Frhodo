@@ -294,7 +294,6 @@ def apply_auto_fit_time_offset(parent):
             loss_c=1.0,
             loss_alpha=2,
             full_bounds=(0.0, bound),
-            warm_start_t_unc=None,
         )
         if t_offset is None:
             return
@@ -1357,7 +1356,8 @@ class Optimization(QtCore.QObject):
 
     def _create_spinboxes(self):
         parent = self.parent()
-        layout = {"global": parent.global_opt_layout, "local": parent.local_opt_layout}
+        # Editors join the label grids at column 1 so every row lines up.
+        layout = {"global": parent.gridLayout_60, "local": parent.gridLayout_61}
         vars = {
             "global": {
                 "initial_step": 1e-2,
@@ -1393,7 +1393,7 @@ class Optimization(QtCore.QObject):
                     )
                     self.widgets[opt_type][var_type].setStrDecimals(1)
 
-                layout.addWidget(self.widgets[opt_type][var_type], n, 0)
+                layout.addWidget(self.widgets[opt_type][var_type], n, 1)
 
     def update_obj_fcn_settings(self, event=None):
         parent = self.parent()

@@ -269,12 +269,6 @@
                </item>
                <item row="2" column="0" rowspan="2">
                 <widget class="QTextEdit" name="exp_main_box">
-                 <property name="maximumSize">
-                  <size>
-                   <width>16777215</width>
-                   <height>62</height>
-                  </size>
-                 </property>
                  <property name="placeholderText">
                   <string>Select Experiment Directory</string>
                  </property>
@@ -362,12 +356,6 @@
                </item>
                <item row="1" column="0" rowspan="2">
                 <widget class="QPlainTextEdit" name="sim_main_box">
-                 <property name="maximumSize">
-                  <size>
-                   <width>16777215</width>
-                   <height>62</height>
-                  </size>
-                 </property>
                  <property name="placeholderText">
                   <string>Select Simulation Directory</string>
                  </property>
@@ -426,12 +414,6 @@
                </item>
                <item row="1" column="0" rowspan="2" colspan="2">
                 <widget class="QTextEdit" name="mech_main_box">
-                 <property name="maximumSize">
-                  <size>
-                   <width>16777215</width>
-                   <height>62</height>
-                  </size>
-                 </property>
                  <property name="html">
                   <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
@@ -469,14 +451,8 @@ p, li { white-space: pre-wrap; }
               </property>
              </widget>
             </item>
-            <item row="0" column="0" rowspan="3">
+            <item row="0" column="0" rowspan="4">
              <widget class="QTextEdit" name="path_file_box">
-              <property name="maximumSize">
-               <size>
-                <width>16777215</width>
-                <height>62</height>
-               </size>
-              </property>
               <property name="acceptDrops">
                <bool>false</bool>
               </property>
@@ -1336,6 +1312,10 @@ p, li { white-space: pre-wrap; }
                </item>
                <item row="0" column="0">
                 <widget class="QComboBox" name="reactor_select_box">
+                 <property name="toolTip">
+                  <string>Incident Shock Reactor simulates zone 2 behind the incident shock.
+The 0d reactors simulate zone 5 (reflected shock) as a homogeneous ideal state at T5/P5 — shock/boundary-layer interaction, bifurcation, dP5/dt rise, and zone-5 nonuniformity are not modeled.</string>
+                 </property>
                  <item>
                   <property name="text">
                    <string>Incident Shock Reactor</string>
@@ -1946,12 +1926,6 @@ p, li { white-space: pre-wrap; }
             <size>
              <width>298</width>
              <height>0</height>
-            </size>
-           </property>
-           <property name="maximumSize">
-            <size>
-             <width>298</width>
-             <height>16777215</height>
             </size>
            </property>
            <property name="frameShape">
@@ -2668,7 +2642,20 @@ p, li { white-space: pre-wrap; }
                    <string>Optimization</string>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_41">
-                   <item row="0" column="0">
+                   <item row="0" column="0" colspan="2">
+                    <widget class="QCheckBox" name="show_opt_overlay_box">
+                     <property name="toolTip">
+                      <string>Overlay each shock's start, best, and current simulated trace on the Signal/Sim plot. Auto-enabled when an optimization starts; navigate shocks there to compare.</string>
+                     </property>
+                     <property name="text">
+                      <string>Show sim overlay</string>
+                     </property>
+                     <property name="checked">
+                      <bool>false</bool>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="0" colspan="2">
                     <widget class="QCheckBox" name="multiprocessing_box">
                      <property name="text">
                       <string>Multiprocessing</string>
@@ -2678,12 +2665,18 @@ p, li { white-space: pre-wrap; }
                      </property>
                     </widget>
                    </item>
-                   <item row="1" column="0" rowspan="2" colspan="2">
+                   <item row="2" column="0" rowspan="2" colspan="2">
                     <widget class="QToolBox" name="opt_toolbox">
+                     <property name="sizePolicy">
+                      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                       <horstretch>0</horstretch>
+                       <verstretch>1</verstretch>
+                      </sizepolicy>
+                     </property>
                      <property name="minimumSize">
                       <size>
                        <width>0</width>
-                       <height>220</height>
+                       <height>320</height>
                       </size>
                      </property>
                      <property name="autoFillBackground">
@@ -2711,6 +2704,19 @@ p, li { white-space: pre-wrap; }
                        <string>Global Optimization</string>
                       </attribute>
                       <layout class="QGridLayout" name="gridLayout_42">
+                       <item row="2" column="0">
+                        <spacer name="global_opt_vspacer">
+                         <property name="orientation">
+                          <enum>Qt::Vertical</enum>
+                         </property>
+                         <property name="sizeHint" stdset="0">
+                          <size>
+                           <width>20</width>
+                           <height>10</height>
+                          </size>
+                         </property>
+                        </spacer>
+                       </item>
                        <item row="1" column="0">
                         <widget class="QFrame" name="frame_30">
                          <property name="frameShape">
@@ -2720,6 +2726,19 @@ p, li { white-space: pre-wrap; }
                           <enum>QFrame::Raised</enum>
                          </property>
                          <layout class="QGridLayout" name="gridLayout_60">
+                          <item row="0" column="2">
+                           <spacer name="global_opt_hspacer">
+                            <property name="orientation">
+                             <enum>Qt::Horizontal</enum>
+                            </property>
+                            <property name="sizeHint" stdset="0">
+                             <size>
+                              <width>10</width>
+                              <height>10</height>
+                             </size>
+                            </property>
+                           </spacer>
+                          </item>
                           <property name="leftMargin">
                            <number>0</number>
                           </property>
@@ -2785,45 +2804,6 @@ p, li { white-space: pre-wrap; }
                             </property>
                            </widget>
                           </item>
-                         </layout>
-                        </widget>
-                       </item>
-                       <item row="1" column="2">
-                        <widget class="QFrame" name="frame_21">
-                         <property name="sizePolicy">
-                          <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
-                           <horstretch>0</horstretch>
-                           <verstretch>0</verstretch>
-                          </sizepolicy>
-                         </property>
-                         <property name="minimumSize">
-                          <size>
-                           <width>15</width>
-                           <height>0</height>
-                          </size>
-                         </property>
-                         <property name="frameShape">
-                          <enum>QFrame::NoFrame</enum>
-                         </property>
-                         <property name="frameShadow">
-                          <enum>QFrame::Plain</enum>
-                         </property>
-                         <property name="lineWidth">
-                          <number>0</number>
-                         </property>
-                         <layout class="QGridLayout" name="global_opt_layout">
-                          <property name="leftMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="topMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="rightMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="bottomMargin">
-                           <number>0</number>
-                          </property>
                          </layout>
                         </widget>
                        </item>
@@ -2926,19 +2906,6 @@ p, li { white-space: pre-wrap; }
                          </layout>
                         </widget>
                        </item>
-                       <item row="1" column="1">
-                        <spacer name="horizontalSpacer_22">
-                         <property name="orientation">
-                          <enum>Qt::Horizontal</enum>
-                         </property>
-                         <property name="sizeHint" stdset="0">
-                          <size>
-                           <width>0</width>
-                           <height>20</height>
-                          </size>
-                         </property>
-                        </spacer>
-                       </item>
                       </layout>
                      </widget>
                      <widget class="QWidget" name="page_2">
@@ -2954,6 +2921,19 @@ p, li { white-space: pre-wrap; }
                        <string>Local Optimization</string>
                       </attribute>
                       <layout class="QGridLayout" name="gridLayout_47">
+                       <item row="2" column="0">
+                        <spacer name="local_opt_vspacer">
+                         <property name="orientation">
+                          <enum>Qt::Vertical</enum>
+                         </property>
+                         <property name="sizeHint" stdset="0">
+                          <size>
+                           <width>20</width>
+                           <height>10</height>
+                          </size>
+                         </property>
+                        </spacer>
+                       </item>
                        <item row="0" column="0" colspan="3">
                         <widget class="QFrame" name="frame_20">
                          <property name="frameShape">
@@ -3032,45 +3012,6 @@ p, li { white-space: pre-wrap; }
                          </layout>
                         </widget>
                        </item>
-                       <item row="1" column="2">
-                        <widget class="QFrame" name="frame_22">
-                         <property name="sizePolicy">
-                          <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
-                           <horstretch>0</horstretch>
-                           <verstretch>0</verstretch>
-                          </sizepolicy>
-                         </property>
-                         <property name="minimumSize">
-                          <size>
-                           <width>15</width>
-                           <height>0</height>
-                          </size>
-                         </property>
-                         <property name="frameShape">
-                          <enum>QFrame::NoFrame</enum>
-                         </property>
-                         <property name="frameShadow">
-                          <enum>QFrame::Plain</enum>
-                         </property>
-                         <property name="lineWidth">
-                          <number>0</number>
-                         </property>
-                         <layout class="QGridLayout" name="local_opt_layout">
-                          <property name="leftMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="topMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="rightMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="bottomMargin">
-                           <number>0</number>
-                          </property>
-                         </layout>
-                        </widget>
-                       </item>
                        <item row="1" column="0">
                         <widget class="QFrame" name="frame_31">
                          <property name="frameShape">
@@ -3080,6 +3021,19 @@ p, li { white-space: pre-wrap; }
                           <enum>QFrame::Raised</enum>
                          </property>
                          <layout class="QGridLayout" name="gridLayout_61">
+                          <item row="0" column="2">
+                           <spacer name="local_opt_hspacer">
+                            <property name="orientation">
+                             <enum>Qt::Horizontal</enum>
+                            </property>
+                            <property name="sizeHint" stdset="0">
+                             <size>
+                              <width>10</width>
+                              <height>10</height>
+                             </size>
+                            </property>
+                           </spacer>
+                          </item>
                           <property name="leftMargin">
                            <number>0</number>
                           </property>
@@ -3134,19 +3088,6 @@ p, li { white-space: pre-wrap; }
                           </item>
                          </layout>
                         </widget>
-                       </item>
-                       <item row="1" column="1">
-                        <spacer name="horizontalSpacer_23">
-                         <property name="orientation">
-                          <enum>Qt::Horizontal</enum>
-                         </property>
-                         <property name="sizeHint" stdset="0">
-                          <size>
-                           <width>0</width>
-                           <height>20</height>
-                          </size>
-                         </property>
-                        </spacer>
                        </item>
                       </layout>
                      </widget>
@@ -4322,28 +4263,82 @@ p, li { white-space: pre-wrap; }
            </property>
            <layout class="QGridLayout" name="gridLayout_43">
             <item row="0" column="1">
-             <widget class="QComboBox" name="comboBox">
+             <widget class="QDoubleSpinBox" name="arrhenius_P_value_box">
+              <property name="visible">
+               <bool>false</bool>
+              </property>
+              <property name="accelerated">
+               <bool>true</bool>
+              </property>
+              <property name="decimals">
+               <number>3</number>
+              </property>
+              <property name="minimum">
+               <double>0.000001000000000</double>
+              </property>
+              <property name="maximum">
+               <double>1000000000000.000000000000000</double>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="2">
+             <widget class="QComboBox" name="arrhenius_P_units_box">
+              <property name="visible">
+               <bool>false</bool>
+              </property>
+              <item>
+               <property name="text">
+                <string>[torr]</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>[Pa]</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>[kPa]</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>[psi]</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>[atm]</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>[bar]</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item row="0" column="3">
+             <widget class="QComboBox" name="opt_view_detail_box">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
-              <item>
-               <property name="text">
-                <string>Residuals Density Plot</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string>Residuals QQ Plot</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string>Standardized Residuals Plot</string>
-               </property>
-              </item>
+              <property name="visible">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="4">
+             <widget class="QComboBox" name="opt_view_box">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
              </widget>
             </item>
             <item row="0" column="0">

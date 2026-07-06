@@ -149,7 +149,7 @@ class TestDegenerateTraceOutput:
             "wsse", "resid", "resid_outlier", "loss", "weights",
             "aggregate_weights", "obs_sim_interp", "obs_exp", "obs_bounds",
             "shock", "independent_var", "observable", "t_unc",
-            "loss_alpha", "KDE",
+            "loss_alpha",
         }
         assert required <= set(out.keys()), required - set(out.keys())
 

@@ -452,6 +452,7 @@ class series:
         parent.series_viewer.update(self.shock_idx)
 
         if parent.display_shock.exp_data.size > 0:
+            parent.plot.signal.refresh_opt_overlay()
             parent.plot.signal.update(update_lim=True)
         else:
             parent.plot.signal.clear_plot()

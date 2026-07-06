@@ -83,16 +83,27 @@ class Base_Plot(QtCore.QObject):
         self.mpl_layout.addWidget(self.canvas)
         self.canvas.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.canvas.draw()
+        self._decorate_axes()
 
-        # Set scales
+    def _decorate_axes(self):
+        """Attach the blit attributes to ``self.ax`` and snapshot the
+        background. Call after (re)building the axes on a drawn canvas.
+        """
+        self._set_blit_attrs()
+        self.background_data = self.canvas.copy_from_bbox(self.ax[-1].bbox)
+
+    def _set_blit_attrs(self):
+        """Per-axes scale/animation attributes the blit machinery reads.
+
+        Pure attribute assignment — needs no drawn canvas, so axes are
+        safe for a ``draw_event`` the moment they are built, not only
+        after the background snapshot.
+        """
         scales = {"linear": True, "log": 0, "abslog": 0, "bisymlog": 0}
         for ax in self.ax:
             ax.scale = {"x": scales, "y": deepcopy(scales)}
             ax.ticklabel_format(scilimits=(-3, 4), useMathText=True)
             ax.animateAxisLabels = False
-
-        # Get background
-        self.background_data = self.canvas.copy_from_bbox(ax.bbox)
 
     def _find_calling_axes(self, event):
         for axes in self.ax:  # identify calling axis

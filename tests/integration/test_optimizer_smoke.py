@@ -10,7 +10,6 @@ import multiprocessing as mp
 import cantera as ct
 import numpy as np
 import pytest
-import scipy.stats
 
 from frhodo.experiment import ExperimentalShock
 from frhodo.simulation.shock.state import RuntimeReactorState
@@ -407,7 +406,6 @@ def _make_fit_fun(
             bayes_unc_sigma=2.0,
         ),
         opt_settings_optimize={},
-        dist=scipy.stats.norm,
         multiprocessing=multiprocessing,
         max_processors=1,
         random_t_uncertainty=random_t_uncertainty,
@@ -452,7 +450,6 @@ class TestFitFunConstruction:
         assert fit_fun.mech is mech
         assert fit_fun.coef_opt is coef_opt
         assert fit_fun.t_unc == (0.0, 0.0)
-        assert fit_fun.dist is scipy.stats.norm
 
     def test_no_parent_attribute(self, optimizer_setup):
         mech, coef_opt, rxn_coef_opt, rxn_rate_opt, _ = optimizer_setup

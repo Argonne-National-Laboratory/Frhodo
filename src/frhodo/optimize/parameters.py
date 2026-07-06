@@ -334,8 +334,10 @@ def build_rxn_rate_opt(mech, rxn_coef_opt: list[dict]) -> dict:
     rxn_rate_opt["x0"] = rates(rxn_coef_opt, mech)
 
     bnds = np.array([[], []])
-    for i, rxn_coef in enumerate(rxn_coef_opt):
+    pos = 0
+    for rxn_coef in rxn_coef_opt:
         rxnIdx = rxn_coef["rxnIdx"]
+        n_anchor = len(rxn_coef["T"])
         rxn = mech.gas.reaction(rxnIdx)
         if type(rxn.rate) in [
             ct.PlogRate, ct.ChebyshevRate, ct.FalloffRate,
@@ -359,15 +361,16 @@ def build_rxn_rate_opt(mech, rxn_coef_opt: list[dict]) -> dict:
                                 mech.coeffs_bnds[rxnIdx][coef_type_key][n]["resetVal"]
                                 for n in arrhenius_coefNames
                             ]
-                            rxn_rate_opt["x0"][i + n] = (
+                            rxn_rate_opt["x0"][pos + n] = (
                                 np.log(x[1]) + x[2] * np.log(T) - x[0] / (Ru * T)
                             )
 
-        ln_rate = rxn_rate_opt["x0"][i : i + len(rxn_coef["T"])]
+        ln_rate = rxn_rate_opt["x0"][pos : pos + n_anchor]
         rxn_coef_bnds = mech.rate_bnds[rxnIdx]["limits"](np.exp(ln_rate))
         rxn_coef_bnds = np.sort(np.log(rxn_coef_bnds), axis=0)
         scaled_rxn_coef_bnds = rxn_coef_bnds - ln_rate
         bnds = np.concatenate((bnds, scaled_rxn_coef_bnds), axis=1)
+        pos += n_anchor
 
     rxn_rate_opt["bnds"] = {"lower": bnds[0, :], "upper": bnds[1, :]}
     mech.coeffs = prior_coeffs

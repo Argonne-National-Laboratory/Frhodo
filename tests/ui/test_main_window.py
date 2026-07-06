@@ -5,7 +5,14 @@ GUI uses. This is the catch-net for issues like the matplotlib
 ``set_xdata(scalar)`` break or qtpy import errors that would otherwise
 only surface when a user clicks a button.
 """
+import numpy as np
 import pytest
+from qtpy import QtCore
+
+from frhodo.gui.plots.optimization_plot import VIEW_LABELS
+from frhodo.gui.views.events import ViewContext
+
+
 
 pytestmark = pytest.mark.gui
 
@@ -198,3 +205,465 @@ class TestPathShockStep:
         main_window.shock_selection.current = 5
         idx = main_window.path_set.shock([1, 2, 3])
         assert idx == 2, f"jump to shock 5 in [1,2,3] should clamp to idx 2; got {idx}"
+
+
+class TestDirectoryBoxSizing:
+    """The Files-tab text boxes hold a fixed number of text lines,
+    derived from font metrics so display scaling carries through."""
+
+    @pytest.mark.parametrize("box_name, n_lines", [
+        ("exp_main_box", 4),
+        ("mech_main_box", 4),
+        ("sim_main_box", 4),
+        ("path_file_box", 5),
+    ])
+    def test_box_fits_its_line_count(self, main_window, box_name, n_lines):
+        box = getattr(main_window, box_name)
+        assert box.minimumHeight() == box.maximumHeight(), (
+            f"{box_name} height must be fixed"
+        )
+        chrome = 2 * (box.frameWidth() + int(box.document().documentMargin()))
+        content = box.maximumHeight() - chrome
+        line = box.fontMetrics().lineSpacing()
+        assert n_lines * line <= content < (n_lines + 1) * line, (
+            f"{box_name}: content height {content}px should fit exactly "
+            f"{n_lines} lines of {line}px"
+        )
+
+
+class TestOptOverlay:
+    """The start/best/current sim overlay on the signal plot: stash,
+    toggle, time offset, and per-shock selection."""
+
+    def _traces(self, num, t_offset=0.0):
+        t = np.linspace(0.0, 1e-4, 20)
+        traces = {
+            "start": [{"num": num, "t": t, "obs": np.full(20, 1.0),
+                       "t_offset": t_offset}],
+            "best": [{"num": num, "t": t, "obs": np.full(20, 2.0),
+                      "t_offset": t_offset}],
+            "current": [{"num": num, "t": t, "obs": np.full(20, 3.0),
+                         "t_offset": t_offset}],
+        }
+
+        return traces
+
+    def test_overlay_hidden_until_enabled(self, main_window):
+        sig = main_window.plot.signal
+        num = main_window.display_shock.num
+        sig.reset_opt_overlay()
+        sig.ingest_opt_traces(self._traces(num))
+        sig.refresh_opt_overlay()
+        for line in sig._opt_overlay_lines().values():
+            assert not line.get_visible()
+
+    def test_enabled_overlay_shows_displayed_shock(self, main_window):
+        sig = main_window.plot.signal
+        num = main_window.display_shock.num
+        sig.reset_opt_overlay()
+        sig.ingest_opt_traces(self._traces(num))
+        sig.set_opt_overlay_visible(True)
+        lines = sig._opt_overlay_lines()
+        for line in lines.values():
+            assert line.get_visible()
+        np.testing.assert_allclose(lines["best"].get_ydata(), 2.0)
+        np.testing.assert_allclose(lines["current"].get_ydata(), 3.0)
+        assert not sig.ax[1].item["sim_data"].get_visible(), (
+            "live sim trace must hide while the overlay draws"
+        )
+
+    def test_disable_hides_but_keeps_stash(self, main_window):
+        sig = main_window.plot.signal
+        num = main_window.display_shock.num
+        sig.reset_opt_overlay()
+        sig.ingest_opt_traces(self._traces(num))
+        sig.set_opt_overlay_visible(True)
+        sig.set_opt_overlay_visible(False)
+        for line in sig._opt_overlay_lines().values():
+            assert not line.get_visible()
+        assert sig.ax[1].item["sim_data"].get_visible(), (
+            "live sim trace must return when the overlay is disabled"
+        )
+        assert int(num) in sig._opt_overlay, "stash must survive disabling"
+
+    def test_blank_for_shock_without_stash(self, main_window):
+        sig = main_window.plot.signal
+        num = main_window.display_shock.num
+        sig.reset_opt_overlay()
+        sig.ingest_opt_traces(self._traces(int(num) + 1000))
+        sig.set_opt_overlay_visible(True)
+        for line in sig._opt_overlay_lines().values():
+            assert not line.get_visible()
+        assert sig.ax[1].item["sim_data"].get_visible(), (
+            "live sim trace must stay visible when the overlay has no "
+            "trace for the displayed shock"
+        )
+
+    def test_time_offset_shifts_xdata(self, main_window):
+        sig = main_window.plot.signal
+        num = main_window.display_shock.num
+        t = np.linspace(0.0, 1e-4, 20)
+        sig.reset_opt_overlay()
+        sig.ingest_opt_traces(self._traces(num, t_offset=5e-6))
+        sig.set_opt_overlay_visible(True)
+        np.testing.assert_allclose(
+            sig._opt_overlay_lines()["start"].get_xdata(), t + 5e-6,
+        )
+
+    def test_best_delta_merges_without_dropping_start(self, main_window):
+        """A 'best'-only delta merges into the stash; kinds absent from
+        the delta keep their cached start/current entries."""
+        sig = main_window.plot.signal
+        num = main_window.display_shock.num
+        sig.reset_opt_overlay()
+        sig.ingest_opt_traces(self._traces(num))
+        t = np.linspace(0.0, 1e-4, 20)
+        sig.ingest_opt_traces(
+            {"best": [{"num": num, "t": t, "obs": np.full(20, 9.0),
+                       "t_offset": 0.0}]}
+        )
+        slot = sig._opt_overlay[int(num)]
+        assert set(slot) == {"start", "best", "current"}
+        np.testing.assert_allclose(slot["best"][1], 9.0)
+        np.testing.assert_allclose(slot["start"][1], 1.0)
+
+
+class TestSimLegend:
+    """The signal plot shows a legend only while multiple simulations
+    are drawn (the optimization overlay); a lone live trace has none."""
+
+    def _traces(self, num):
+        t = np.linspace(0.0, 1e-4, 20)
+        traces = {
+            kind: [{"num": num, "t": t, "obs": np.full(20, y),
+                    "t_offset": 0.0}]
+            for kind, y in (("start", 1.0), ("best", 2.0), ("current", 3.0))
+        }
+
+        return traces
+
+    def test_legend_appears_with_overlay(self, main_window):
+        sig = main_window.plot.signal
+        num = main_window.display_shock.num
+        sig.reset_opt_overlay()
+        sig.ingest_opt_traces(self._traces(num))
+        sig.set_opt_overlay_visible(True)
+        legend = sig.ax[1].get_legend()
+        assert legend is not None, "overlay must bring up the legend"
+        labels = [t.get_text() for t in legend.get_texts()]
+        assert labels == ["Start", "Best", "Current"]
+
+    def test_legend_hides_without_overlay(self, main_window):
+        sig = main_window.plot.signal
+        num = main_window.display_shock.num
+        sig.reset_opt_overlay()
+        sig.ingest_opt_traces(self._traces(num))
+        sig.set_opt_overlay_visible(True)
+        sig.set_opt_overlay_visible(False)
+        assert sig.ax[1].get_legend() is None, (
+            "a lone live trace must not carry a legend"
+        )
+
+
+class TestViewZoomPersistence:
+    """Zoom/pan on an optimization view survives switching views; Home
+    returns to autoscale."""
+
+    def _seed_history(self, main_window):
+        diag = {
+            "T": [1500.0], "P": [8000.0],
+            "loss_raw": [0.02], "loss_raw_start": [0.05],
+            "sigma_bar": [0.01], "z": [0.1], "irls_weights": [1.0],
+            "coverage": [1.0], "user": [1.0], "trim_weights": [1.0],
+            "t_unc": [2e-7], "t_unc_star": [2e-7],
+            "t_unc_mode": "independent", "t_unc_bounds": [-1e-6, 1e-6],
+            "t_offset_base": [0.0],
+        }
+        update = {
+            "i": 1, "type": "local", "obj_fcn": 2.0, "s": [0.0],
+            "stat_plot": {"per_shock": diag, "shocks2run": [{"num": 1}]},
+        }
+        main_window.plot.opt.record_iteration(update, is_best=True)
+
+    def test_zoom_survives_view_switch(self, main_window):
+        opt = main_window.plot.opt
+        self._seed_history(main_window)
+        opt._view_changed("Objective Trace")
+        ax = opt._active_ax()
+        ax.set_xlim(0.25, 0.75)
+        ax.set_ylim(1.5, 2.5)
+
+        opt._view_changed("Misfit Map")
+        opt._view_changed("Objective Trace")
+        ax = opt._active_ax()
+        assert ax.get_xlim() == pytest.approx((0.25, 0.75)), (
+            "user xlim must survive the round trip"
+        )
+        assert ax.get_ylim() == pytest.approx((1.5, 2.5))
+
+    def test_home_restores_autoscale_and_reenables_it(self, main_window):
+        opt = main_window.plot.opt
+        self._seed_history(main_window)
+        opt._view_changed("Objective Trace")
+        ax = opt._active_ax()
+        home_xlim = ax.get_xlim()
+        ax.set_xlim(0.25, 0.75)
+        opt.toolbar.home()
+        assert ax.get_xlim() == pytest.approx(home_xlim), (
+            "Home must restore the autoscaled limits"
+        )
+        state = opt._view_state["objective_trace"]
+        assert not state.get("user_x") and not state.get("user_y"), (
+            "returning to Home must hand control back to autoscale"
+        )
+
+    def test_home_mid_run_tracks_live_autoscale(self, main_window):
+        """Home pressed after the autoscale has moved must restore the
+        CURRENT autoscale, not the view-switch snapshot — a stale
+        restore reads as a user zoom and freezes the trace for the
+        rest of the run (seen at the global -> local transition)."""
+        opt = main_window.plot.opt
+        opt.attach_run_context(None)
+        opt._view_changed("Objective Trace")
+        for j in range(5):
+            self._seed_history(main_window)
+            opt.refresh()
+        ax = opt._active_ax()
+        live_xlim = ax.get_xlim()
+        opt.toolbar.home()
+        assert ax.get_xlim() == pytest.approx(live_xlim), (
+            f"Home must land on the live autoscale, got {ax.get_xlim()}"
+        )
+        state = opt._view_state["objective_trace"]
+        assert not state.get("user_x") and not state.get("user_y")
+
+        for j in range(15):
+            self._seed_history(main_window)
+            opt.refresh()
+        assert ax.get_xlim()[1] > live_xlim[1], (
+            f"limits must keep tracking after Home, stuck at {ax.get_xlim()}"
+        )
+
+    def test_home_and_back_after_run_end_show_full_extent(self, main_window):
+        """With no refresh cadence left (run over), Home and Back must
+        still land on the full-data autoscale, not a stale window."""
+        opt = main_window.plot.opt
+        opt.attach_run_context(None)
+        opt._view_changed("Objective Trace")
+        for j in range(5):
+            self._seed_history(main_window)
+            opt.refresh()
+        ax = opt._active_ax()
+        # More data arrives, then the run ends without a final refresh
+        # while the user is zoomed in.
+        ax.set_xlim(0.25, 0.75)
+        opt.toolbar.push_current()
+        for j in range(15):
+            self._seed_history(main_window)
+
+        opt.toolbar.back()
+        assert ax.get_xlim()[1] >= 20, (
+            f"Back must land on the live full extent, got {ax.get_xlim()}"
+        )
+
+        ax.set_xlim(0.25, 0.75)
+        opt.toolbar.push_current()
+        opt.toolbar.home()
+        assert ax.get_xlim()[1] >= 20, (
+            f"Home must land on the live full extent, got {ax.get_xlim()}"
+        )
+
+    def test_y_zoom_keeps_x_extending_mid_run(self, main_window):
+        opt = main_window.plot.opt
+        opt.attach_run_context(None)
+        opt._view_changed("Objective Trace")
+        for j in range(5):
+            self._seed_history(main_window)
+            opt.refresh()
+        ax = opt._active_ax()
+        x_before = ax.get_xlim()[1]
+        ax.set_ylim(1.5, 2.5)
+        for j in range(15):
+            self._seed_history(main_window)
+            opt.refresh()
+        assert ax.get_xlim()[1] > x_before, (
+            f"x must keep extending under a y-only zoom, got {ax.get_xlim()}"
+        )
+        assert ax.get_ylim() == pytest.approx((1.5, 2.5)), (
+            "the y zoom must hold across refreshes"
+        )
+
+    def test_back_returns_from_zoom_mid_run(self, main_window):
+        """Cadence refreshes while zoomed must not wipe the nav stack:
+        Back still has the zoom entry to return from."""
+        opt = main_window.plot.opt
+        opt.attach_run_context(None)
+        opt._view_changed("Objective Trace")
+        for j in range(5):
+            self._seed_history(main_window)
+            opt.refresh()
+        ax = opt._active_ax()
+        ax.set_xlim(0.25, 0.75)
+        ax.set_ylim(1.5, 2.5)
+        opt.toolbar.push_current()
+        for j in range(5):
+            self._seed_history(main_window)
+            opt.refresh()
+
+        opt.toolbar.back()
+        assert ax.get_xlim()[1] > 0.75, (
+            f"Back must leave the zoom window, got {ax.get_xlim()}"
+        )
+
+    def test_home_clears_y_freeze_mid_run(self, main_window):
+        """Home while a y-only zoom is active must return y to the live
+        autoscale and keep it tracking afterwards."""
+        opt = main_window.plot.opt
+        opt.attach_run_context(None)
+        opt._view_changed("Objective Trace")
+        for j in range(5):
+            self._seed_history(main_window)
+            opt.refresh()
+        ax = opt._active_ax()
+        ax.set_ylim(1.5, 2.5)
+        for j in range(5):
+            self._seed_history(main_window)
+            opt.refresh()
+
+        opt.toolbar.home()
+        assert ax.get_ylim() != pytest.approx((1.5, 2.5)), (
+            "Home must release the y zoom"
+        )
+        state = opt._view_state["objective_trace"]
+        assert not state.get("user_x") and not state.get("user_y")
+        assert ax.get_autoscaley_on(), (
+            "y autoscale must be re-enabled after Home"
+        )
+        x_at_home = ax.get_xlim()[1]
+        for j in range(5):
+            self._seed_history(main_window)
+            opt.refresh()
+        assert ax.get_xlim()[1] > x_at_home, (
+            f"x must keep tracking after Home, got {ax.get_xlim()}"
+        )
+
+    def test_unzoomed_view_keeps_autoscaling(self, main_window):
+        opt = main_window.plot.opt
+        self._seed_history(main_window)
+        opt._view_changed("Objective Trace")
+        opt._view_changed("Misfit Map")
+        opt._view_changed("Objective Trace")
+        state = opt._view_state["objective_trace"]
+        assert not state.get("user_x") and not state.get("user_y"), (
+            "switching alone must not freeze the view's limits"
+        )
+
+
+class TestOptimizationViewSwitching:
+    """The Optimization-tab view selector routes every entry through
+    the ViewRouter; the base blit machinery is inert (no legacy axes)."""
+
+    def _select_optimization_tab(self, main_window):
+        tabs = main_window.plot_tab_widget
+        for i in range(tabs.count()):
+            if tabs.tabText(i) == "Optimization":
+                tabs.setCurrentIndex(i)
+
+                return
+
+    def test_boot_default_is_objective_trace(self, main_window):
+        box = main_window.opt_view_box
+        assert box.currentText() == "Objective Trace"
+        assert main_window.plot.opt.router.active_name == "objective_trace"
+
+    def test_blit_machinery_is_inert(self, main_window):
+        """The base draw path must never touch router-owned axes."""
+        opt = main_window.plot.opt
+        assert opt.ax == [], "the optimization plot owns no blit axes"
+        opt._draw_event()  # no-op by contract
+
+    def test_full_dropdown_cycle(self, main_window):
+        self._select_optimization_tab(main_window)
+        box = main_window.opt_view_box
+        labels = [box.itemText(i) for i in range(box.count())]
+        assert len(labels) == 6, f"expected six view entries, got {labels}"
+        assert labels[0] == "Objective Trace"
+        assert labels[1] == "Arrhenius with Bounds"
+        assert labels[2] == "Arrhenius Ratios (k / k₀)"
+        assert labels[3] == "Misfit Map"
+        contextual = {"arrhenius", "arrhenius_ratio"}
+        for label in labels + [labels[0]]:
+            box.setCurrentText(label)
+            key = VIEW_LABELS[label]
+            active = main_window.plot.opt.router.active_name
+            if key in contextual:
+                # These views exist only once a run context arrives.
+                assert active is None
+            else:
+                assert active == key
+
+    def test_attach_run_context_populates_selectors_and_renders(
+        self, main_window,
+    ):
+        """The run-start path: reaction selectors fill (ratio box all
+        checked), the pressure box takes the campaign reference, and the
+        new views render from a recorded event."""
+        self._select_optimization_tab(main_window)
+        opt = main_window.plot.opt
+        context = ViewContext(
+            param_labels=["R1 @ 1500 K", "R1 @ 1800 K"],
+            param_rxn=[0, 0],
+            lower_bounds=[-0.7, -0.7],
+            upper_bounds=[0.7, 0.7],
+            rxn_indices=[0],
+            rxn_equations=["A <=> B"],
+            rxn_is_pressure_dependent=[False],
+            rxn_band_halfwidth=[0.7],
+            T_grid=np.linspace(1400.0, 2000.0, 5).tolist(),
+            P_grid=[4000.0, 8000.0, 16000.0],
+            P_reference=8000.0,
+            ln_k_initial=[[[10.0] * 5] * 3],
+        )
+        opt.attach_run_context(context)
+        assert main_window.opt_view_detail_box.count() == 1
+        assert opt.ratio_box.count() == 1
+        assert opt.ratio_box.itemChecked(0) is True, (
+            "ratio box must start with every reaction checked"
+        )
+
+        diag = {
+            "T": [1600.0], "P": [8000.0],
+            "loss_raw": [0.02], "loss_raw_start": [0.05],
+            "sigma_bar": [0.01], "z": [0.1],
+            "irls_weights": [1.0], "coverage": [1.0],
+            "user": [1.0], "trim_weights": [1.0],
+            "t_unc": [2e-7], "t_unc_star": [3e-7],
+            "t_unc_bounds": [-1e-6, 1e-6], "t_offset_base": [5e-7],
+        }
+        update = {
+            "i": 1, "type": "local", "obj_fcn": 1.0, "s": [0.0, 0.1],
+            "stat_plot": {"per_shock": diag, "shocks2run": [{"num": 1}]},
+            "views": {"ln_k": [[[10.1] * 5] * 3]},
+        }
+        opt.record_iteration(update, is_best=True)
+
+        box = main_window.opt_view_box
+        for label in ("Time Offsets", "Improvement (start vs now)",
+                      "Arrhenius Ratios (k / k₀)"):
+            box.setCurrentText(label)
+            assert len(opt.fig.axes) >= 1, f"{label} drew no axes"
+        assert not opt.ratio_box.isHidden(), (
+            "ratio box must show while the ratio view is active"
+        )
+
+        # Unchecking through the model drives the selection signal.
+        opt.ratio_box.model().item(0, 0).setCheckState(QtCore.Qt.Unchecked)
+        texts = " ".join(
+            t.get_text() for ax in opt.fig.axes for t in ax.texts
+        )
+        assert "no reactions selected" in texts
+
+        box.setCurrentText("Objective Trace")
+        assert opt.ratio_box.isHidden(), (
+            "ratio box must hide when leaving the ratio view"
+        )

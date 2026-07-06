@@ -180,6 +180,7 @@ class Main(QMainWindow):
 
         self.user_settings = config_io.GUI_settings(self)
         self.user_settings.load()
+        self._size_directory_boxes()
         self._restore_window_layout()
 
         self.load_state.load_full_series = self.load_full_series_box.isChecked()
@@ -200,6 +201,20 @@ class Main(QMainWindow):
         self.run_control.run_block = False
         self.run_single()
         msgBox.close()
+
+    def _size_directory_boxes(self):
+        """Fix each directory text box to a whole number of text lines,
+        from live font metrics so display scaling is honored."""
+        boxes = [
+            (self.exp_main_box, 4),
+            (self.mech_main_box, 4),
+            (self.sim_main_box, 4),
+            (self.path_file_box, 5),
+        ]
+        for box, n_lines in boxes:
+            chrome = 2 * (box.frameWidth() + int(box.document().documentMargin()))
+            box.setFixedHeight(n_lines * box.fontMetrics().lineSpacing()
+                               + chrome + 2)
 
     def _restore_window_layout(self):
         """Apply the saved window size and options-panel width.

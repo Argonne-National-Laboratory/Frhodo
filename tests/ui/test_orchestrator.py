@@ -6,7 +6,6 @@ is already flagged, or when no reactions/coefs are marked optimizable.
 """
 import pytest
 
-from scipy import stats
 
 
 pytestmark = pytest.mark.gui
@@ -16,9 +15,6 @@ class TestOrchestratorWiring:
     def test_attached_to_main(self, main_window):
         assert hasattr(main_window, "optimize")
         assert main_window.optimize.parent is main_window
-
-    def test_dist_is_gennorm(self, main_window):
-        assert main_window.optimize.dist is stats.gennorm
 
     def test_initial_flags(self, main_window):
         assert main_window.run_control.optimize_running is False

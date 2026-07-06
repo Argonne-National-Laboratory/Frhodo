@@ -15,7 +15,6 @@ import nlopt
 from scipy.optimize import minimize_scalar, brentq
 from scipy.interpolate import CubicSpline
 from scipy.special import expit
-from scipy import stats
 from copy import deepcopy
 
 from timeit import default_timer as timer
@@ -124,6 +123,10 @@ def _hit_edge(solution, bounds):
 
 
 T_UNC_PENALTY_FRACTION = 2.0
+
+# Wall-clock bound on shipping the all-shocks "current" sim traces to the
+# GUI overlay; "start"/"best" ship as deltas and ignore this.
+OVERLAY_TRACE_INTERVAL = 0.2
 
 
 def _solve_t_unc(
@@ -476,7 +479,6 @@ def _degenerate_trace_output(shock, ind_var: np.ndarray, obs_sim: np.ndarray,
         "observable": obs_sim,
         "t_unc": 0.0,
         "loss_alpha": _finite_loss_alpha(var),
-        "KDE": np.column_stack(([0.0], [1.0])),
         "ode_error": ode_error,
     }
 
@@ -628,27 +630,6 @@ def calculate_residuals(mech, args_list):
 
         else:  # needs to return single value for optimization
             return loss_scalar
-
-    def calc_density(x, data, dim=1):
-        data = np.asarray(data, dtype=float)
-        x = np.asarray(x, dtype=float)
-        stdev = np.std(data)
-        if stdev == 0:  # constant residuals -> singular KDE covariance
-            return np.zeros_like(x)
-
-        [q1, q3] = weighted_quantile(data, np.array([0.25, 0.75]))
-        iqr = q3 - q1  # interquartile range
-        A = (
-            np.min([stdev, iqr / 1.34]) / stdev
-        )  # bandwidth is multiplied by std of sample
-        bw = 0.9 * A * len(data) ** (-1.0 / (dim + 4))
-
-        try:
-            density = stats.gaussian_kde(data, bw_method=bw)(x)
-        except (np.linalg.LinAlgError, ValueError):
-            density = np.zeros_like(x)
-
-        return density
 
     if len(args_list) == 5:
         var, coef_opt, x, shock, fixed_t_unc = args_list
@@ -808,12 +789,6 @@ def calculate_residuals(mech, args_list):
     output["loss_alpha"] = loss_alpha
     output["ode_error"] = None
 
-    plot_stats = True
-    if plot_stats:
-        x = np.linspace(output["resid"].min(), output["resid"].max(), 300)
-        density = calc_density(x, output["resid"], dim=1)  # kernel density estimation
-        output["KDE"] = np.column_stack((x, density))
-
     return output
 
 
@@ -854,7 +829,6 @@ class CostFunction:
         self.reactor_state = inputs.reactor_state
         self.t_unc = (-inputs.time_unc, inputs.time_unc)
         self.opt_type = "local"
-        self.dist = inputs.dist
         self.cost_settings = inputs.cost_settings
         self._user_weights = np.array([
             float(getattr(s2, "scalar_weight", 1.0) or 1.0)
@@ -870,6 +844,12 @@ class CostFunction:
         self._mloc_diag = None
         self._model_error_floor = 0.0
         self._start_loss_raw = None
+        self._last_t_star = None
+        self._t_unc_mode = "fixed"
+        self._last_agg_weights = None
+        self._overlay_start_traces = None
+        self._overlay_best_obj = np.inf
+        self._last_overlay_emit = 0.0
         self._display_shock_provider = display_shock_provider
         self.pool = pool
         if pool is not None:
@@ -1071,8 +1051,15 @@ class CostFunction:
                 conditions, t_star, t_unc_bound
             )
             self._maybe_log_shift_model()
+            self._last_t_star = t_star
+            self._t_unc_mode = "parametric"
             calc_resid_outputs = self._dispatch(x, var_dict, fixed_shifts=shifts)
         else:
+            self._last_t_star = None
+            if self.random_t_uncertainty and t_unc_bound > 1e-12:
+                self._t_unc_mode = "independent"
+            else:
+                self._t_unc_mode = "fixed"
             calc_resid_outputs = self._dispatch(x, var_dict)
 
         for calc_resid_output, shock in zip(calc_resid_outputs, self.shocks2run):
@@ -1099,7 +1086,6 @@ class CostFunction:
                 x, loss_resid * sigma_totals, log_opt_rates, output_dict,
             )
         else:
-            self.loss_outlier = 0.0
             obj_fcn = self._residual_obj_fcn(loss_resid, output_dict)
 
         # For updating
@@ -1110,24 +1096,10 @@ class CostFunction:
 
             stat_plot = {
                 "shocks2run": self.shocks2run,
-                "resid": output_dict["resid"],
-                "resid_outlier": self.loss_outlier,
-                "weights": output_dict["weights"],
                 "per_shock": self._mloc_diag,
             }
 
-            if "KDE" in output_dict:
-                stat_plot["KDE"] = output_dict["KDE"]
-                allResid = np.concatenate(output_dict["resid"], axis=0)
-
-                stat_plot["fit_result"] = fitres = self.dist.fit(allResid)
-                stat_plot["QQ"] = []
-                for resid in stat_plot["resid"]:
-                    QQ = stats.probplot(
-                        resid, sparams=fitres, dist=self.dist, fit=False
-                    )
-                    QQ = np.array(QQ).T
-                    stat_plot["QQ"].append(QQ)
+            sim_traces = self._overlay_sim_traces(output_dict, obj_fcn)
 
             ode_errors = [
                 e for e in output_dict.get("ode_error", []) if e
@@ -1138,6 +1110,7 @@ class CostFunction:
                 "i": self.i,
                 "obj_fcn": obj_fcn,
                 "stat_plot": stat_plot,
+                "sim_traces": sim_traces,
                 "s": s,
                 "x": x,
                 "coef_opt": self.coef_opt,
@@ -1155,6 +1128,55 @@ class CostFunction:
         shocks_out = output_dict["shock"]
 
         return obj_fcn, x, shocks_out
+
+    def _collect_shock_traces(self, output_dict) -> list:
+        """One flattened sim trace per shock, in shocks2run order, each
+        carrying its own display time offset."""
+        iv_list = output_dict.get("independent_var", [])
+        obs_list = output_dict.get("observable", [])
+        traces = []
+        for i, shock in enumerate(self.shocks2run):
+            t = np.asarray(iv_list[i], dtype=float).reshape(-1)
+            obs = np.asarray(obs_list[i], dtype=float).reshape(-1)
+            t_offset = float(shock.opt_time_offset) + float(
+                getattr(shock, "last_t_unc", 0.0) or 0.0
+            )
+            num = int(getattr(shock, "num", i + 1) or (i + 1))
+            traces.append({"num": num, "t": t, "obs": obs,
+                           "t_offset": t_offset})
+
+        return traces
+
+    def _overlay_sim_traces(self, output_dict, obj_fcn) -> dict:
+        """Per-shock sim traces for the signal-plot overlay, shipped as
+        deltas: ``start`` once at the first evaluation, ``best`` when the
+        incumbent improves, ``current`` no more than every
+        ``OVERLAY_TRACE_INTERVAL`` seconds. Absent keys mean the GUI
+        keeps its cached copy.
+        """
+        if "observable" not in output_dict or "independent_var" not in output_dict:
+            return {}
+
+        need_start = self._overlay_start_traces is None
+        improved = obj_fcn < self._overlay_best_obj
+        now = timer()
+        need_current = now - self._last_overlay_emit > OVERLAY_TRACE_INTERVAL
+        if not (need_start or improved or need_current):
+            return {}
+
+        traces = self._collect_shock_traces(output_dict)
+        sim_traces = {}
+        if need_start:
+            self._overlay_start_traces = traces
+            sim_traces["start"] = traces
+        if improved:
+            self._overlay_best_obj = obj_fcn
+            sim_traces["best"] = traces
+        if need_current:
+            self._last_overlay_emit = now
+            sim_traces["current"] = traces
+
+        return sim_traces
 
     def _residual_obj_fcn(self, loss_resid, output_dict):
         """Aggregate per-shock losses into the Residual objective.
@@ -1202,6 +1224,17 @@ class CostFunction:
         else:
             start_raw = self._start_loss_raw
 
+        trim_w = self._last_agg_weights
+        if trim_w is None or np.size(trim_w) != n:
+            trim_w = np.ones(n)
+        t_unc_applied = np.array([
+            float(v or 0.0) for v in output_dict["t_unc"]
+        ])
+        if self._last_t_star is None or np.size(self._last_t_star) != n:
+            t_unc_star = t_unc_applied
+        else:
+            t_unc_star = np.asarray(self._last_t_star, dtype=float)
+
         mloc = solve_m_location(losses_std, user_w * cov, c_floor=c_floor)
         self._mloc_diag = {
             "loss": losses_std,
@@ -1211,6 +1244,15 @@ class CostFunction:
             "irls_weights": mloc.irls_weights,
             "coverage": cov,
             "user": user_w,
+            "trim_weights": np.asarray(trim_w, dtype=float),
+            "t_unc": t_unc_applied,
+            "t_unc_star": t_unc_star,
+            "t_unc_mode": self._t_unc_mode,
+            "t_unc_bounds": np.asarray(self.t_unc, dtype=float),
+            "t_offset_base": np.array([
+                float(getattr(s2, "opt_time_offset", 0.0) or 0.0)
+                for s2 in self.shocks2run
+            ]),
             "mu": mloc.mu,
             "alpha": mloc.alpha,
             "c": mloc.c,
@@ -1236,6 +1278,8 @@ class CostFunction:
         the objective stays a pure function of x.
         """
         if losses.size == 1:
+            self._last_agg_weights = np.ones(1)
+
             return float(losses[0])
 
         loss_alpha = self.cost_settings.loss_alpha
@@ -1254,11 +1298,16 @@ class CostFunction:
     def _aggregate_at(self, losses, weights, alpha):
         """Legacy aggregate at a fixed loss shape: weighted average of
         adaptively-reweighted squared excursions above the campaign
-        minimum, re-anchored to the loss scale."""
+        minimum, re-anchored to the loss scale.
+
+        Stashes the adaptive per-shock weights; the last call in
+        ``_legacy_residual_aggregate`` is at the solved shape, so the
+        stash always reflects the returned objective."""
         loss_min = losses.min()
         exp_w, _C, _alpha = adaptive_weights(
             losses - loss_min, C_scalar=self.cost_settings.loss_c, alpha=alpha,
         )
+        self._last_agg_weights = exp_w
         loss_exp = exp_w * (losses - loss_min) ** 2
         loss_exp = loss_exp - loss_exp.min() + loss_min
         value = float(np.average(loss_exp, weights=weights))

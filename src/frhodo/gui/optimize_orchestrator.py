@@ -12,9 +12,9 @@ from typing import Any
 
 import numpy as np
 from qtpy.QtCore import Qt, QObject, QRunnable, Signal
-from scipy import stats
 
 from frhodo.gui import session
+from frhodo.gui.views import build_view_context
 from frhodo.gui.workers.optimize_worker import Worker, WorkerInputs
 from frhodo.optimize.cost.fit_fcn import update_mech_coef_opt
 from frhodo.optimize.cost.settings import CostSettings
@@ -67,8 +67,6 @@ class Multithread_Optimize:
     the worker completes.
     """
 
-    dist = stats.gennorm
-
     def __init__(self, parent):
         self.parent = parent
         parent.run_control.optimize_running = False
@@ -89,6 +87,7 @@ class Multithread_Optimize:
         self._saved_auto_fit: bool | None = None
         self._max_processors_pending: int = 1
         self._recast_cancelled: bool = False
+        self._view_context: Any = None
         self._iter_width: int = 5
 
         parent.action_Run.triggered.connect(self.start_threads)
@@ -184,7 +183,17 @@ class Multithread_Optimize:
             f"Initializing {max_processors:d} worker processes…",
             alert=False,
         )
-        parent.plot.opt.clear_plot()
+
+        # Static view inputs snapshot while the mechanism still holds
+        # the start coefficients.
+        try:
+            self._view_context = build_view_context(
+                parent.mech, self.rxn_coef_opt, self.rxn_rate_opt,
+                self.shocks2run,
+            )
+        except Exception:
+            self._view_context = None
+        parent.plot.opt.attach_run_context(self._view_context)
 
         self._snapshot_interval = parent.user_settings.config.session.snapshot_interval_s
         self._last_snapshot_timer = timer()
@@ -335,9 +344,9 @@ class Multithread_Optimize:
             time_unc_random=p.time_uncertainty.random,
             max_processors=max_processors,
             multiprocessing=p.run_control.multiprocessing,
-            dist=self.dist,
             display_shock_provider=lambda: p.display_shock,
             worker_pool=getattr(p, "worker_pool", None),
+            view_context=self._view_context,
         )
 
     def _on_worker_error(self, payload) -> None:
@@ -383,6 +392,8 @@ class Multithread_Optimize:
         elif result["obj_fcn"] < self.HoF["obj_fcn"]:
             self.HoF = result
 
+        parent.plot.opt.record_iteration(result, is_best=result is self.HoF)
+
         obj_fcn_str = f"{result['obj_fcn']:.3e}"
         for old, new in (("e+", "e"), ("e0", "e"), ("e-0", "e-")):
             obj_fcn_str = obj_fcn_str.replace(old, new)
@@ -404,15 +415,20 @@ class Multithread_Optimize:
 
         parent.tree.update_coef_rate_from_opt(self.coef_opt, result["x"])
 
+        # Merge any shipped overlay traces every iteration so a best/start
+        # delta landing off-cadence is not missed; the redraw is throttled.
+        parent.plot.signal.ingest_opt_traces(result.get("sim_traces"))
+
         if timer() - self._last_plot_timer > self._time_between_plots:
             plot_start_time = timer()
             ind_var = result["ind_var"]
             observable = result["observable"]
+            parent.plot.signal.refresh_opt_overlay()
             if ind_var is None and observable is None:
                 parent.run_single()
             else:
                 parent.plot.signal.update_sim(ind_var[:, 0], observable[:, 0])
-            parent.plot.opt.update(result["stat_plot"])
+            parent.plot.opt.refresh()
 
             if result.get("display_t_offset") is not None:
                 self._sync_display_t_offset_box(result["display_t_offset"])

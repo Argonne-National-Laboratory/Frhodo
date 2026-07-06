@@ -91,9 +91,15 @@ def regularized_shifts(conditions, t_star, t_unc, *, l1_ratios=_L1_RATIOS, rando
 
     X, names = build_shift_features(conditions)
     cv = max(2, min(5, n))
+    # The polynomial features are strongly collinear (T with T², T·P),
+    # so coordinate descent needs far more than its default 1000
+    # iterations on parts of the CV path. Unconverged path fits corrupt
+    # the CV scores and can select an absurd penalty — collapsing the
+    # model to its intercept, one shared shift for every shock.
     model = make_pipeline(
         StandardScaler(),
-        ElasticNetCV(l1_ratio=list(l1_ratios), cv=cv, random_state=random_state),
+        ElasticNetCV(l1_ratio=list(l1_ratios), cv=cv, max_iter=10_000,
+                     random_state=random_state),
     )
     model.fit(X, t_star)
     enet = model.named_steps["elasticnetcv"]

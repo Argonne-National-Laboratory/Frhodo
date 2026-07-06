@@ -2,291 +2,350 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level
 # directory for license and copyright information.
 
-from frhodo.gui.widgets import colors
-
-import matplotlib as mpl
 import numpy as np
+from qtpy import QtCore
 
+from frhodo.common.units import pa_per_unit
 from frhodo.gui.plots.base_plot import Base_Plot
+from frhodo.gui.views import IterationEvent, ViewRouter
+from frhodo.gui.widgets import misc_widget
 
 
-colormap = colors.colormap(reorder_from=1, num_shift=4)
+
+VIEW_LABELS = {
+    "Objective Trace": "objective_trace",
+    "Arrhenius with Bounds": "arrhenius",
+    "Arrhenius Ratios (k / k₀)": "arrhenius_ratio",
+    "Misfit Map": "misfit",
+    "Improvement (start vs now)": "improvement",
+    "Time Offsets": "time_offsets",
+}
+
+PRESSURE_VIEW_KEYS = ("arrhenius", "arrhenius_ratio")
 
 
 class Plot(Base_Plot):
+    """Optimization-outcome views host.
+
+    The :class:`ViewRouter` owns the figure and all axes; the base
+    class supplies the canvas, toolbar, and key handling. The base
+    blit machinery is inert here — there are no per-axes animated
+    artists to track.
+    """
+
     def __init__(self, parent, widget, mpl_layout):
         super().__init__(parent, widget, mpl_layout)
 
-        self.canvas.mpl_connect("motion_notify_event", self.hover)
+        self.router = ViewRouter(self.fig)
+        # Per-view axis-limit memory: view name -> {"home": (xlim, ylim),
+        # "lims": (xlim, ylim), "user_x"/"user_y": bool}. An axis is
+        # frozen only if the USER moved it off its autoscale home; the
+        # other axis keeps tracking the live autoscale (a y-only zoom
+        # must not stop x from extending mid-run). "home" is the autoscaled
+        # state; "lims" is a user zoom/pan reapplied across switches and
+        # cadence refreshes.
+        self._view_state = {}
+        self._lim_guard = False
+        box = parent.opt_view_box
+        box.blockSignals(True)
+        box.clear()
+        box.addItems(list(VIEW_LABELS))
+        box.blockSignals(False)
+        box.currentTextChanged.connect(self._view_changed)
+        parent.opt_view_detail_box.currentIndexChanged.connect(
+            self._detail_changed
+        )
+        self.ratio_box = misc_widget.CheckableSearchComboBox(parent)
+        self.ratio_box.setVisible(False)
+        parent.gridLayout_43.addWidget(self.ratio_box, 0, 3)
+        self._ratio_updating = False
+        self.ratio_box.model().itemChanged.connect(
+            self._ratio_selection_changed
+        )
+        parent.arrhenius_P_value_box.valueChanged.connect(
+            self._arrhenius_pressure_changed
+        )
+        parent.arrhenius_P_units_box.currentTextChanged.connect(
+            self._arrhenius_unit_changed
+        )
+        parent.show_opt_overlay_box.stateChanged.connect(self._overlay_toggled)
+
+        # Home means "live autoscale", not the last stack snapshot:
+        # clear the per-axis freezes and recompute the view.
+        self._toolbar_home = self.toolbar.home
+        self.toolbar.home = self._nav_home
+
         parent.plot_tab_widget.currentChanged.connect(self.tab_changed)
+        self._view_changed(box.currentText())
 
-    def tab_changed(self, idx):  # Run simulation is tab changed to Sim Explorer
+    def _overlay_toggled(self, _state=None) -> None:
+        checked = self.parent.show_opt_overlay_box.isChecked()
+        self.parent.plot.signal.set_opt_overlay_visible(checked)
+
+    def tab_changed(self, idx):
         if self.parent.plot_tab_widget.tabText(idx) == "Optimization":
-            self._draw_event()
-
-    def _draw_items_artist(self):  # only draw if tab is open
-        idx = self.parent.plot_tab_widget.currentIndex()
-        if self.parent.plot_tab_widget.tabText(idx) == "Optimization":
-            super()._draw_items_artist()
-
-    def _draw_event(self, event=None):  # only draw if tab is open
-        idx = self.parent.plot_tab_widget.currentIndex()
-        if self.parent.plot_tab_widget.tabText(idx) == "Optimization":
-            super()._draw_event(event)
-
-    def create_canvas(self):
-        self.ax = []
-
-        ## Set left (QQ) plot ##
-        self.ax.append(self.fig.add_subplot(1, 2, 1))
-        self.ax[0].item = {}
-        self.ax[0].item["qq_data"] = []
-        self.ax[0].item["ref_line"] = self.ax[0].add_line(
-            mpl.lines.Line2D([], [], c=colormap[0], zorder=2)
-        )
-
-        self.ax[0].text(
-            0.5,
-            1.03,
-            "QQ-Plot of Residuals",
-            fontsize="large",
-            horizontalalignment="center",
-            verticalalignment="top",
-            transform=self.ax[0].transAxes,
-        )
-
-        self.ax[0].item["annot"] = self.ax[0].annotate(
-            "",
-            xy=(0, 0),
-            xytext=(-100, 20),
-            textcoords="offset points",
-            bbox=dict(boxstyle="round", fc="w"),
-            arrowprops=dict(arrowstyle="->"),
-            zorder=10,
-        )
-        self.ax[0].item["annot"].set_visible(False)
-
-        self.fig.subplots_adjust(
-            left=0.06, bottom=0.065, right=0.98, top=0.965, hspace=0, wspace=0.12
-        )
-
-        ## Set right (density) plot ##
-        self.ax.append(self.fig.add_subplot(1, 2, 2))
-        self.ax[1].item = {}
-
-        self.ax[1].item["density"] = [
-            self.ax[1].add_line(
-                mpl.lines.Line2D([], [], ls="-", c=colormap[0], zorder=3)
-            )
-        ]
-
-        # add exp scatter/line plots
-        self.add_exp_plots()
-        self.ax[1].item["shade"] = [self.ax[1].fill_between([0, 0], 0, 0)]
-
-        self.ax[1].item["annot"] = self.ax[1].annotate(
-            "",
-            xy=(0, 0),
-            xytext=(-100, 20),
-            textcoords="offset points",
-            bbox=dict(boxstyle="round", fc="w"),
-            arrowprops=dict(arrowstyle="->"),
-            zorder=10,
-        )
-        self.ax[1].item["annot"].set_visible(False)
-
-        self.ax[1].text(
-            0.5,
-            1.03,
-            "Density Plot of Residuals",
-            fontsize="large",
-            horizontalalignment="center",
-            verticalalignment="top",
-            transform=self.ax[1].transAxes,
-        )
-
-        # Create canvas from Base
-        super().create_canvas()
-
-    def add_exp_plots(self):
-        i = len(self.ax[1].item["density"])
-
-        line = self.ax[1].add_line(
-            mpl.lines.Line2D([], [], color=colormap[i + 1], alpha=0.5, zorder=2)
-        )
-        line.set_pickradius(float(line.get_pickradius()) * 2.5)
-        self.ax[1].item["density"].append(line)
-
-        scatter = self.ax[0].scatter(
-            [],
-            [],
-            color=colormap[i + 1],
-            facecolors=colormap[i + 1],
-            s=16,
-            linewidth=0.5,
-            alpha=0.85,
-        )
-        scatter.set_pickradius(float(scatter.get_pickradius()) * 2.5)
-        self.ax[0].item["qq_data"].append(scatter)
-
-    def clear_plot(self):
-        self.ax[0].item["annot"]
-        for plt in self.ax[0].item["qq_data"]:
-            plt.set_offsets(([np.nan, np.nan]))
-
-        self.ax[1].item["annot"].set_text("")
-        for plt in self.ax[1].item["density"]:
-            plt.set_xdata([np.nan, np.nan])
-            plt.set_ydata([np.nan, np.nan])
-
-    def hover(self, event):
-        def update_annot(axes, plot, ind):
-            def closest_xy(point, points):
-                if np.shape(points)[1] == 1:
-                    return points
-                else:
-                    dist_sqr = np.sum((points - point[:, np.newaxis]) ** 2, axis=0)
-                    return points[:, np.argmin(dist_sqr)]
-
-            if hasattr(plot, "get_data"):
-                xy_plot = np.array(plot.get_data())
-            else:
-                xy_plot = np.array(plot.get_offsets()).T
-
-            xy_mouse = axes.transData.inverted().transform([event.x, event.y])
-            axes.item["annot"].xy = closest_xy(
-                xy_mouse, xy_plot[:, ind["ind"]]
-            )  # nearest point to mouse
-
-            text = "{:s}\nExp # {:d}".format(
-                plot.shock_info["series_name"], plot.shock_info["num"]
-            )
-            axes.item["annot"].set_text(text)
-            extents = axes.item["annot"].get_bbox_patch().get_extents()
-            if (
-                np.mean(axes.get_xlim()) < axes.item["annot"].xy[0]
-            ):  # if on left side of plot
-                axes.item["annot"].set_x(-extents.width * 0.8 + 20)
-            else:
-                axes.item["annot"].set_x(0)
-            axes.item["annot"].get_bbox_patch().set_alpha(0.85)
-            axes.item["annot"].set_visible(True)
-
-        # if the event happened within axis and no toolbar buttons active do nothing
-        axes = self._find_calling_axes(event)  # find axes calling right click
-        if axes is None or self.toolbar.mode:
-            return
-
-        if "density" in axes.item:
-            plots = axes.item["density"][1:]
-        elif "qq_data" in axes.item:
-            plots = axes.item["qq_data"]
-        else:
-            return
-
-        draw = False  # tells to draw or not based on annotation visibility change
-        default_pick_radius = plots[0].get_pickradius()
-        contains_plot = []
-        for plot in plots:
-            contains, ind = plot.contains(event)
-            if contains and hasattr(plot, "shock_info"):
-                contains_plot.append(plot)
-
-        if (
-            len(contains_plot) > 0
-        ):  # reduce pick radius until only 1 plot contains event
-            for r in np.geomspace(default_pick_radius, 0.1, 5):
-                if len(contains_plot) == 1:  # if only 1 item in list break
-                    break
-
-                for i in range(len(contains_plot))[::-1]:
-                    if len(contains_plot) == 1:  # if only 1 item in list break
-                        break
-
-                    contains_plot[i].set_pickradius(r)
-                    contains, ind = contains_plot[i].contains(event)
-
-                    if not contains:
-                        del contains_plot[i]
-
-            # update annotation based on leftover
-            contains, ind = contains_plot[0].contains(event)
-            update_annot(axes, contains_plot[0], ind)
-            draw = True
-
-            for plot in contains_plot:  # reset pick radius
-                plot.set_pickradius(default_pick_radius)
-
-        elif axes.item["annot"].get_visible():  # if not over a plot, hide annotation
-            draw = True
-            axes.item["annot"].set_visible(False)
-
-        if draw:
             self.canvas.draw_idle()
 
-    def update(self, data, update_lim=True):
-        def shape_data(x, y):
-            return np.transpose(np.vstack((x, y)))
+    def _decorate_axes(self):
+        # The router builds and owns all axes; nothing for blit to track.
+        self.ax = []
 
-        shocks2run = data["shocks2run"]
-        resid = data["resid"]
-        weights = data["weights"]
-        resid_outlier = data["resid_outlier"]
-        num_shocks = len(shocks2run)
-        dist = self.parent.optimize.dist
+    def _draw_event(self, event=None):
+        # Router views render through the standard matplotlib draw.
+        pass
 
-        # add exp line/data if not enough
-        for i in range(num_shocks):
-            if (
-                len(self.ax[1].item["density"]) - 2 < i
-            ):  # add line if fewer than experiments
-                self.add_exp_plots()
+    def attach_run_context(self, context) -> None:
+        """New optimization run: rebuild the views for its targets and
+        reset the recorded history."""
+        self._view_state = {}
+        self.router.set_context(context)
+        self.router.start_run()
+        detail = self.parent.opt_view_detail_box
+        detail.blockSignals(True)
+        detail.clear()
+        if context is not None:
+            detail.addItems(list(context.rxn_equations))
+        detail.blockSignals(False)
+        # Populate with model signals live (the popup view and the combo's
+        # current text rely on them); the guard keeps the per-item
+        # itemChanged storm from re-rendering during population.
+        ratio = self.ratio_box
+        self._ratio_updating = True
+        ratio.blockSignals(True)
+        ratio.clear()
+        if context is not None:
+            ratio.addItems(list(context.rxn_equations))
+            for i in range(ratio.count()):
+                ratio.model().item(i, 0).setCheckState(QtCore.Qt.Checked)
+        ratio.blockSignals(False)
+        self._ratio_updating = False
+        if context is not None:
+            self._ratio_selection_changed()
+            value_box = self.parent.arrhenius_P_value_box
+            value_box.blockSignals(True)
+            value_box.setValue(context.P_reference / self._pa_per_display_unit())
+            value_box.blockSignals(False)
+            self._arrhenius_pressure_changed()
+        # Fresh run: drop the previous overlay stash and auto-enable the
+        # start/best/current overlay on the signal plot.
+        self.parent.plot.signal.reset_opt_overlay()
+        overlay_box = self.parent.show_opt_overlay_box
+        overlay_box.blockSignals(True)
+        overlay_box.setChecked(True)
+        overlay_box.blockSignals(False)
+        self.parent.plot.signal.set_opt_overlay_visible(True)
+        # set_context rebuilt the active view's axes; rewire the limit
+        # callbacks and reset the toolbar's Home to the fresh view.
+        self._view_changed(self.parent.opt_view_box.currentText())
 
-        # Update left plot
-        xrange = np.array([])
-        for i in range(num_shocks):
-            QQ = data["QQ"][i]
-            self.ax[0].item["qq_data"][i].set_offsets(QQ)
-            self.ax[0].item["qq_data"][i].shock_info = shocks2run[i]
+    def _sync_detail_visibility(self) -> None:
+        parent = self.parent
+        arrhenius = (
+            self.router.active_name == "arrhenius"
+            and parent.opt_view_detail_box.count() > 0
+        )
+        ratio = (
+            self.router.active_name == "arrhenius_ratio"
+            and self.ratio_box.count() > 0
+        )
+        parent.opt_view_detail_box.setVisible(arrhenius)
+        self.ratio_box.setVisible(ratio)
+        parent.arrhenius_P_value_box.setVisible(arrhenius or ratio)
+        parent.arrhenius_P_units_box.setVisible(arrhenius or ratio)
 
-            xrange = np.append(xrange, [QQ[:, 0].min(), QQ[:, 0].max()])
+    def _detail_changed(self, pos: int) -> None:
+        view = self.router.views.get("arrhenius")
+        if view is None or pos < 0:
+            return
+        view.set_reaction(pos)
+        if self.router.active_name == "arrhenius" and self._refresh_active():
+            self.canvas.draw_idle()
 
-            xrange = np.reshape(xrange, (-1, 2))
-            xrange = [np.min(xrange[:, 0]), np.max(xrange[:, 1])]
+    def _ratio_selection_changed(self, _item=None) -> None:
+        if self._ratio_updating:
+            return
+        view = self.router.views.get("arrhenius_ratio")
+        if view is None:
+            return
+        checked = [i for i in range(self.ratio_box.count())
+                   if self.ratio_box.itemChecked(i)]
+        view.set_selection(checked)
+        if (self.router.active_name == "arrhenius_ratio"
+                and self._refresh_active()):
+            self.canvas.draw_idle()
 
-        self.ax[0].item["ref_line"].set_xdata(xrange)
-        self.ax[0].item["ref_line"].set_ydata(xrange)
+    def _pa_per_display_unit(self) -> float:
+        unit = self.parent.arrhenius_P_units_box.currentText().strip("[]")
 
-        # Update right plot
-        # clear shades
-        for shade in self.ax[1].item["shade"][::-1]:
-            shade.remove()
+        return pa_per_unit.get(unit, 1.0)
 
-        self.ax[1].item["shade"] = []
+    def _pressure_views(self) -> list:
+        views = []
+        for key in PRESSURE_VIEW_KEYS:
+            view = self.router.views.get(key)
+            if view is not None:
+                views.append(view)
 
-        # kernel density estimates
-        fitres = data["fit_result"]
-        xlim_density = dist.interval(0.997, *fitres)
-        x_grid = np.linspace(*xlim_density, 1000)
+        return views
 
-        fit = dist.pdf(x_grid, *fitres)
-        self.ax[1].item["density"][0].set_xdata(x_grid)
-        self.ax[1].item["density"][0].set_ydata(fit)
+    def _arrhenius_pressure_changed(self, _value=None) -> None:
+        views = self._pressure_views()
+        if not views:
+            return
+        value = self.parent.arrhenius_P_value_box.value()
+        for view in views:
+            view.set_pressure(value * self._pa_per_display_unit())
+        if (self.router.active_name in PRESSURE_VIEW_KEYS
+                and self._refresh_active()):
+            self.canvas.draw_idle()
 
-        for i in range(num_shocks):
-            x_grid = data["KDE"][i][:, 0]
-            density = data["KDE"][i][:, 1]
-            self.ax[1].item["density"][i + 1].set_xdata(x_grid)
-            self.ax[1].item["density"][i + 1].set_ydata(density)
-            self.ax[1].item["density"][i + 1].shock_info = shocks2run[i]
+    def _arrhenius_unit_changed(self, _text=None) -> None:
+        """Unit switch re-expresses the same physical pressure."""
+        views = self._pressure_views()
+        if not views:
+            return
+        value_box = self.parent.arrhenius_P_value_box
+        value_box.blockSignals(True)
+        value_box.setValue(views[0].pressure_pa / self._pa_per_display_unit())
+        value_box.blockSignals(False)
+        self._arrhenius_pressure_changed()
 
-            zorder = self.ax[1].item["density"][i + 1].zorder
-            color = self.ax[1].item["density"][i + 1]._color
-            shade = self.ax[1].fill_between(
-                x_grid, 0, density, alpha=0.01, zorder=zorder, color=color
-            )
-            self.ax[1].item["shade"].append(shade)
+    def record_iteration(self, update: dict, is_best: bool) -> None:
+        """Accumulate every iteration into the view history (cheap;
+        redraws stay behind the plot cadence)."""
+        self.router.record(IterationEvent.from_update(update, is_best))
 
-        if update_lim:
-            self.update_xylim(self.ax[0], force_redraw=False)
-            self.update_xylim(self.ax[1], xlim=xlim_density, force_redraw=True)
+    def _active_ax(self):
+        view = self.router.views.get(self.router.active_name)
+
+        return getattr(view, "ax", None)
+
+    def _on_user_lim_change(self, ax) -> None:
+        """Record a zoom/pan the user made on the active view. Returning
+        to the stored autoscale limits (the toolbar Home) hands control
+        back to autoscaling."""
+        if self._lim_guard:
+            return
+        name = self.router.active_name
+        if name is None or ax is not self._active_ax():
+            return
+        state = self._view_state.setdefault(name, {})
+        lims = (ax.get_xlim(), ax.get_ylim())
+        home = state.get("home")
+        if home is None:
+            state["user_x"] = state["user_y"] = True
+            state["lims"] = lims
+
+            return
+        x_at_home = np.allclose(lims[0], home[0], rtol=1e-9)
+        y_at_home = np.allclose(lims[1], home[1], rtol=1e-9)
+        state["user_x"] = not x_at_home
+        state["user_y"] = not y_at_home
+        if x_at_home and y_at_home:
+            state.pop("lims", None)
+            # Re-autoscale immediately: after a run ends there is no
+            # cadence tick to bring Home/Back up to the live limits.
+            self.refresh()
+        else:
+            state["lims"] = lims
+
+    def _wire_limit_callbacks(self, ax) -> None:
+        ax.callbacks.connect("xlim_changed", self._on_user_lim_change)
+        ax.callbacks.connect("ylim_changed", self._on_user_lim_change)
+
+    def _refresh_active(self) -> bool:
+        """Guarded router refresh: hold the user's zoom on frozen axes,
+        let free axes track the live autoscale as Home."""
+        self._lim_guard = True
+        try:
+            ax = self._active_ax()
+            state = None
+            if ax is not None:
+                state = self._view_state.setdefault(
+                    self.router.active_name, {},
+                )
+                # A zoom gesture disables autoscale on both axes;
+                # restore it on the free axes so they keep tracking.
+                ax.set_autoscalex_on(not state.get("user_x"))
+                ax.set_autoscaley_on(not state.get("user_y"))
+            changed = self.router.refresh()
+            if ax is not None:
+                frozen = state.get("user_x") or state.get("user_y")
+                if frozen:
+                    # Reapply the frozen axes (views that clear their
+                    # axes reset limits); free axes keep the fresh
+                    # autoscale.
+                    if state.get("user_x"):
+                        ax.set_xlim(state["lims"][0])
+                    if state.get("user_y"):
+                        ax.set_ylim(state["lims"][1])
+                    state["lims"] = (ax.get_xlim(), ax.get_ylim())
+                lims = (ax.get_xlim(), ax.get_ylim())
+                if not frozen and state.get("home") != lims:
+                    # Track the moving autoscale as Home in the
+                    # toolbar's nav stack too, so pressing Home
+                    # mid-run restores the live autoscale instead
+                    # of a stale snapshot (which would read as a
+                    # user zoom and freeze the view). While an axis
+                    # is frozen the stack is left alone so Back can
+                    # still return from the zoom.
+                    state["home"] = lims
+                    self.toolbar.update()
+                    self.toolbar.push_current()
+                if frozen:
+                    # Only the free-axis Home components may move;
+                    # frozen components keep their freeze-time values
+                    # so panning back to them still reads as "at home".
+                    home = state.get("home", lims)
+                    x_home, y_home = lims
+                    if state.get("user_x"):
+                        x_home = home[0]
+                    if state.get("user_y"):
+                        y_home = home[1]
+                    state["home"] = (x_home, y_home)
+        finally:
+            self._lim_guard = False
+
+        return changed
+
+    def refresh(self) -> None:
+        """Plot-cadence update of the active view."""
+        if self._refresh_active():
+            self.canvas.draw_idle()
+
+    def _nav_home(self, *args) -> None:
+        """Toolbar Home: return every axis to the live autoscale."""
+        name = self.router.active_name
+        if name is None or self._active_ax() is None:
+            self._toolbar_home(*args)
+
+            return
+        state = self._view_state.setdefault(name, {})
+        state["user_x"] = state["user_y"] = False
+        state.pop("lims", None)
+        self._refresh_active()
+        self.canvas.draw_idle()
+
+    def _view_changed(self, label: str) -> None:
+        self._lim_guard = True
+        try:
+            self.router.set_view(VIEW_LABELS.get(label))
+            ax = self._active_ax()
+            if ax is not None:
+                state = self._view_state.setdefault(
+                    self.router.active_name, {},
+                )
+                state["home"] = (ax.get_xlim(), ax.get_ylim())
+                self.toolbar.update()
+                self.toolbar.push_current()
+                if state.get("user_x") or state.get("user_y"):
+                    if state.get("user_x"):
+                        ax.set_xlim(state["lims"][0])
+                    if state.get("user_y"):
+                        ax.set_ylim(state["lims"][1])
+                    self.toolbar.push_current()
+                self._wire_limit_callbacks(ax)
+        finally:
+            self._lim_guard = False
+        self.canvas.draw_idle()
+        self._sync_detail_visibility()

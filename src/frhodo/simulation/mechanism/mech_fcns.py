@@ -840,7 +840,7 @@ class ChemicalMechanism:
                 )
                 mech_rebuilt = True
                 reset_mech[rxnIdx]["rxnType"] = "Falloff Reaction"
-                reset_mech[rxnIdx]["rxnCoeffs"] = self.coeffs[rxnIdx]
+                reset_mech[rxnIdx]["rxnCoeffs"] = deepcopy(self.coeffs[rxnIdx])
 
             recast_log_rms[rxnIdx] = self._recast_heldout_log_rms(
                 rxnIdx, T, P, X, rxn_coef["coef_x0"],
@@ -966,7 +966,11 @@ class ChemicalMechanism:
         prior_coeffs = deepcopy(self.coeffs)
         for rxnIdx in indices:
             if coefNames is None:  # resets all coefficients in rxn
-                self.coeffs[rxnIdx] = self.reset_mech[rxnIdx]["rxnCoeffs"]
+                # Deep copy: aliasing reset_mech here would let later
+                # coefficient writes corrupt the pristine state.
+                self.coeffs[rxnIdx] = deepcopy(
+                    self.reset_mech[rxnIdx]["rxnCoeffs"]
+                )
 
             elif self.reset_mech[rxnIdx]["rxnType"] in [
                 "Arrhenius Reaction",

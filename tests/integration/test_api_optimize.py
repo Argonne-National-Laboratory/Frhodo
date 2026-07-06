@@ -209,12 +209,53 @@ class TestOptimizeResidualTypedRequest:
         assert diag is not None, "per_shock diagnostics missing from stat_plot"
         n = len(request.shocks)
         for key in ("loss", "z", "irls_weights", "coverage", "user",
+                    "trim_weights", "t_unc", "t_unc_star", "t_offset_base",
                     "sigma_bar", "T", "P"):
             assert len(np.atleast_1d(diag[key])) == n, (
                 f"per_shock[{key!r}] should have one entry per shock"
             )
         assert np.isfinite(diag["mu"]) and 1.0 <= diag["alpha"] <= 2.0
         assert diag["c_floor"] > 0.0
+        bounds = np.asarray(diag["t_unc_bounds"], dtype=float)
+        assert bounds.shape == (2,) and bounds[0] <= bounds[1], (
+            f"t_unc_bounds should be (lo, hi); got {bounds}"
+        )
+        assert diag["t_unc_mode"] in ("parametric", "independent", "fixed"), (
+            f"unknown t_unc_mode {diag['t_unc_mode']!r}"
+        )
+        applied = np.asarray(diag["t_unc"], dtype=float)
+        assert np.all((applied >= bounds[0]) & (applied <= bounds[1])), (
+            f"applied offsets {applied} must lie inside the window {bounds}"
+        )
+
+    def test_sim_traces_reach_the_progress_payload(self, loaded_cycloheptane):
+        """The overlay gallery's per-shock sim traces ship as deltas:
+        ``start`` on the first emit, ``current`` at least once, each a
+        per-shock list with flattened t/obs arrays and a display offset."""
+        request = _build_request(loaded_cycloheptane)
+        raw: list[dict] = []
+        cb = OptimizationCallbacks(on_progress=raw.append)
+        optimize_residual(loaded_cycloheptane, request, callbacks=cb)
+        assert raw, "no progress updates captured"
+        assert "sim_traces" in raw[0], "first update must carry sim_traces"
+        start = raw[0]["sim_traces"].get("start")
+        assert start is not None, "start traces must ship on the first emit"
+        assert "current" in raw[0]["sim_traces"], (
+            "current traces must ship on the first emit"
+        )
+        n = len(request.shocks)
+        assert len(start) == n, "one start trace per shock"
+        tr = start[0]
+        assert set(tr) == {"num", "t", "obs", "t_offset"}
+        assert np.asarray(tr["t"]).ndim == 1 and np.asarray(tr["obs"]).ndim == 1
+        assert np.asarray(tr["t"]).shape == np.asarray(tr["obs"]).shape
+
+        # start ships exactly once; later updates omit it (GUI keeps cache).
+        later_starts = [u["sim_traces"].get("start") for u in raw[1:]
+                        if "sim_traces" in u]
+        assert all(s is None for s in later_starts), (
+            "start must not re-ship after the first emit"
+        )
 
     def test_on_start_fires_with_start_info(self, loaded_cycloheptane):
         request = _build_request(loaded_cycloheptane)
