@@ -5,6 +5,7 @@ a synthetic shock. Builds ``coef_opt`` / ``rxn_coef_opt`` /
 ``rxn_rate_opt`` via the free functions in ``frhodo.optimize.parameters``
 — no ``Multithread_Optimize`` instance, no Qt.
 """
+import inspect
 import multiprocessing as mp
 
 import cantera as ct
@@ -16,10 +17,14 @@ from frhodo.simulation.shock.state import RuntimeReactorState
 from frhodo.optimize._worker_context import MechBuildPayload
 from frhodo.optimize.cost.fit_fcn import CostFunction, initialize_parallel_worker
 from frhodo.optimize.parameters import (
+    OptimizableSetBuilder,
     build_rxn_coef_opt,
     build_rxn_rate_opt,
 )
 from frhodo.optimize.cost.settings import CostSettings
+from frhodo.optimize.residual import OptimizeRunInputs
+from frhodo.simulation.mechanism.fit_coeffs import fit_generic
+
 
 
 def _set_one_arrhenius_optimizable(mech):
@@ -28,8 +33,6 @@ def _set_one_arrhenius_optimizable(mech):
     has NaN bounds; the GUI sets them via the Bounds widget. The
     optimizer assumes non-NaN when opt=True. Returns cleanup info.
     """
-    from frhodo.optimize.parameters import OptimizableSetBuilder
-
     arrh_idx = next(
         i for i, r in enumerate(mech.gas.reactions())
         if type(r.rate) is ct.ArrheniusRate
@@ -50,6 +53,7 @@ def _set_one_arrhenius_optimizable(mech):
         d["value"] = 2.0
         d["type"] = "F"
         builder.set_coefficient_optimizable(arrh_idx, bnds_key, c, True)
+
     return arrh_idx, bnds_key, coefNames, rate_orig, coef_orig, builder
 
 
@@ -66,8 +70,6 @@ def _set_one_troe_optimizable(mech):
     rate-coefs optimizable (low_rate + high_rate). Falloff_parameters are
     keyed by int and are not user-toggled through OptimizableSetBuilder;
     the orchestrator extends rxn_coef with them implicitly."""
-    from frhodo.optimize.parameters import OptimizableSetBuilder
-
     troe_idx = next(
         i for i, r in enumerate(mech.gas.reactions())
         if isinstance(r.rate, ct.TroeRate)
@@ -112,8 +114,6 @@ def _set_specific_rxns_optimizable(mech, rxn_F_pairs):
     factor. F=2 means k can vary within a factor-of-2 band; F=1.25 is
     a tighter ±25% constraint.
     """
-    from frhodo.optimize.parameters import OptimizableSetBuilder
-
     rate_orig: list = []
     coef_orig: list = []
     builder = OptimizableSetBuilder()
@@ -163,8 +163,6 @@ def user_scenario_optimizer_setup(loaded_cycloheptane):
     rate-factor bounds 2, 2, 2, 2, 1.25 respectively. All Arrhenius
     coefficients optimizable. Reproduces the path that produced
     ``A=-12.7`` in the user's session."""
-    from frhodo.experiment import ExperimentalShock
-
     mech = loaded_cycloheptane
     # User reported R1, R2, R3, R5, R8 (1-indexed Chemkin) = 0, 1, 2, 4, 7
     rxn_F_pairs = [(0, 2.0), (1, 2.0), (2, 2.0), (4, 2.0), (7, 1.25)]
@@ -199,8 +197,6 @@ def _set_all_rxns_optimizable(mech):
     GUI's 'select all' click. Plog rxns are skipped because the fit path
     raises NotImplementedError on them. Falloff_parameters are excluded
     (int-keyed)."""
-    from frhodo.optimize.parameters import OptimizableSetBuilder
-
     skip = {
         i for i, r in enumerate(mech.gas.reactions())
         if isinstance(r.rate, ct.PlogRate)
@@ -256,8 +252,6 @@ def _clear_all_opts(mech, rate_orig, coef_orig, _builder):
 def all_rxns_optimizer_setup(loaded_cycloheptane):
     """Every rxn + every rate coef optimizable, plus two thermodynamic
     setpoints. Mirrors the GUI 'select all' scenario the user described."""
-    from frhodo.experiment import ExperimentalShock
-
     mech = loaded_cycloheptane
     cleanup = _set_all_rxns_optimizable(mech)
     builder = cleanup[-1]
@@ -288,8 +282,6 @@ def all_rxns_optimizer_setup(loaded_cycloheptane):
 @pytest.fixture
 def troe_optimizer_setup(loaded_cycloheptane):
     """Same shape as ``optimizer_setup`` but marks the Troe rxn optimizable."""
-    from frhodo.experiment import ExperimentalShock
-
     mech = loaded_cycloheptane
     cleanup = _set_one_troe_optimizable(mech)
     builder = cleanup[-1]
@@ -330,7 +322,6 @@ def optimizer_setup(loaded_cycloheptane):
         coef_opt = list(optimizable.coefficients)
         assert len(coef_opt) > 0
 
-        from frhodo.experiment import ExperimentalShock
         shocks_setup = [
             ExperimentalShock.from_dict({
                 "T_reactor": 1500.0, "P_reactor": 20000.0,
@@ -352,11 +343,9 @@ def optimizer_setup(loaded_cycloheptane):
 
 def _synthetic_shock(T_reactor=1500.0):
     """Minimal shock that survives ``calculate_residuals``."""
-    from frhodo.experiment import ExperimentalShock
-
     t = np.linspace(1e-7, 5e-5, 50)
     obs = np.zeros_like(t)
-    return ExperimentalShock.from_dict({
+    shock = ExperimentalShock.from_dict({
         "T_reactor": T_reactor,
         "P_reactor": 20000.0,
         "thermo_mix": {"Kr": 0.96, "cC7H14": 0.04},
@@ -371,6 +360,8 @@ def _synthetic_shock(T_reactor=1500.0):
         "opt_time_offset": 0.0,
     })
 
+    return shock
+
 
 def _make_fit_fun(
     mech, coef_opt, rxn_coef_opt, rxn_rate_opt,
@@ -378,8 +369,6 @@ def _make_fit_fun(
     display_shock_provider=None, progress_callback=None,
     time_unc=0.0, random_t_uncertainty=True,
 ):
-    from frhodo.optimize.residual import OptimizeRunInputs
-
     if shocks2run is None:
         shocks2run = [_synthetic_shock()]
     inputs = OptimizeRunInputs(
@@ -408,12 +397,14 @@ def _make_fit_fun(
         random_t_uncertainty=random_t_uncertainty,
     )
 
-    return CostFunction(
+    fit_fun = CostFunction(
         inputs,
         pool=pool,
         display_shock_provider=display_shock_provider,
         progress_callback=progress_callback,
     )
+
+    return fit_fun
 
 
 class TestOptimizerSetupPipeline:
@@ -521,8 +512,6 @@ class TestFitFunCallEndToEnd:
         'Falloff Reaction' must enter the Troe-fit branch in fit_generic.
         This pins the type list so a future Cantera adds-a-rate-class
         regresses loud rather than silently."""
-        from frhodo.simulation.mechanism.fit_coeffs import fit_generic
-        import inspect
 
         src = inspect.getsource(fit_generic)
         for cls in (ct.PlogRate, ct.FalloffRate, ct.LindemannRate,
@@ -540,9 +529,6 @@ class TestFitFunCallEndToEnd:
         rxns 2, 4 in 0-indexed). All Arrhenius coeffs optimizable, F=2.
         Sweep with non-uniform random scalers across the rate-bound range.
         No A should ever land negative."""
-        from frhodo.experiment import ExperimentalShock
-        from frhodo.optimize.parameters import OptimizableSetBuilder
-
         mech = loaded_cycloheptane
         rxn_F_pairs = [(2, 2.0), (4, 2.0)]
         cleanup = _set_specific_rxns_optimizable(mech, rxn_F_pairs)
@@ -667,8 +653,6 @@ class TestFitFunCallEndToEnd:
         later rxns' slots and a T-parameter ends up in an A slot — triggering
         ``A=-12.7``-style failures.
         """
-        from frhodo.optimize.parameters import build_rxn_coef_opt, build_rxn_rate_opt
-
         mech = loaded_cycloheptane
         rxn_F_pairs = [(0, 2.0), (1, 2.0), (2, 2.0), (4, 2.0), (7, 1.25)]
         cleanup = _set_specific_rxns_optimizable(mech, rxn_F_pairs)

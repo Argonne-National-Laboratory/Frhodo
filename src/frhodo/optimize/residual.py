@@ -14,6 +14,7 @@ from frhodo.common.scale import Scale
 from frhodo.common.units import Bisymlog
 from frhodo.experiment.uncertainty import correlation_length, sigma_bar
 from frhodo.optimize._worker_context import MechBuildPayload
+from frhodo.optimize.audit import audit_optimum
 from frhodo.optimize.screening import (
     influential_mask,
     screen_campaign,
@@ -215,6 +216,7 @@ def optimize_residual(
     )
     try:
         res = optimize.run()
+        audit_optimum(res, inputs, fit_fun, log)
     except Exception as e:
         if debug:
             if pool is not None and not pool_is_persistent:

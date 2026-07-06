@@ -917,7 +917,7 @@ class CostFunction:
             shock.sigma_total = float(np.sqrt(s_bar * s_bar + floor * floor))
         self._log(f"Model-error floor (campaign): {floor:.4g}")
 
-    def __call__(self, s, optimizing=True):
+    def __call__(self, s, optimizing=True, quiet=False):
         def append_output(output_dict, calc_resid_output):
             for key in calc_resid_output:
                 if key not in output_dict:
@@ -990,6 +990,11 @@ class CostFunction:
 
         loss_resid = np.array(output_dict["loss"])
         obj_fcn = self._residual_obj_fcn(loss_resid, output_dict)
+
+        # Quiet evaluations (post-fit audit probes) skip the iteration
+        # counter and all progress side effects.
+        if quiet:
+            return obj_fcn
 
         # For updating
         self.i += 1

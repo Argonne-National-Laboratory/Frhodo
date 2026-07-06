@@ -16,6 +16,7 @@ VIEW_LABELS = {
     "Objective Trace": "objective_trace",
     "Arrhenius with Bounds": "arrhenius",
     "Arrhenius Ratios (k / k₀)": "arrhenius_ratio",
+    "Band Utilization": "band_utilization",
     "Misfit Map": "misfit",
     "Improvement (start vs now)": "improvement",
     "Time Offsets": "time_offsets",

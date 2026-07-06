@@ -111,7 +111,6 @@ class GUI_settings:
         _set_box(parent.obj_fcn_scale_box, opt.objective_function_scale)
         _set_box(parent.loss_alpha_box, str(opt.loss_function_alpha))
         _set_box(parent.loss_c_box, opt.loss_function_c)
-        _set_box(parent.prior_lambda_box, opt.prior_lambda)
         _set_box(parent.experiment_balance_box,
                  opt.experiment_weighting != "none")
         # The checkbox only toggles balance on/off; the mode itself
@@ -211,7 +210,6 @@ class GUI_settings:
         except (TypeError, ValueError):
             opt.loss_function_alpha = loss_alpha_text
         opt.loss_function_c = parent.loss_c_box.value()
-        opt.prior_lambda = parent.prior_lambda_box.value()
         if parent.experiment_balance_box.isChecked():
             opt.experiment_weighting = getattr(
                 parent, "experiment_balance_mode", "uniqueness",

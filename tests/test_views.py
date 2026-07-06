@@ -158,6 +158,7 @@ class TestViewRouterRendering:
     @pytest.mark.parametrize("view_key", [
         "misfit", "arrhenius", "objective_trace",
         "arrhenius_ratio", "improvement", "time_offsets",
+        "band_utilization",
     ])
     def test_each_view_builds_and_updates(self, view_key):
         fig = plt.figure()
@@ -233,6 +234,28 @@ class TestViewRouterRendering:
         incumbent = [ln for ln in fig.axes[0].lines
                      if ln.get_label() == "incumbent"][0]
         np.testing.assert_allclose(incumbent.get_ydata(), [10.1] * 5)
+        plt.close(fig)
+
+    def test_band_utilization_sorts_and_flags_pinned_reaction(self):
+        """The fixture's scaler -0.69299 pins reaction 1 at its lower
+        bound; its bar must lead the chart, sized ~1 and drawn red,
+        with reaction 0's bar at its worst-anchor fraction 0.1/0.693."""
+        fig = plt.figure()
+        router = ViewRouter(fig, _context())
+        router.record(IterationEvent.from_update(_update(), is_best=True))
+        router.set_view("band_utilization")
+        router.refresh()
+        ax = fig.axes[0]
+        widths = [p.get_width() for p in ax.patches]
+        assert widths == pytest.approx([0.69299 / 0.693, 0.1 / 0.693]), (
+            f"bars must be sorted by utilization, got {widths}"
+        )
+        labels = [t.get_text() for t in ax.get_yticklabels()]
+        assert labels == ["R2", "R1"], (
+            f"labels must be bare reaction numbers, pinned first, got {labels}"
+        )
+        assert ax.patches[0].get_facecolor() == matplotlib.colors.to_rgba("crimson")
+        assert ax.patches[1].get_facecolor() == matplotlib.colors.to_rgba("steelblue")
         plt.close(fig)
 
     def test_arrhenius_flags_at_bound_anchor(self):

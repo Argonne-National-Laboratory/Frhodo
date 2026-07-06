@@ -10,6 +10,7 @@ import matplotlib as mpl
 import numpy as np
 
 from frhodo.gui.views.events import IterationEvent, ViewContext
+from frhodo.optimize.audit import bound_utilization
 
 
 
@@ -415,6 +416,68 @@ class ImprovementView:
         ax.autoscale_view()
 
 
+class BandUtilizationView:
+    """How much of each reaction's uncertainty band the incumbent uses.
+
+    One bar per optimized reaction: the worst side-aware fraction of
+    the available ln-k room across its rate anchors. A bar at 1 is
+    pinned at a bound — the optimizer wanted to go further than the
+    uncertainty allowed.
+    """
+
+    title = "Band Utilization"
+
+    def __init__(self, context: ViewContext):
+        self.context = context
+        self.ax = None
+
+    def build(self, fig) -> None:
+        self.ax = fig.add_subplot(1, 1, 1)
+        self.ax.set_xlabel("Fraction of uncertainty band used (worst anchor)")
+
+    def update(self, event: IterationEvent, history: _RunHistory) -> None:
+        best = history.best_event or event
+        ax = self.ax
+        ax.clear()
+        ax.set_xlabel("Fraction of uncertainty band used (worst anchor)")
+        s = np.asarray(best.scalers, dtype=float)
+        lb = np.asarray(self.context.lower_bounds, dtype=float)
+        ub = np.asarray(self.context.upper_bounds, dtype=float)
+        if s.size != lb.size or s.size == 0:
+            ax.text(0.5, 0.5, "scaler vector unavailable for this run",
+                    transform=ax.transAxes, ha="center", color="0.5")
+
+            return
+
+        utilization = bound_utilization(s, lb, ub)
+        rxn_util = {}
+        for rxn_idx, u in zip(self.context.param_rxn, utilization):
+            rxn_util[rxn_idx] = max(rxn_util.get(rxn_idx, 0.0), float(u))
+        order = sorted(rxn_util, key=rxn_util.get, reverse=True)
+        values = [rxn_util[idx] for idx in order]
+        names = [f"R{idx + 1}" for idx in order]
+        pinned = [v >= 1.0 - AT_BOUND_FRACTION for v in values]
+        colors = []
+        for is_pinned in pinned:
+            if is_pinned:
+                colors.append("crimson")
+            else:
+                colors.append("steelblue")
+
+        y = np.arange(len(order))
+        ax.barh(y, values, color=colors, height=0.7)
+        ax.set_yticks(y)
+        ax.set_yticklabels(names, fontsize="small")
+        ax.invert_yaxis()
+        ax.axvline(1.0, color="0.4", ls="--", lw=1.0)
+        ax.set_xlim(0.0, max(1.05, max(values) * 1.05))
+        n_pinned = int(np.sum(pinned))
+        ax.text(0.98, 0.02,
+                f"{n_pinned} at bound · dashed line = bound",
+                transform=ax.transAxes, fontsize="x-small", color="0.45",
+                horizontalalignment="right", verticalalignment="bottom")
+
+
 class TimeOffsetView:
     """Applied per-shock time offsets vs 1000/T, in absolute terms
     (set time offset + the solved adjustment).
@@ -557,6 +620,7 @@ class ViewRouter:
         if context is not None:
             self.views["arrhenius"] = ArrheniusView(context)
             self.views["arrhenius_ratio"] = RateRatioView(context)
+            self.views["band_utilization"] = BandUtilizationView(context)
         if self.active_name in self.views:
             self.set_view(self.active_name)
 

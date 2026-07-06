@@ -1294,7 +1294,6 @@ class Optimization(QtCore.QObject):
         self.settings = {"obj_fcn": {}, "global": {}, "local": {}}
 
         parent.loss_c_box.valueChanged.connect(self.update_obj_fcn_settings)
-        parent.prior_lambda_box.valueChanged.connect(self.update_obj_fcn_settings)
         for box in [
             parent.loss_alpha_box,
             parent.obj_fcn_scale_box,
@@ -1428,7 +1427,6 @@ class Optimization(QtCore.QObject):
         settings["c"] = (
             1 / parent.loss_c_box.value()
         )  # this makes increasing values decrease outlier influence
-        settings["prior_lambda"] = parent.prior_lambda_box.value()
         if parent.experiment_balance_box.isChecked():
             settings["experiment_weighting"] = getattr(
                 parent, "experiment_balance_mode", "uniqueness",

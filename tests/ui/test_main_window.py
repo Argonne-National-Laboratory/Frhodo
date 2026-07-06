@@ -705,12 +705,10 @@ class TestOptimizationViewSwitching:
         self._select_optimization_tab(main_window)
         box = main_window.opt_view_box
         labels = [box.itemText(i) for i in range(box.count())]
-        assert len(labels) == 6, f"expected six view entries, got {labels}"
-        assert labels[0] == "Objective Trace"
-        assert labels[1] == "Arrhenius with Bounds"
-        assert labels[2] == "Arrhenius Ratios (k / k₀)"
-        assert labels[3] == "Misfit Map"
-        contextual = {"arrhenius", "arrhenius_ratio"}
+        assert labels == list(VIEW_LABELS), (
+            f"view dropdown must mirror VIEW_LABELS, got {labels}"
+        )
+        contextual = {"arrhenius", "arrhenius_ratio", "band_utilization"}
         for label in labels + [labels[0]]:
             box.setCurrentText(label)
             key = VIEW_LABELS[label]
