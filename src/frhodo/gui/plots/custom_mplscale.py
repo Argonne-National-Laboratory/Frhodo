@@ -9,6 +9,7 @@ import numpy as np
 from frhodo.common.units import Bisymlog
 
 
+
 class AbsoluteLogScale(mplscale.LogScale):
     name = "abslog"
 

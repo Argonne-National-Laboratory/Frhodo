@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 
+
 _palette_path = Path(__file__).parent / "_colors.json"
 colors = json.loads(_palette_path.read_text())
 

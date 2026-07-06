@@ -9,6 +9,7 @@ import numpy as np
 from qtpy import QtCore
 
 
+
 class Path:
     """Tracks the experiment / mechanism / save directories across sessions.
 
@@ -170,6 +171,7 @@ class Path:
         shock_path = np.array(shock_path)[idx_sort]
 
         # Create sorted list of shock_num and shock_path
+
         return np.column_stack((shock_num, shock_path))
 
     def shock(self, shock_num):
@@ -184,7 +186,9 @@ class Path:
             else:
                 idx = np.argmin(np.abs(array - value))
 
-            return idx, array[idx]
+            nearest = array[idx]
+
+            return idx, nearest
 
         parent = self.parent
 
@@ -236,6 +240,7 @@ class Path:
             except (IOError, FileNotFoundError) as e:
                 log.append("Error in saving:")
                 log.append(e)
+
                 return
 
         parent.path["Sim log"] = parent.path["output_dir"] / "Sim log.txt"
@@ -317,6 +322,8 @@ class Path:
             return parent.path["Optimized_Mech.mech"]
         elif file_out == "recast_mech":
             return parent.path["Optimized_Mech_recast.mech"]
+        else:
+            raise ValueError(f"unexpected file_out: {file_out!r}")
 
     def load_dir_file(self, file_path):
         parent = self.parent

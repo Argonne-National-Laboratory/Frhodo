@@ -6,6 +6,7 @@ import matplotlib as mpl
 import numpy as np
 
 
+
 class MathTextSciSIFormatter(mpl.ticker.ScalarFormatter):  # format to SI OoM
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -17,10 +18,12 @@ class MathTextSciSIFormatter(mpl.ticker.ScalarFormatter):  # format to SI OoM
         # offset. When lower power limit = upper <> 0, use provided exponent.
         if not self._scientific:
             self.orderOfMagnitude = 0
+
             return
         if self._powerlimits[0] == self._powerlimits[1] != 0:
             # fixed scaling when lower power limit = upper <> 0.
             self.orderOfMagnitude = self._powerlimits[0]
+
             return
         # restrict to visible ticks
         vmin, vmax = sorted(self.axis.get_view_interval())
@@ -29,6 +32,7 @@ class MathTextSciSIFormatter(mpl.ticker.ScalarFormatter):  # format to SI OoM
         locs = np.abs(locs)
         if not len(locs):
             self.orderOfMagnitude = 0
+
             return
         if self.offset:
             oom = np.floor(np.log10(vmax - vmin))

@@ -22,6 +22,7 @@ from frhodo.optimize.parameters import (
 )
 
 
+
 _PRESSURE_DEP_RATE_TYPES = (
     ct.FalloffRate,
     ct.LindemannRate,
@@ -64,9 +65,15 @@ class CoefUncertainty(BaseModel):
     def resolve(self, nominal: float, *, coef_name: str) -> tuple[float, float]:
         """Return the absolute ``(lo, hi)`` bounds for ``nominal``."""
         if self.factor is not None:
-            return (nominal / self.factor, nominal * self.factor)
+            lo = nominal / self.factor
+            hi = nominal * self.factor
+
+            return (lo, hi)
         if self.delta is not None:
-            return (nominal - self.delta, nominal + self.delta)
+            lo = nominal - self.delta
+            hi = nominal + self.delta
+
+            return (lo, hi)
         lo, hi = self.bounds
         if not (lo <= nominal <= hi):
             raise ValueError(
@@ -300,7 +307,9 @@ class OptimizableSpecBuilder:
 
     def build(self) -> OptimizableSpec:
         """Snapshot the current selection as an immutable :class:`OptimizableSpec`."""
-        return OptimizableSpec(
+        spec = OptimizableSpec(
             rates=list(self._rates.values()),
             default_rate=self._default_rate,
         )
+
+        return spec

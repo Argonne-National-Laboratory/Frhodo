@@ -13,6 +13,7 @@ from frhodo.gui.plots.base_plot import Base_Plot
 from frhodo.gui.plots.draggable import Draggable
 
 
+
 class Plot(Base_Plot):
     def __init__(self, parent, widget, mpl_layout):
         super().__init__(parent, widget, mpl_layout)
@@ -24,6 +25,7 @@ class Plot(Base_Plot):
         def fix_g_format(value, prec):
             text = "{:.{dec}g}".format(value, dec=prec)
             text = text.replace("e+", "e")
+
             return re.sub("e(-?)0*(\d+)", r"e\1\2", text)
 
         shock_zone = 2
@@ -145,14 +147,16 @@ class Plot(Base_Plot):
             def pred_int(i_old, i):
                 SD = np.std(data[:i_old])  # Standard deviation of sample
                 sigma = SD**2  # Variance of Sample
-                return t * np.sqrt(
-                    (sigma / i_old + sigma / (i - i_old))
-                )  # Prediction interval for 2 means
+                # Prediction interval for 2 means
+                interval = t * np.sqrt(sigma / i_old + sigma / (i - i_old))
+
+                return interval
 
             def calc_mu_t(i):
                 mu = np.mean(data[:i])  # Mean of sample
                 df = i - 1
                 t = stats.t.ppf(1 - alpha / 2, df=df)
+
                 return mu, t
 
             i_old = int(np.round(np.shape(data)[0] * frac))
@@ -180,6 +184,7 @@ class Plot(Base_Plot):
 
         if np.isnan(parent.display_shock.Sample_Rate):
             self.clear_plot()
+
             return
 
         data = parent.display_shock.raw_data.reshape(-1)

@@ -92,8 +92,8 @@ def _lepski_local_sigma(values: np.ndarray, var_multiplier: float) -> np.ndarray
     the upper 75% of the distribution, so one-sided contamination from
     signal leakage at sharp transitions (where the difference operator
     doesn't fully cancel the underlying smooth signal) is discarded
-    instead of biasing σ̂ upward. Per-point bandwidth picked by the
-    Lepski rule: largest window consistent with all smaller ones.
+    rather than allowed to bias σ̂ upward. Per-point bandwidth picked
+    by the Lepski rule: largest window consistent with all smaller ones.
     """
     n = values.size
     nan_result = np.full(n, np.nan)
@@ -290,7 +290,7 @@ def estimate_pointwise_sigma(y: np.ndarray, *, scale: Scale) -> np.ndarray:
     centerline, over a window wide enough to capture the correlated-noise
     excursion scale (so ``μ ± 1.96σ`` envelopes the data) yet still local,
     heteroscedastic, and smooth. Log family: bounded Q25-robust scatter
-    (see :func:`_bounded_robust_band`).
+    from :func:`_bounded_robust_band`.
 
     Returns:
         ``np.ndarray`` shaped like ``y`` with ``σ ≥ 0`` (in scaled units).

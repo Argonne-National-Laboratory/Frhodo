@@ -9,7 +9,9 @@ top-level controller is :class:`Tree`; reaction-row helpers
 down and are instantiated by :class:`Tree` as the user expands the
 tree.
 """
-import sys, ast, re
+import ast
+import re
+import sys
 from copy import deepcopy
 from functools import partial
 from timeit import default_timer as timer
@@ -37,6 +39,7 @@ from frhodo.simulation.mechanism.mech_snapshot import (
     restore_state,
     signatures_for_gas,
 )
+
 
 
 class MechWidgetHost(Protocol):
@@ -100,17 +103,22 @@ _FALLOFF_DISPLAY_IDX = _display_indices(2)    # [1, 2, 0, 4, 5, 3]
 
 
 def _arrhenius_coef_rows(rxnIdx, mech):
-    return [
+    rows = [
         [abbr, coefName, mech.coeffs[rxnIdx][0]]
         for coefName, abbr in coef_abbreviation.items()
     ]
+
+    return rows
 
 
 def _pressure_dep_coef_rows(rxnIdx, rxn, mech):
     coeffs = []
     for key in ("high", "low"):
         if isinstance(rxn.rate, ct.PlogRate):
-            n = len(mech.coeffs[rxnIdx]) - 1 if key == "high" else 0
+            if key == "high":
+                n = len(mech.coeffs[rxnIdx]) - 1
+            else:
+                n = 0
         else:
             n = f"{key}_rate"
         for coefName, abbr in coef_abbreviation.items():
@@ -389,8 +397,8 @@ class Tree(QtCore.QObject):
         let the normal optimizable/fixed coloring take over.
 
         Skipped during programmatic widget construction (the
-        ``_building_widgets`` guard) so pre-building widgets for a
-        previously-opened partial rxn doesn't undo the dark-red flag
+        ``_building_widgets`` guard) so pre-building widgets for an
+        already-opened partial rxn doesn't undo the dark-red flag
         before the user has seen it.
         """
         if getattr(self, "_building_widgets", False):
@@ -432,11 +440,13 @@ class Tree(QtCore.QObject):
             if parent.mech_tree.isExpanded(proxy_idx):
                 expanded.add(sig)
 
-        return {
+        snapshot = {
             "mech": capture_state(mech, parent.optimizables),
             "opened": opened,
             "expanded": expanded,
         }
+
+        return snapshot
 
     def handle_reload(self, prior_snapshot):
         """Refresh the tree after a mech reload.
@@ -455,6 +465,7 @@ class Tree(QtCore.QObject):
         parent = self.parent()
         if prior_snapshot is None:
             self.set_trees(parent.mech)
+
             return
 
         parent.optimizables.reset()
@@ -647,6 +658,8 @@ class Tree(QtCore.QObject):
             widget.valueBox.setSingleStep(0.01)
         elif self.mech_tree_type == "Chemkin":
             widget.valueBox.setSingleStep(0.1)
+        else:
+            raise ValueError(f"unexpected mech_tree_type: {self.mech_tree_type!r}")
 
         widget.formulaBox.setInitialFormula()
         widget.formulaBox.valueChanged.connect(self.update_value)
@@ -700,6 +713,7 @@ class Tree(QtCore.QObject):
         selected = self.model.itemFromIndex(ix)
         if hasattr(selected, "info"):
             rxnNum = selected.info["rxnNum"]
+
             return tree.rxn[rxnNum]
         else:
             return None
@@ -793,7 +807,9 @@ class Tree(QtCore.QObject):
             )
             if not mech_out["success"]:
                 parent.log.append(mech_out["message"])
+
                 return
+
             return parent.mech.gas.forward_rate_constants[rxnNum]
 
         parent = self.parent()
@@ -1105,6 +1121,10 @@ class Tree(QtCore.QObject):
                     valBox.setSingleStep(0.01)
                 elif self.mech_tree_type == "Chemkin":
                     valBox.setSingleStep(0.1)
+                else:
+                    raise ValueError(
+                        f"unexpected mech_tree_type: {self.mech_tree_type!r}"
+                    )
 
                 if n + 1 >= len(uncBoxes):
                     continue
@@ -1487,6 +1507,7 @@ class QSortFilterProxyModel(QtCore.QSortFilterProxyModel):
         rightData = self.sourceModel().data(right)
 
         try:
+
             return rxnNum(leftData) < rxnNum(rightData)
         except ValueError:
             return leftData < rightData
@@ -1535,6 +1556,7 @@ class TreeFilter:
                 type_tokens.append(m.group(1).lower())
             else:
                 text_tokens.append(tok)
+
         return type_tokens, text_tokens
 
     def update_match_tooltip(self, num, show=True):
@@ -1707,6 +1729,8 @@ class Uncertainty(QWidget):
             self.typeBox.addItems(["F", "%", "±", "+", "-"])
         elif type == "rate":
             self.typeBox.addItems(["F", "%"])
+        else:
+            raise ValueError(f"unexpected uncertainty type: {type!r}")
 
         tooltipTxt = [
             '<html><table border="0" cellspacing="1" cellpadding="0">'
@@ -1751,7 +1775,11 @@ class Uncertainty(QWidget):
     def uncTypeChanged(self, event, update=True):
         def plus_minus_values():
             coefBox = self.info["mainValueBox"]
-            return coefBox.strDecimals, coefBox.singleStep() * 10, sys.float_info.max
+            decimals = coefBox.strDecimals
+            step = coefBox.singleStep() * 10
+            maxval = sys.float_info.max
+
+            return decimals, step, maxval
 
         self.valBox.setUncType(event)  # pass event change to uncValBox
         if self.priorUncType == "±" and update:

@@ -6,6 +6,7 @@ import matplotlib as mpl
 from qtpy import QtCore
 
 
+
 _MOTION_TICK_MS = 16  # coalesce motion events at ~60 Hz
 
 

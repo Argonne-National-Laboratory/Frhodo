@@ -6,6 +6,7 @@ produce per-sample weights and uncertainties on each shock trace.
 import numpy as np
 
 
+
 _min_pos_system_value = (np.finfo(float).tiny * (1e20)) ** (1 / 2)
 _max_pos_system_value = (np.finfo(float).max * (1e-20)) ** (1 / 2)
 

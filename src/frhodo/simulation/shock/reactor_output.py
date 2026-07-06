@@ -29,6 +29,7 @@ import numpy as np
 from frhodo.common.units import cgs_factor
 
 
+
 Ru = ct.gas_constant
 
 
@@ -69,7 +70,10 @@ def drhodz(states, L=0.1, As=0.2, A1=0.2, area_change=False):
     species_term = np.sum(
         (hk / (cp * T)[:, None] - Wmix[:, None]) * wdot, axis=1,
     )
-    area_term = _area_change_term(states, L, As, A1) if area_change else 0.0
+    if area_change:
+        area_term = _area_change_term(states, L, As, A1)
+    else:
+        area_term = 0.0
 
     return (species_term - area_term) / (vel * (1.0 + beta))
 
@@ -108,9 +112,10 @@ def drhodz_per_rxn(states, L=0.1, As=0.2, A1=0.2, area_change=False, rxnNum=None
     species_term = rj * (
         hj / (cp * T)[:, None] - Wmix[:, None] * delta_N
     )
-    area_term = (
-        _area_change_term(states, L, As, A1)[:, None] if area_change else 0.0
-    )
+    if area_change:
+        area_term = _area_change_term(states, L, As, A1)[:, None]
+    else:
+        area_term = 0.0
 
     return (species_term - area_term) / (vel[:, None] * (1.0 + beta[:, None]))
 
@@ -249,8 +254,12 @@ def sub_types_for_display(display: str) -> list[str] | None:
         for v in VARIANTS_BY_DISPLAY[display]
         if v.sub_type is not None
     ]
+    if types:
+        result = types
+    else:
+        result = None
 
-    return types if types else None
+    return result
 
 
 def base_sim_name_for_display(display: str) -> str:
@@ -340,6 +349,7 @@ class ReactorOutput:
 
         if num is None:
             self.reactor_var = {}
+
             return
 
         for name in reactor_vars:

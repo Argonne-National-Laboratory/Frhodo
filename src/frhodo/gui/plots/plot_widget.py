@@ -11,6 +11,7 @@ from frhodo.simulation.shock.reactor_output import sub_types_for_display
 from frhodo.gui.widgets import misc_widget
 
 
+
 class Observable_Widgets(QtCore.QObject):
     def __init__(self, parent):
         super().__init__(parent)

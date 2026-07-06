@@ -9,6 +9,7 @@ import pathlib
 from frhodo.simulation.shock.reactor_output import base_sim_name_for_display, sub_types_for_display
 
 
+
 class Save:
     """Writes simulation outputs to user-chosen files.
 
@@ -75,6 +76,7 @@ class Save:
             table.insert(0, "=" * len(table[0]))
             table.insert(0, "{0:<{w}s}".format(name, w=len(table[0])))
             table.insert(0, "=" * len(table[0]))
+
         return table
 
     def write_table(
@@ -89,6 +91,7 @@ class Save:
         def find_nearest(array, value):
             array = np.asarray(array)
             idx = (np.abs(array - value)).argmin()
+
             return idx
 
         parent = self.parent

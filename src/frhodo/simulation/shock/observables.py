@@ -42,6 +42,7 @@ from frhodo.simulation.shock.incident_shock_reactor import (
 )
 
 
+
 Ru = ct.gas_constant
 
 
@@ -93,12 +94,17 @@ def drhodz(states, L=0.1, As=0.2, A1=0.2, area_change=False):
         - states.mean_molecular_weight[:, None]
     )
     species_term = np.sum(hk_over_cpT_minus_Wmix * states.net_production_rates, axis=1)
-    area_term = _area_change_term(states, L, As, A1) if area_change else 0.0
+    if area_change:
+        area_term = _area_change_term(states, L, As, A1)
+    else:
+        area_term = 0.0
 
-    return _drhodz_formula(
+    result = _drhodz_formula(
         states.vel, states.cp_mass, states.T, states.mean_molecular_weight,
         species_term, area_term,
     )
+
+    return result
 
 
 def drhodz_per_rxn(states, L=0.1, As=0.2, A1=0.2, area_change=False, rxnNum=None):
@@ -131,15 +137,18 @@ def drhodz_per_rxn(states, L=0.1, As=0.2, A1=0.2, area_change=False, rxnNum=None
         hj / (states.cp_mass * states.T)[:, None]
         - states.mean_molecular_weight[:, None] * delta_N
     )
-    area_term = (
-        _area_change_term(states, L, As, A1)[:, None] if area_change else 0.0
-    )
+    if area_change:
+        area_term = _area_change_term(states, L, As, A1)[:, None]
+    else:
+        area_term = 0.0
 
-    return _drhodz_formula(
+    result = _drhodz_formula(
         states.vel[:, None], states.cp_mass[:, None], states.T[:, None],
         states.mean_molecular_weight[:, None],
         species_term, area_term,
     )
+
+    return result
 
 
 # ─────────────────── drhodz wrappers (single state) ──────────────────
@@ -392,7 +401,10 @@ def _density_sensitivity_normalized(
         return sens_step[idx["density"]]
     if "volume" in idx:
         return -sens_step[idx["volume"]]
-    dT = sens_step[idx["temperature"]] if "temperature" in idx else 0.0
+    if "temperature" in idx:
+        dT = sens_step[idx["temperature"]]
+    else:
+        dT = 0.0
 
     return dW_over_W - dT
 
@@ -529,8 +541,16 @@ def _drhodz_chain_rule(sens_step: np.ndarray, idx: dict, snap: dict, gas) -> np.
             / (eps * baseline)
 
         s_T = sens_step[idx["temperature"], :]
-        s_v = sens_step[idx["velocity"], :] if "velocity" in idx else 0.0
-        s_rho = sens_step[idx["density"], :] if "density" in idx else 0.0
+        if "velocity" in idx:
+            s_v = sens_step[idx["velocity"], :]
+        else:
+            s_v = 0.0
+
+        if "density" in idx:
+            s_rho = sens_step[idx["density"], :]
+        else:
+            s_rho = 0.0
+
         dY = _all_species_sens(sens_step, idx, gas)
 
         indirect = A_T * s_T + A_rho * s_rho + A_v * s_v

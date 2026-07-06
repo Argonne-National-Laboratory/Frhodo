@@ -10,6 +10,7 @@ configure their own handlers.
 import logging
 
 
+
 class GuiLogHandler(logging.Handler):
     """Pipes ``logging`` records into the GUI log widget.
 
@@ -38,6 +39,7 @@ class GuiLogHandler(logging.Handler):
             text = self.format(record)
         except Exception:
             self.handleError(record)
+
             return
         alert = record.levelno >= logging.WARNING
         self._dispatcher.message.emit(text, alert)

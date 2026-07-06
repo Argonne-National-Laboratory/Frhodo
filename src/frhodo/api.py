@@ -11,7 +11,7 @@ Example::
     cfg = ShockTubeConfig(
         T_reac=1500.0, P_reac=20_000.0,
         composition={"Kr": 0.96, "cC7H14": 0.04},
-        u_incident=1029.0, rho1=0.4, t_end=5e-5,
+        u2=1029.0, rho1=0.4, t_end=5e-5,
     )
     result = run_shock_tube(mech, cfg)
     if result.success:
@@ -19,6 +19,7 @@ Example::
 """
 import multiprocessing as mp
 import sys
+import time
 import dataclasses
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -28,6 +29,7 @@ import cantera as ct
 import numpy as np
 
 from frhodo.simulation.mechanism import ChemicalMechanism
+from frhodo.simulation.mechanism.coef_helpers import rates as compute_rates
 from frhodo.simulation.mechanism.mechanism_loader import MechanismLoader
 from frhodo.simulation.shock import (
     RuntimeReactorState,
@@ -45,16 +47,26 @@ from frhodo.common import (
     ZeroDConfig,
 )
 from frhodo.common.units import kJ_per_mol, kcal_per_mol
+from frhodo.experiment import ExperimentalShock
 from frhodo.experiment.profiles import (
     ExperimentShock,
     WeightProfile,
 )
 from frhodo.optimize._worker_context import MechBuildPayload, WorkerContext
 from frhodo.optimize.algorithm_settings import AlgorithmSettings, AlgorithmStage
+from frhodo.optimize.cost.fit_fcn import update_mech_coef_opt
 from frhodo.optimize.cost.settings import CostSettings
-from frhodo.optimize.parameters import OptimizableSet
+from frhodo.optimize.parameters import (
+    OptimizableSet,
+    build_rxn_coef_opt,
+    build_rxn_rate_opt,
+)
 from frhodo.optimize.request import OptimizationRequest
-from frhodo.optimize.residual import OptimizeRunInputs
+from frhodo.optimize.residual import (
+    OptimizeRunCallbacks,
+    OptimizeRunInputs,
+    optimize_residual as _run_residual_loop,
+)
 from frhodo.optimize.spec import (
     CoefUncertainty,
     OptimizableRate,
@@ -99,9 +111,14 @@ def load_mechanism(
     else:
         converted_yaml_path = Path(converted_yaml)
 
+    if thermo is not None:
+        thermo_path = Path(thermo)
+    else:
+        thermo_path = None
+
     paths = {
         "mech": mech_path,
-        "thermo": Path(thermo) if thermo is not None else None,
+        "thermo": thermo_path,
         "Cantera_Mech": converted_yaml_path,
     }
 
@@ -224,27 +241,29 @@ def run_shock_tube(mech: ChemicalMechanism, cfg: ShockTubeConfig) -> SimulationR
     if isinstance(cfg.initial, PreShockState):
         shock_state = solve_shock_jump(cfg.initial, mech)
         if not shock_state.success:
-            return SimulationResult(
+            failure = SimulationResult(
                 success=False,
                 failure_reason=FailureReason.FROSH_NOT_CONVERGED,
                 message=shock_state.message or "shock jump solver failed",
                 shock=shock_state,
             )
+
+            return failure
         T_reac = shock_state.T2
         P_reac = shock_state.P2
-        u_incident = shock_state.u2
+        u2 = shock_state.u2
         rho1 = shock_state.rho1
         composition = cfg.initial.composition
     else:
         shock_state = None
         T_reac = cfg.initial.T_reac
         P_reac = cfg.initial.P_reac
-        u_incident = cfg.initial.u_incident
+        u2 = cfg.initial.u2
         rho1 = cfg.initial.rho1
         composition = cfg.initial.composition
 
     kwargs: dict = {
-        "u_reac": u_incident,
+        "u_reac": u2,
         "rho1": rho1,
         "A1": cfg.A1,
         "As": cfg.As,
@@ -277,11 +296,21 @@ def run_zero_d(mech: ChemicalMechanism, cfg: ZeroDConfig) -> SimulationResult:
         :class:`SimulationResult`. ``shock`` is always ``None`` for
         0-D runs.
     """
+    if cfg.solver.rtol is not None:
+        rtol = cfg.solver.rtol
+    else:
+        rtol = 1e-4
+
+    if cfg.solver.atol is not None:
+        atol = cfg.solver.atol
+    else:
+        atol = 1e-7
+
     kwargs: dict = {
         "solve_energy": cfg.solve_energy,
         "frozen_comp": cfg.frozen_comp,
-        "rtol": cfg.solver.rtol if cfg.solver.rtol is not None else 1e-4,
-        "atol": cfg.solver.atol if cfg.solver.atol is not None else 1e-7,
+        "rtol": rtol,
+        "atol": atol,
         "sim_int_f": cfg.solver.sim_interp_factor,
         "observable": {"main": cfg.observable.main, "sub": cfg.observable.sub},
     }
@@ -313,20 +342,24 @@ def solve_shock_jump(initial: PreShockState, mech: ChemicalMechanism) -> ShockSt
     with mech.exclusive():
         solver = ShockJumpSolver(mech.gas, shock_vars)
         if not solver.success:
-            return ShockState(
+            failure = ShockState(
                 success=False, message="Shock jump solver failed",
                 initial=initial,
             )
 
+            return failure
+
     r = solver.res
 
-    return ShockState(
+    shock_state = ShockState(
         success=True,
         initial=initial,
         T1=r.T1, P1=r.P1, u1=r.u1, rho1=r.rho1,
         T2=r.T2, P2=r.P2, u2=r.u2,
         T5=r.T5, P5=r.P5,
     )
+
+    return shock_state
 
 
 _CORE_PROPERTIES = ("T", "P", "rho", "Y")
@@ -338,7 +371,9 @@ def _fetch_property(SIM, name: str) -> np.ndarray | None:
     if not callable(getter):
         return None
     try:
-        return np.asarray(getter(units="SI"))
+        value = np.asarray(getter(units="SI"))
+
+        return value
     except Exception:
         return None
 
@@ -351,39 +386,54 @@ def _to_simulation_result(SIM, details: dict) -> SimulationResult:
     else:
         message = str(raw_msg)
 
-    failure_reason = details.get("failure_reason") if not success else None
+    if not success:
+        failure_reason = details.get("failure_reason")
+    else:
+        failure_reason = None
 
     if SIM is None or not success:
-        return SimulationResult(
+        failed = SimulationResult(
             success=success,
             failure_reason=failure_reason,
             message=message,
         )
 
+        return failed
+
     states = getattr(SIM, "states", None)
     if states is None or len(states) == 0:
-        return SimulationResult(
+        empty = SimulationResult(
             success=False,
             failure_reason=FailureReason.SOLVER_FAILURE,
             message=message or "no states produced",
         )
 
+        return empty
+
     species = tuple(states.species_names)
-    observable = np.asarray(SIM.observable) if hasattr(SIM, "observable") else np.array([])
-    independent_var = (
-        np.asarray(SIM.independent_var) if hasattr(SIM, "independent_var") else np.array([])
-    )
+    if hasattr(SIM, "observable"):
+        observable = np.asarray(SIM.observable)
+    else:
+        observable = np.array([])
+
+    if hasattr(SIM, "independent_var"):
+        independent_var = np.asarray(SIM.independent_var)
+    else:
+        independent_var = np.array([])
 
     core_values: dict[str, np.ndarray] = {}
     for name in _CORE_PROPERTIES:
         value = _fetch_property(SIM, name)
-        core_values[name] = value if value is not None else np.array([])
+        if value is not None:
+            core_values[name] = value
+        else:
+            core_values[name] = np.array([])
 
     optional_values: dict[str, np.ndarray | None] = {
         name: _fetch_property(SIM, name) for name in _OPTIONAL_PROPERTIES
     }
 
-    return SimulationResult(
+    result = SimulationResult(
         success=True,
         message=message,
         t=independent_var,
@@ -400,6 +450,8 @@ def _to_simulation_result(SIM, details: dict) -> SimulationResult:
         drhodz_tot=optional_values["drhodz_tot"],
         cantera_array=states,
     )
+
+    return result
 
 
 def run_shock_tubes(
@@ -429,7 +481,9 @@ def run_shock_tubes(
     """
     if workers is None or workers == 1:
         loaded = _resolve_mech(mech)
-        return [run_shock_tube(loaded, cfg) for cfg in cfgs]
+        results = [run_shock_tube(loaded, cfg) for cfg in cfgs]
+
+        return results
 
     if sys.platform == "win32":
         if isinstance(mech, ChemicalMechanism):
@@ -454,7 +508,9 @@ def run_shock_tubes(
 
     try:
         with ctx.Pool(processes=workers, initializer=init, initargs=initargs) as pool:
-            return pool.map(_pool_run_one, list(cfgs))
+            results = pool.map(_pool_run_one, list(cfgs))
+
+            return results
     finally:
         _FORK_HANDOFF.mech = None
         _FORK_HANDOFF.mech_path = None
@@ -613,20 +669,19 @@ def optimize_residual(
         :class:`OptimizationResult`. Always populated even on abort
         or failure; check ``success`` and ``aborted``.
     """
-    from frhodo.simulation.mechanism.coef_helpers import rates as compute_rates
-    from frhodo.optimize.parameters import build_rxn_coef_opt, build_rxn_rate_opt
-
     cb = callbacks or OptimizationCallbacks()
 
     optimizable_builder = request.optimizable.to_builder(mech)
     optimizable_set = optimizable_builder.build(mech)
     coef_opt = list(optimizable_set.coefficients)
     if not coef_opt:
-        return OptimizationResult(
+        empty_result = OptimizationResult(
             success=False,
             message="OptimizableSpec is empty (no reactions or coefficients selected)",
             optimizable_used=optimizable_set,
         )
+
+        return empty_result
 
     shocks2run = [_to_internal_shock(s, request, mech) for s in request.shocks]
 
@@ -676,12 +731,14 @@ def optimize_residual(
         random_t_uncertainty=request.random_t_uncertainty,
     )
 
-    return _run_optimization_engine(
+    result = _run_optimization_engine(
         inputs,
         optimizable_set=optimizable_set,
         default_display_shock=default_display_shock,
         callbacks=callbacks,
     )
+
+    return result
 
 
 def _run_optimization_engine(
@@ -697,11 +754,6 @@ def _run_optimization_engine(
     the api-level :class:`OptimizationCallbacks` events and shape the
     raw driver dict into an :class:`OptimizationResult`.
     """
-    from frhodo.optimize.residual import (
-        OptimizeRunCallbacks,
-        optimize_residual as _run_residual_loop,
-    )
-
     cb = callbacks or OptimizationCallbacks()
     mech = inputs.mech
 
@@ -745,24 +797,28 @@ def _run_optimization_engine(
         log_cb = _log_cb
     else:
         log_cb = None
-    shock_provider = (
-        cb.display_shock_provider
-        if cb.display_shock_provider is not None
-        else (lambda s=default_display_shock: s)
-    )
+    if cb.display_shock_provider is not None:
+        shock_provider = cb.display_shock_provider
+    else:
+        shock_provider = lambda s=default_display_shock: s
+
+    if inputs.multiprocessing:
+        mech_payload = MechBuildPayload(
+            reset_mech=mech.reset_mech,
+            thermo_coeffs=mech.thermo_coeffs,
+            coeffs=mech.coeffs,
+            coeffs_bnds=mech.coeffs_bnds,
+            rate_bnds=mech.rate_bnds,
+        )
+    else:
+        mech_payload = None
 
     engine_callbacks = OptimizeRunCallbacks(
         display_shock_provider=shock_provider,
         abort_check=cb.abort,
         log_callback=log_cb,
         progress_callback=raw_progress,
-        mech_payload=MechBuildPayload(
-            reset_mech=mech.reset_mech,
-            thermo_coeffs=mech.thermo_coeffs,
-            coeffs=mech.coeffs,
-            coeffs_bnds=mech.coeffs_bnds,
-            rate_bnds=mech.rate_bnds,
-        ) if inputs.multiprocessing else None,
+        mech_payload=mech_payload,
         worker_pool=cb.worker_pool,
         mech=mech,
     )
@@ -771,11 +827,18 @@ def _run_optimization_engine(
 
     aborted = bool(cb.abort and cb.abort())
     if raw is None:
-        return OptimizationResult(
+        if aborted:
+            message = "optimization aborted"
+        else:
+            message = "optimization failed"
+
+        failed_result = OptimizationResult(
             success=False, aborted=aborted,
-            message="optimization aborted" if aborted else "optimization failed",
+            message=message,
             optimizable_used=optimizable_set,
         )
+
+        return failed_result
 
     if cb.on_stage_complete is not None:
         for stage_name in ("global", "local"):
@@ -794,7 +857,7 @@ def _run_optimization_engine(
 
     last = raw.get("local") or raw.get("global") or {}
 
-    return OptimizationResult(
+    result = OptimizationResult(
         success=bool(last.get("success", False)),
         aborted=aborted,
         message=str(last.get("message", "")),
@@ -805,6 +868,8 @@ def _run_optimization_engine(
         optimizable_used=optimizable_set,
         raw=raw,
     )
+
+    return result
 
 
 def apply_optimization_result(
@@ -829,8 +894,6 @@ def apply_optimization_result(
             optimizable set, or ``save_path`` has an unsupported
             suffix.
     """
-    from frhodo.optimize.cost.fit_fcn import update_mech_coef_opt
-
     if result.optimizable_used is None:
         raise ValueError(
             "OptimizationResult.optimizable_used is None; cannot map x to coefficients"
@@ -863,15 +926,11 @@ class _ProgressAdapter:
     :class:`IterationUpdate`, tracking is-best and elapsed wall time."""
 
     def __init__(self, on_iteration: Callable[[IterationUpdate], None]):
-        import time
-
         self._on_iteration = on_iteration
         self._best_fval: float = float("inf")
         self._t0 = time.perf_counter()
 
     def __call__(self, update: Mapping) -> None:
-        import time
-
         fval = float(update.get("obj_fcn", float("inf")))
         is_best = fval < self._best_fval
         if is_best:
@@ -899,8 +958,6 @@ def _to_internal_shock(shock: "ExperimentShock", request: "OptimizationRequest",
     downstream ``_trim_shocks`` drops them; samples inside carry the
     ``WeightProfile`` envelope scaled by ``shock.scalar_weight``.
     """
-    from frhodo.experiment import ExperimentalShock
-
     if isinstance(shock.initial, PreShockState):
         ss = solve_shock_jump(shock.initial, mech)
         if not ss.success:
@@ -913,7 +970,7 @@ def _to_internal_shock(shock: "ExperimentShock", request: "OptimizationRequest",
         T1, P1, u1 = ss.T1, ss.P1, ss.u1
     else:
         T_reac, P_reac = shock.initial.T_reac, shock.initial.P_reac
-        u2 = shock.initial.u_incident
+        u2 = shock.initial.u2
         rho1 = shock.initial.rho1
         T1, P1, u1 = float("nan"), float("nan"), float("nan")
 
@@ -921,7 +978,11 @@ def _to_internal_shock(shock: "ExperimentShock", request: "OptimizationRequest",
     obs = shock.observable_array()
     exp_data = np.column_stack([t, obs])
 
-    duration = float(t[-1] - t[0]) if t.size >= 2 else 1.0
+    if t.size >= 2:
+        duration = float(t[-1] - t[0])
+    else:
+        duration = 1.0
+
     t_percent = 100.0 * (t - t[0]) / max(duration, 1e-30)
 
     weight_profile = shock.weight_profile or request.default_weight_profile
@@ -931,7 +992,7 @@ def _to_internal_shock(shock: "ExperimentShock", request: "OptimizationRequest",
     )
     normalized_weights = np.where(in_window, envelope * shock.scalar_weight, 0.0)
 
-    return ExperimentalShock.from_dict({
+    shock_dict = {
         "T1": T1, "P1": P1, "u1": u1, "rho1": rho1, "u2": u2,
         "T_reactor": T_reac, "P_reactor": P_reac,
         "thermo_mix": dict(shock.initial.composition),
@@ -943,7 +1004,9 @@ def _to_internal_shock(shock: "ExperimentShock", request: "OptimizationRequest",
         "normalized_weights": normalized_weights,
         "weights": normalized_weights.copy(),
         "opt_time_offset": 0.0,
-    })
+    }
+
+    return ExperimentalShock.from_dict(shock_dict)
 
 
 __all__ = [

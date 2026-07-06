@@ -29,6 +29,7 @@ from copy import deepcopy
 import numpy as np
 
 
+
 def rxn_signature(rxn):
     """Hashable identity tuple for one Cantera ``Reaction``.
 
@@ -38,8 +39,9 @@ def rxn_signature(rxn):
     """
     reactants = tuple(sorted(rxn.reactants.items()))
     products = tuple(sorted(rxn.products.items()))
+    reversible = bool(rxn.reversible)
 
-    return (reactants, products, bool(rxn.reversible))
+    return reactants, products, reversible
 
 
 def signatures_for_gas(gas):
@@ -118,7 +120,7 @@ def _capture_one(mech, optimizables, rxnIdx):
                 ),
             }
 
-    return {
+    state = {
         "coeffs": deepcopy(mech.coeffs[rxnIdx]),
         "rate_unc": {
             "value": mech.rate_bnds[rxnIdx]["value"],
@@ -127,6 +129,8 @@ def _capture_one(mech, optimizables, rxnIdx):
         "rate_optimizable": optimizables.is_reaction_optimizable(rxnIdx),
         "coef_state": coef_state,
     }
+
+    return state
 
 
 def capture_state(mech, optimizables):

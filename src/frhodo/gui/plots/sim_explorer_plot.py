@@ -9,6 +9,7 @@ from frhodo.gui.plots.base_plot import Base_Plot
 from frhodo.gui.plots.draggable import DraggableLegend
 
 
+
 class Plot(Base_Plot):
     def __init__(self, parent, widget, mpl_layout):
         super().__init__(parent, widget, mpl_layout)

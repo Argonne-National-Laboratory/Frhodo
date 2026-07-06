@@ -22,18 +22,24 @@ from __future__ import annotations
 
 import multiprocessing as mp
 import os
+from types import SimpleNamespace
 from typing import Literal
 
 import numpy as np
 import cantera as ct
 
+from frhodo.simulation.mechanism.mech_fcns import ChemicalMechanism
 from frhodo.simulation.shock.sundials_sens import (
     compute_adjoint_sensitivity,
     compute_forward_sensitivity,
 )
 from frhodo.simulation.shock.incident_shock_reactor import run_incident_shock
-from frhodo.simulation.shock.state import zero_d_mode_from_label
+from frhodo.simulation.shock.state import (
+    RuntimeReactorState,
+    zero_d_mode_from_label,
+)
 from frhodo.simulation.shock.zero_d_reactor import run_zero_d
+
 
 
 Observable = Literal["T", "P", "drhodz_tot", "Y", "X", "conc"]
@@ -69,14 +75,14 @@ def compute_sensitivity(
             reactor name).
         shock: Post-shock state with ``T_reactor``, ``P_reactor``,
             ``thermo_mix``, plus shock-only fields used by incident-shock.
-        observable: Observable name (see module docstring).
+        observable: Observable name.
         species_idx: Required when ``observable`` is per-species (``Y``,
             ``X``, ``conc``); ignored otherwise.
         time_grid: Optional output time grid; defaults to the solver's
             internal grid for ``native``/``fd``, or a 50-point linear
             grid for SUNDIALS methods.
         method: Backend selector — ``"auto"`` resolves to one of the
-            other values; see module docstring.
+            other values.
         n_workers: Process-pool size for parallel FD; ignored unless
             ``method="fd"`` or ``method="auto"`` resolves to ``"fd"``.
         eps: Multiplicative perturbation magnitude for FD.
@@ -97,29 +103,39 @@ def compute_sensitivity(
 
     resolved = _resolve_method(method, mech, observable, reactor_state, n_workers)
     if resolved == "native":
-        return _compute_native(
-            mech, reactor_state, shock,
-            observable=observable, species_idx=species_idx,
-            time_grid=time_grid,
-        )
-    if resolved == "adjoint":
-        return compute_adjoint_sensitivity(
-            mech, reactor_state, shock,
-            observable=observable, species_idx=species_idx,
-            time_grid=time_grid,
-        )
-    if resolved == "forward_sens":
-        return compute_forward_sensitivity(
+        result = _compute_native(
             mech, reactor_state, shock,
             observable=observable, species_idx=species_idx,
             time_grid=time_grid,
         )
 
-    return _compute_fd(
+        return result
+
+    if resolved == "adjoint":
+        result = compute_adjoint_sensitivity(
+            mech, reactor_state, shock,
+            observable=observable, species_idx=species_idx,
+            time_grid=time_grid,
+        )
+
+        return result
+
+    if resolved == "forward_sens":
+        result = compute_forward_sensitivity(
+            mech, reactor_state, shock,
+            observable=observable, species_idx=species_idx,
+            time_grid=time_grid,
+        )
+
+        return result
+
+    result = _compute_fd(
         mech, reactor_state, shock,
         observable=observable, species_idx=species_idx,
         time_grid=time_grid, eps=eps, n_workers=n_workers,
     )
+
+    return result
 
 
 def _resolve_method(
@@ -181,7 +197,10 @@ def _compute_native(
             snapshot_list.append(_capture_snapshot(reactor, gas))
 
         if not t_list:
-            return np.zeros(0), np.zeros((0, n_rxns))
+            empty_t = np.zeros(0)
+            empty_sens = np.zeros((0, n_rxns))
+
+            return empty_t, empty_sens
 
         t = np.asarray(t_list, dtype=float)
         sens = _project_to_observable(
@@ -334,7 +353,10 @@ def _density_sensitivity_normalized(
     if "volume" in idx:
         return -sens_step[idx["volume"]]
 
-    dT = sens_step[idx["temperature"]] if "temperature" in idx else 0.0
+    if "temperature" in idx:
+        dT = sens_step[idx["temperature"]]
+    else:
+        dT = 0.0
 
     return dW_over_W - dT
 
@@ -361,7 +383,11 @@ def _compute_fd(
     try:
         SIM_base = _run_inline(mech, reactor_state, shock)
         if SIM_base is None:
-            return np.zeros(0), np.zeros((0, n_rxns))
+            empty_t = np.zeros(0)
+            empty_sens = np.zeros((0, n_rxns))
+
+            return empty_t, empty_sens
+
         t_base = np.asarray(SIM_base.t_lab(units="SI"), dtype=float)
         obs_base = _observable_trace(SIM_base, observable, species_idx)
 
@@ -420,7 +446,12 @@ def _fd_parallel(
     # inherit the mech for free; spawn (Windows) needs the yaml round-
     # trip. We pick fork when available.
     n_rxns = mech.gas.n_reactions
-    ctx = mp.get_context("fork" if "fork" in mp.get_all_start_methods() else "spawn")
+    if "fork" in mp.get_all_start_methods():
+        start_method = "fork"
+    else:
+        start_method = "spawn"
+
+    ctx = mp.get_context(start_method)
 
     yaml_text = mech.to_yaml_text()
     task_inputs = _PerturbTask.serialize_state(reactor_state, shock)
@@ -456,7 +487,7 @@ class _PerturbTask:
 
     @staticmethod
     def serialize_state(reactor_state, shock) -> dict:
-        return {
+        state = {
             "reactor_state": reactor_state.model_dump(),
             "shock": {
                 "T_reactor": shock.T_reactor,
@@ -468,12 +499,10 @@ class _PerturbTask:
             },
         }
 
+        return state
+
     @classmethod
     def init_worker(cls, yaml_text, task_inputs, observable, species_idx, eps):
-        from frhodo.simulation.mechanism.mech_fcns import ChemicalMechanism
-        from frhodo.simulation.shock.state import RuntimeReactorState
-        from types import SimpleNamespace
-
         gas = ct.Solution(yaml=yaml_text)
         mech = ChemicalMechanism()
         mech.gas = gas
@@ -565,6 +594,7 @@ def _observable_trace(SIM, observable: str, species_idx: int | None) -> np.ndarr
         return np.asarray(SIM.drhodz_tot(units="SI"), dtype=float)
     if observable in _SPECIES_OBSERVABLES:
         full = np.asarray(getattr(SIM, observable)(units="SI"), dtype=float)
+
         return full[species_idx, :]
 
     raise ValueError(f"unknown sensitivity observable: {observable!r}")
@@ -577,10 +607,13 @@ def _resample(
         return t, sens
     grid = np.asarray(time_grid, dtype=float)
     if t.size < 2:
-        out = (
-            np.tile(sens[0:1], (grid.size, 1))
-            if sens.size else np.zeros((grid.size, sens.shape[1] if sens.ndim > 1 else 0))
-        )
+        if sens.size:
+            out = np.tile(sens[0:1], (grid.size, 1))
+        elif sens.ndim > 1:
+            out = np.zeros((grid.size, sens.shape[1]))
+        else:
+            out = np.zeros((grid.size, 0))
+
         return grid, out
     out = np.empty((grid.size, sens.shape[1]), dtype=float)
     for k in range(sens.shape[1]):

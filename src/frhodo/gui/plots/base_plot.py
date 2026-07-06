@@ -30,6 +30,7 @@ from frhodo.gui.plots.custom_mpl_ticker_formatter import *
 from timeit import default_timer as timer
 
 
+
 bisymlog_scaling_factor = 1.5  # 1.0 log-like 2.0 linear-like
 
 
@@ -259,6 +260,8 @@ class Base_Plot(QtCore.QObject):
                             coordData = coordData[:, n]
                     elif name == "density":
                         coordData = eval("item.get_" + coord + "data()")
+                    else:
+                        raise ValueError(f"unexpected data name: {name!r}")
 
                     coordData = np.array(coordData)[np.isfinite(coordData)]
                     if coordData.size == 0:
@@ -308,6 +311,8 @@ class Base_Plot(QtCore.QObject):
                 str = 'axes.set_{0:s}scale("{1:s}", C={2:e})'.format(
                     coord, "bisymlog", C
                 )
+        else:
+            raise ValueError(f"unexpected scale type: {type!r}")
 
         eval(str)
         if type == "linear" and coord == "x":

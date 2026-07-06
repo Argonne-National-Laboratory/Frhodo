@@ -40,6 +40,7 @@ from frhodo.simulation.shock.incident_shock_reactor import (
 from frhodo.simulation.shock.observables import OBSERVABLES, terminal
 
 
+
 Observable = Literal["drhodz_tot", "T", "P", "Y", "X", "conc", "HRR_tot"]
 
 
@@ -121,11 +122,13 @@ def _build_output_grid(reactor_state, time_grid):
         original.
     """
     if time_grid is None:
-        return np.linspace(
+        grid = np.linspace(
             float(reactor_state.t_end) * 0.01,
             float(reactor_state.t_end) * 0.99,
             50,
         )
+
+        return grid
 
     return np.asarray(time_grid, dtype=float).copy()
 
@@ -177,7 +180,10 @@ def compute_adjoint_sensitivity(
     except (ValueError, NotImplementedError):
         raise
     except Exception:
-        return np.zeros(0), np.zeros((0, mech.gas.n_reactions))
+        empty_t = np.zeros(0)
+        empty_sens = np.zeros((0, mech.gas.n_reactions))
+
+        return empty_t, empty_sens
 
     try:
         atol_vec = _sens_atol_vector(Wk.size, atol_T, atol_species)
@@ -227,7 +233,10 @@ def compute_adjoint_sensitivity(
         try:
             forward_y = adj.run_forward(positive_t)
         except Exception:
-            return np.zeros(0), np.zeros((0, n_rxns))
+            empty_t = np.zeros(0)
+            empty_sens = np.zeros((0, n_rxns))
+
+            return empty_t, empty_sens
 
         sens = np.zeros((output_t.size, n_rxns), dtype=float)
         # CVODES adjoint is most efficient when backward sweeps walk t_m
@@ -235,7 +244,11 @@ def compute_adjoint_sensitivity(
         # optimized for that traversal.
         for idx in np.argsort(output_t)[::-1]:
             t_m = float(output_t[idx])
-            y_m = reactor.initial_state if t_m <= 0.0 else forward_y[t_m]
+            if t_m <= 0.0:
+                y_m = reactor.initial_state
+            else:
+                y_m = forward_y[t_m]
+
             g_m, direct, dg_dy = terminal(
                 observable, gas, y_m, geometry, Wk, n_rxns, species_idx,
             )
@@ -305,7 +318,10 @@ def compute_forward_sensitivity(
     except (ValueError, NotImplementedError):
         raise
     except Exception:
-        return np.zeros(0), np.zeros((0, mech.gas.n_reactions))
+        empty_t = np.zeros(0)
+        empty_sens = np.zeros((0, mech.gas.n_reactions))
+
+        return empty_t, empty_sens
 
     try:
         atol_vec = _sens_atol_vector(Wk.size, atol_T, atol_species)
@@ -330,7 +346,10 @@ def compute_forward_sensitivity(
         try:
             sens_states = fs.run_forward(positive_t)
         except Exception:
-            return np.zeros(0), np.zeros((0, n_rxns))
+            empty_t = np.zeros(0)
+            empty_sens = np.zeros((0, n_rxns))
+
+            return empty_t, empty_sens
 
         sens = np.zeros((output_t.size, n_rxns), dtype=float)
         for idx in range(output_t.size):

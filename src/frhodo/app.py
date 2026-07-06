@@ -5,7 +5,13 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level
 # directory for license and copyright information.
 
-import os, sys, platform, multiprocessing, pathlib, ctypes, signal
+import os
+import sys
+import platform
+import multiprocessing
+import pathlib
+import ctypes
+import signal
 
 # Under WSLg, point Qt at the runtime dir that holds the wayland-0
 # socket; the default /run/user/$UID lacks it. Must run before qtpy import.
@@ -52,6 +58,8 @@ from frhodo.gui.widgets import (
     settings,
     sim_explorer_widget,
 )
+
+
 
 if (
     os.environ["QT_API"] == "pyside2"
@@ -266,6 +274,7 @@ class Main(QMainWindow):
         )
         if not self.path["mech"].is_file():  # if it's not a file, then it was deleted
             self.path_set.mech()  # update mech pulldown choices
+
             return
 
         # Check use thermo box viability
@@ -312,6 +321,7 @@ class Main(QMainWindow):
                 self.log.append(
                     "Error loading mech:\nNo thermodynamics given", alert=True
                 )
+
                 return
         else:
             self.path["thermo"] = None
@@ -327,6 +337,7 @@ class Main(QMainWindow):
             self.load_state.mech_loaded = False
             self.mix.update_species()
             self.log._blink(True)
+
             return
         self.log.append(loader.messages, alert=False)
         self.load_state.mech_loaded = True
@@ -499,6 +510,7 @@ class Main(QMainWindow):
             self.plot.signal.update_sim(nan, nan)  # make sim plot blank
             if tabText == "Sim Explorer":
                 self.sim_explorer.update_plot(None)
+
             return  # If mech error exit function
 
 
@@ -523,6 +535,7 @@ def main():
     sys.excepthook = error_window.excepthookDecorator(app, path, _mark_startup_failed)
 
     window = Main(app, path)
+
     return app.exec_()
 
 

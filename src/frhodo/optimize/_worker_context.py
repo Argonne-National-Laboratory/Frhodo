@@ -10,6 +10,7 @@ from typing import Optional
 from frhodo.simulation.mechanism.mech_fcns import ChemicalMechanism
 
 
+
 @dataclass(frozen=True)
 class MechBuildPayload:
     """Inputs for ``ChemicalMechanism.set_mechanism`` in a fresh worker."""

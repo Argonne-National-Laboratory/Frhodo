@@ -21,6 +21,7 @@ import numpy as np
 from frhodo.common.units import Bisymlog
 
 
+
 ScaleMode = Literal["Linear", "Log", "AbsoluteLog", "Bisymlog"]
 _MODES = ("Linear", "Log", "AbsoluteLog", "Bisymlog")
 
@@ -64,12 +65,12 @@ class Scale:
                 self._bisymlog = bisymlog
             else:
                 self._bisymlog = bisymlog or Bisymlog()
-                arr = np.asarray(
-                    calibration_data
-                    if calibration_data is not None
-                    else np.array([0.0, 1.0]),
-                    dtype=float,
-                ).ravel()
+                if calibration_data is not None:
+                    source = calibration_data
+                else:
+                    source = np.array([0.0, 1.0])
+
+                arr = np.asarray(source, dtype=float).ravel()
                 finite = arr[np.isfinite(arr)]
                 if finite.size == 0:
                     finite = np.array([0.0, 1.0])
@@ -87,7 +88,9 @@ class Scale:
             return arr
         if self.mode == "Log":
             with np.errstate(divide="ignore", invalid="ignore"):
-                return np.where(arr > 0.0, np.log10(arr), np.nan)
+                logged = np.where(arr > 0.0, np.log10(arr), np.nan)
+
+                return logged
         if self.mode == "AbsoluteLog":
             return np.log10(np.maximum(np.abs(arr), np.finfo(float).tiny))
 

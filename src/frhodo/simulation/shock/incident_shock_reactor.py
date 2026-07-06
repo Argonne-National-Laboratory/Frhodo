@@ -19,7 +19,7 @@ Pieces in this file:
 
 Goldsmith / Speth ODE derivation:
 
-    Copyright (c) 2016 Raymond L. Speth — MIT License (see LICENSE.txt).
+    Copyright (c) 2016 Raymond L. Speth — MIT License, per LICENSE.txt.
 """
 from dataclasses import dataclass
 
@@ -32,6 +32,7 @@ from frhodo.common.errors import FailureReason
 from frhodo.simulation.mechanism.mech_fcns import check_rxn_rates, list2ct_mixture
 from frhodo.simulation.numerics.sundials import CVodeIntegrator
 from frhodo.simulation.shock.reactor_output import ReactorOutput
+
 
 
 Ru = ct.gas_constant
@@ -137,7 +138,7 @@ def _shock_derivatives(
         ``[dz, dA, drho, dv, dT, dt_shock, dY_1..dY_K] * rho*A/(rho1*A1)``
         of length ``6 + n_species``.
     """
-    return _shock_derivatives_kernel(
+    ydot = _shock_derivatives_kernel(
         z, A, v, gas.T, gas.density,
         gas.cp_mass, gas.mean_molecular_weight,
         np.ascontiguousarray(gas.partial_molar_enthalpies, dtype=np.float64),
@@ -145,6 +146,8 @@ def _shock_derivatives(
         Wk,
         rho1, A1, L, As, area_change,
     )
+
+    return ydot
 
 
 @numba.njit(cache=True, fastmath=False)
@@ -430,12 +433,14 @@ def _shock_jacobian(
     gas.TD = T, rho
     dcp_dT = (cp_plus - cp) / eps_T
 
-    return _shock_jacobian_kernel(
+    J = _shock_jacobian_kernel(
         z, A, rho, v, T, Y, cp, W, dcp_dT,
         hk, cp_k_mole, wdot, DC, DT, DP, Wk,
         geometry.rho1, geometry.A1, geometry.L, geometry.As,
         geometry.area_change,
     )
+
+    return J
 
 
 @numba.njit(cache=True, fastmath=False)
@@ -507,10 +512,12 @@ def _shock_param_rhs_gradient(
     )
     qj = np.ascontiguousarray(gas.net_rates_of_progress, dtype=np.float64)
 
-    return _shock_param_rhs_gradient_kernel(
+    dgdp = _shock_param_rhs_gradient_kernel(
         A, rho, v, T, cp, W, hk, nu, qj, Wk,
         geometry.rho1, geometry.A1,
     )
+
+    return dgdp
 
 
 def _shock_atol_vector(K: int, atol_scalar: float) -> np.ndarray:
@@ -581,10 +588,20 @@ class IncidentShockReactor:
         self._failure_reason: FailureReason | None = None
         self._backend = backend
 
-        defaults = (CVODES_DEFAULT_TOLS if backend == "sundials"
-                    else SCIPY_DEFAULT_TOLS)
-        self._rtol = float(defaults["rtol"] if rtol is None else rtol)
-        self._atol = float(defaults["atol"] if atol is None else atol)
+        if backend == "sundials":
+            defaults = CVODES_DEFAULT_TOLS
+        else:
+            defaults = SCIPY_DEFAULT_TOLS
+
+        if rtol is None:
+            self._rtol = float(defaults["rtol"])
+        else:
+            self._rtol = float(rtol)
+
+        if atol is None:
+            self._atol = float(defaults["atol"])
+        else:
+            self._atol = float(atol)
 
         if backend == "sundials":
             self._sol = None
@@ -652,11 +669,13 @@ class IncidentShockReactor:
         self._gas.set_unnormalized_mass_fractions(y[N_SHOCK:])
         self._gas.TD = T, rho
 
-        return _shock_derivatives(
+        ydot = _shock_derivatives(
             self._gas, float(y[I_Z]), float(y[I_A]), float(y[I_V]), self._Wk,
             rho1=self._geom.rho1, A1=self._geom.A1, L=self._geom.L,
             As=self._geom.As, area_change=self._geom.area_change,
         )
+
+        return ydot
 
     def _rhs_callback(self, t: float, y: np.ndarray, ydot: np.ndarray) -> None:
         ydot[:] = self._rhs(t, y)
@@ -742,6 +761,7 @@ class IncidentShockReactor:
             raise RuntimeError("integration_grid() requires backend='scipy'")
         if self._sol is None:
             raise RuntimeError("reactor has not been advanced")
+
         return self._sol.t
 
     def dense_eval(self, times) -> np.ndarray:
@@ -754,6 +774,7 @@ class IncidentShockReactor:
             raise RuntimeError("dense_eval() requires backend='scipy'")
         if self._sol is None:
             raise RuntimeError("reactor has not been advanced")
+
         return self._sol.sol(np.asarray(times)).T
 
 
@@ -772,7 +793,10 @@ def _integrate_scipy(gas, t_end, var, rtol, atol):
         reactor.advance(t_end)
     except Exception as e:
         reason = reactor.failure_reason or FailureReason.SOLVER_FAILURE
-        return [], False, str(e), reason
+        message = str(e)
+        empty_trajectory = []
+
+        return empty_trajectory, False, message, reason
 
     if var["t_lab_save"] is None:
         t_out = reactor.integration_grid()
@@ -810,7 +834,9 @@ def _integrate_cvodes(gas, t_end, var, rtol, atol):
             trajectory.append((t_reached, y_out.copy()))
     except Exception as e:
         reason = reactor.failure_reason or FailureReason.SOLVER_FAILURE
-        return trajectory, False, str(e), reason
+        message = str(e)
+
+        return trajectory, False, message, reason
 
     return trajectory, True, "", None
 
@@ -819,6 +845,7 @@ def _incident_shock_reactor(gas, details, t_end, **kwargs):
     if "u_reac" not in kwargs or "rho1" not in kwargs:
         details["success"] = False
         details["message"] = "velocity and rho1 not specified\n"
+
         return None, details
 
     var = {
@@ -835,7 +862,12 @@ def _incident_shock_reactor(gas, details, t_end, **kwargs):
     var.update(kwargs)
 
     backend = var["ODE_solver"].upper()
-    defaults = CVODES_DEFAULT_TOLS if backend == "CVODES" else SCIPY_DEFAULT_TOLS
+
+    if backend == "CVODES":
+        defaults = CVODES_DEFAULT_TOLS
+    else:
+        defaults = SCIPY_DEFAULT_TOLS
+
     rtol = var.get("rtol", defaults["rtol"])
     atol = var.get("atol", defaults["atol"])
 
@@ -899,6 +931,7 @@ def _incident_shock_reactor(gas, details, t_end, **kwargs):
 
     SIM = ReactorOutput(num, states, reactor_vars)
     SIM.finalize(details["success"], ind_var, var["observable"], units="CGS")
+
     return SIM, details
 
 
@@ -920,6 +953,8 @@ def run_incident_shock(mech, t_end, T_reac, P_reac, mix, **kwargs):
         if not mech_out["success"]:
             return None, mech_out
 
-        return _incident_shock_reactor(
+        result = _incident_shock_reactor(
             mech.gas, {"success": False, "message": []}, t_end, **kwargs
         )
+
+        return result

@@ -14,6 +14,7 @@ from frhodo.simulation.mechanism.mech_fcns import check_rxn_rates, list2ct_mixtu
 from frhodo.simulation.shock.reactor_output import ReactorOutput
 
 
+
 def _zero_d_ideal_gas_reactor(gas, reactor, details, t_end, **kwargs):
     var = {
         "observable": {"main": "Concentration", "sub": 0},
@@ -79,6 +80,7 @@ def _zero_d_ideal_gas_reactor(gas, reactor, details, t_end, **kwargs):
 
     SIM = ReactorOutput(num, states, reactor_vars)
     SIM.finalize(details["success"], ind_var, var["observable"], units="CGS")
+
     return SIM, details
 
 
@@ -113,6 +115,8 @@ def run_zero_d(mech, mode, t_end, T_reac, P_reac, mix, **kwargs):
         else:
             raise ValueError(f"unknown 0-D reactor mode: {mode!r}")
 
-        return _zero_d_ideal_gas_reactor(
+        SIM, details = _zero_d_ideal_gas_reactor(
             mech.gas, reactor, {"success": False, "message": []}, t_end, **kwargs
         )
+
+        return SIM, details

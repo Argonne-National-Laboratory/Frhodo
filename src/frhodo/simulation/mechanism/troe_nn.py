@@ -2,6 +2,9 @@
 
 Pure-numpy inference. Weights load from an ``.npz`` checkpoint produced by
 the slave-side training script in ``development/troe_fit/train_nn.py``.
+The checkpoint embeds its provenance under ``meta.*`` keys (schema
+version, creation date, source commit) — read it via
+:func:`checkpoint_metadata`.
 
 Each call returns four arrays per example:
   preds_norm:    (B, K, 10) normalized predictions, bounded by tanh/sigmoid
@@ -15,6 +18,7 @@ from pathlib import Path
 
 import numpy as np
 from scipy.special import expit
+
 
 
 K_CANDIDATES = 20
@@ -197,6 +201,17 @@ def get_model() -> tuple[_Net, dict]:
         _STATS = stats
 
     return _MODEL, _STATS
+
+
+def checkpoint_metadata() -> dict[str, str]:
+    """Provenance record embedded in the checkpoint (``meta.*`` keys)."""
+    data = np.load(CHECKPOINT_PATH, allow_pickle=False)
+    meta = {
+        k[len("meta."):]: str(data[k])
+        for k in data.files if k.startswith("meta.")
+    }
+
+    return meta
 
 
 def reset_model_cache() -> None:

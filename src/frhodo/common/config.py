@@ -187,10 +187,12 @@ class PreShockState(BaseModel):
     the jump solver separately.
     """
     kind: Literal["pre_shock"] = "pre_shock"
-    T1: PositiveFloat
-    P1: PositiveFloat
-    u1: PositiveFloat
-    composition: Composition
+    T1: PositiveFloat = Field(description="Pre-shock temperature [K]")
+    P1: PositiveFloat = Field(description="Pre-shock pressure [Pa]")
+    u1: PositiveFloat = Field(description="Incident-shock velocity [m/s]")
+    composition: Composition = Field(
+        description="Mixture as species name -> mole fraction"
+    )
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -199,14 +201,19 @@ class PostShockState(BaseModel):
     """Resolved post-shock reactor-inlet (zone 2 or zone 5) state.
 
     Use when the jump conditions have already been computed externally;
-    the reactor simulation starts here directly.
+    the reactor simulation starts here directly. Zone-5 (reflected
+    shock) states pair with the 0-D reactor: a homogeneous ideal
+    reflected-shock state, with no shock/boundary-layer interaction,
+    bifurcation, dP5/dt rise, or zone-5 nonuniformity.
     """
     kind: Literal["post_shock"] = "post_shock"
-    T_reac: PositiveFloat
-    P_reac: PositiveFloat
-    u_incident: PositiveFloat
-    rho1: PositiveFloat
-    composition: Composition
+    T_reac: PositiveFloat = Field(description="Reactor-zone temperature [K]")
+    P_reac: PositiveFloat = Field(description="Reactor-zone pressure [Pa]")
+    u2: PositiveFloat = Field(description="Post-shock flow velocity [m/s]")
+    rho1: PositiveFloat = Field(description="Pre-shock density [kg/m^3]")
+    composition: Composition = Field(
+        description="Mixture as species name -> mole fraction"
+    )
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 

@@ -2,7 +2,8 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level
 # directory for license and copyright information.
 
-import re, sys
+import re
+import sys
 
 import numpy as np
 from qtpy import QtCore, QtGui, QtWidgets
@@ -13,6 +14,8 @@ from qtpy.QtWidgets import (
 
 from frhodo.common.units import OoM
 
+
+
 # Regular expression to find floats. Match groups are the whole string, the
 # whole coefficient, the decimal part of the coefficient, and the exponent
 # part.
@@ -21,7 +24,12 @@ _float_re = re.compile(r"(([+-]?\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?)")
 
 def valid_float_string(string):
     match = _float_re.search(string)
-    return match.groups()[0] == string if match else False
+    if match:
+        is_valid = match.groups()[0] == string
+    else:
+        is_valid = False
+
+    return is_valid
 
 
 class FloatValidator(QtGui.QValidator):
@@ -36,7 +44,12 @@ class FloatValidator(QtGui.QValidator):
 
     def fixup(self, text):
         match = _float_re.search(text)
-        return match.groups()[0] if match else ""
+        if match:
+            fixed = match.groups()[0]
+        else:
+            fixed = ""
+
+        return fixed
 
 
 class ScientificDoubleSpinBox(QtWidgets.QDoubleSpinBox):

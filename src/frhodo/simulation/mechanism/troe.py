@@ -231,7 +231,11 @@ def _trf_from_start(x0_lna, T, M, ln_k, bounds):
         max_nfev=_TRF_MAX_NFEV,
     )
 
-    return result.x, _log_rms(result.x, T, M, ln_k), int(result.nfev)
+    x_final = result.x
+    rms = _log_rms(x_final, T, M, ln_k)
+    nfev = int(result.nfev)
+
+    return x_final, rms, nfev
 
 
 def _select_n_by_confidence(conf_logits, threshold, k_min):
@@ -293,13 +297,15 @@ def multistart_nn(T, M, ln_k):
             top_lna = _capture_to_lna(top_capture)
             top_rms = _log_rms(top_lna, T, M, ln_k)
             if top_rms < _TRF_SKIP_THRESH:
-                return {
+                result = {
                     "x": top_capture,
                     "fval": top_rms,
                     "nfev": 0,
                     "elapsed": time.perf_counter() - t0,
                     "k_refined": 0,
                 }
+
+                return result
 
     n_to_refine = _select_n_by_confidence(
         conf_logits, _NN_CONF_THRESHOLD, _NN_K_MIN,
@@ -319,13 +325,15 @@ def multistart_nn(T, M, ln_k):
 
     elapsed = time.perf_counter() - t0
 
-    return {
+    result = {
         "x": _lna_to_capture(best_x),
         "fval": best_rms,
         "nfev": total_nfev,
         "elapsed": elapsed,
         "k_refined": int(n_to_refine),
     }
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -340,7 +348,8 @@ class falloff_parameters:
     rate cap over the data temperature range.
 
     Attributes:
-        T, M, ln_k: Data grid arrays (see :func:`multistart_nn`).
+        T, M, ln_k: Temperature, third-body concentration, and
+            natural-log rate-constant grids, all shaped ``(n_P, n_T)``.
         x0: Starting capture-form parameters.
         algo: Algorithm options dict — supplies ``algorithm`` for the
             sub-optimizer, ``max_eval``, ``xtol_rel``, ``ftol_rel``,
@@ -465,7 +474,13 @@ class falloff_parameters:
         x_fit[1] = np.exp(x_fit[1])
         x_fit[4] = np.exp(x_fit[4])
 
-        return {"x": x_fit, "fval": opt.last_optimum_value(), "nfev": opt.get_numevals()}
+        result = {
+            "x": x_fit,
+            "fval": opt.last_optimum_value(),
+            "nfev": opt.get_numevals(),
+        }
+
+        return result
 
     def set_x_from_opt(self, x):
         x_arr = np.asarray(x, dtype=np.float64)

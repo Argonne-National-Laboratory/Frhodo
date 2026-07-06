@@ -10,6 +10,7 @@ import cantera as ct
 import numba
 
 
+
 log = logging.getLogger(__name__)
 
 
@@ -148,6 +149,7 @@ def RoundToSigFigs(x, p):
     x = np.asarray(x)
     x_positive = np.where(np.isfinite(x) & (x != 0), np.abs(x), 10 ** (p - 1))
     mags = 10 ** (p - 1 - np.floor(np.log10(x_positive)))
+
     return np.round(x * mags) / mags
 
 
@@ -247,6 +249,7 @@ class Convert_Units:
             elif "activation_energy" in coef:
                 if coef[2] != 0:
                     coef[2] = conv_factor[conv_type]["Ea"](coef[2])
+
         return coeffs
 
     def _convert_units(self, value, units, unit_dir):
@@ -299,6 +302,7 @@ class Bisymlog:
 
         if min_y == max_y:
             self.C = None
+
             return 1 / np.log(1000)
 
         elif np.sign(max_y) != np.sign(

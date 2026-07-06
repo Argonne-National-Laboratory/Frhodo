@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from frhodo.simulation.mechanism.mech_fcns import ChemicalMechanism
 
 
+
 _LogFn = Callable[[str], None]
 
 

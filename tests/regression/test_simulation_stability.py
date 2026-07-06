@@ -40,7 +40,7 @@ def reference_result(h2o2_mech):
     cfg = ShockTubeConfig(
         initial=PostShockState(
             T_reac=T_REAC, P_reac=P_REAC,
-            u_incident=U_INCIDENT, rho1=RHO1,
+            u2=U_INCIDENT, rho1=RHO1,
             composition=COMPOSITION,
         ),
         t_end=T_END,

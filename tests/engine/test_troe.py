@@ -38,6 +38,7 @@ from frhodo.simulation.mechanism.troe_nn import (
     DECODER_PER_CAND,
     K_CANDIDATES,
     capture_to_normalized_np,
+    checkpoint_metadata,
     get_model,
     normalized_to_capture_np,
     raw_to_normalized_np,
@@ -215,6 +216,17 @@ class TestTroeInit:
             elif name.endswith("_inf"):
                 assert n in troe_full.alter_idx["high_rate"]
                 assert n not in troe_full.alter_idx["low_rate"]
+
+
+class TestCheckpointProvenance:
+    """The bundled NN checkpoint carries its embedded provenance record."""
+
+    def test_metadata_keys_and_schema_version(self):
+        meta = checkpoint_metadata()
+        expected = {"schema_version", "created", "source_commit"}
+        assert set(meta) == expected, f"metadata keys drifted: {sorted(meta)}"
+        assert meta["schema_version"] == "1"
+        assert meta["source_commit"] == "481c035"
 
 
 class TestMultistartNn:

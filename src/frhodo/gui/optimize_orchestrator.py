@@ -10,6 +10,7 @@ import traceback
 from timeit import default_timer as timer
 from typing import Any
 
+import cantera as ct
 import numpy as np
 from qtpy.QtCore import Qt, QObject, QRunnable, Signal
 
@@ -19,6 +20,7 @@ from frhodo.gui.workers.optimize_worker import Worker, WorkerInputs
 from frhodo.optimize.cost.fit_fcn import update_mech_coef_opt
 from frhodo.optimize.cost.settings import CostSettings
 from frhodo.optimize.parameters import build_rxn_coef_opt, build_rxn_rate_opt
+
 
 
 class _RecastSignals(QObject):
@@ -129,8 +131,6 @@ class Multithread_Optimize:
 
     def _has_recast_work(self) -> bool:
         """True if any optimizable rxn still needs a Troe recast."""
-        import cantera as ct
-
         mech = self.parent.mech
         for rxn_coef in self.rxn_coef_opt:
             rate = mech.gas.reaction(rxn_coef["rxnIdx"]).rate
@@ -326,7 +326,7 @@ class Multithread_Optimize:
             coverage_weighting=opt_settings.get("obj_fcn", "coverage_weighting"),
         )
 
-        return WorkerInputs(
+        worker_inputs = WorkerInputs(
             mech=p.mech,
             shocks2run=shocks2run,
             coef_opt=self.coef_opt,
@@ -345,6 +345,8 @@ class Multithread_Optimize:
             view_context=self._view_context,
         )
 
+        return worker_inputs
+
     def _on_worker_error(self, payload) -> None:
         """Surface worker-thread tracebacks to the log tab.
 
@@ -353,7 +355,11 @@ class Multithread_Optimize:
         production builds) and the user would just see the error message
         with no file/line context.
         """
-        tb_text = payload[1] if isinstance(payload, tuple) and len(payload) >= 2 else str(payload)
+        if isinstance(payload, tuple) and len(payload) >= 2:
+            tb_text = payload[1]
+        else:
+            tb_text = str(payload)
+
         self.parent.log.append(f"Optimization worker failed:\n{tb_text}", alert=True)
 
     def _on_iteration_safe(self, result: dict) -> None:
@@ -377,9 +383,8 @@ class Multithread_Optimize:
         parent = self.parent
         if not self.HoF:
             self.HoF = result
-            # Workers spawned and the first iteration just landed — log
-            # "Optimization starting" now so it appears after the pool
-            # init message instead of racing it on the worker thread.
+            # First iteration landed; log "Optimization starting" here on the
+            # GUI thread so it orders after the pool-init message.
             parent.log.append(
                 "\nOptimization starting\n\n"
                 "   Iteration\t\t Objective Func\tBest Objetive Func",
@@ -483,6 +488,7 @@ class Multithread_Optimize:
                 update_mech_coef_opt(parent.mech, self.coef_opt, self.HoF["x"])
                 parent.tree.update_coef_rate_from_opt(self.coef_opt, self.HoF["x"])
                 parent.run_single()
+
             return
 
         if "local" in raw:
@@ -582,4 +588,10 @@ class Multithread_Optimize:
         for shock in self.shocks2run:
             base = float(getattr(shock, "opt_time_offset", shock.time_offset))
             last = getattr(shock, "last_t_unc", None)
-            shock.time_offset = base + (float(last) if last is not None else 0.0)
+
+            if last is not None:
+                t_unc = float(last)
+            else:
+                t_unc = 0.0
+
+            shock.time_offset = base + t_unc

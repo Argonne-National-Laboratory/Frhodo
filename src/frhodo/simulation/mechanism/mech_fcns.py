@@ -10,11 +10,13 @@ flags, coefficient names). Loaders populate it via
 """
 import contextlib
 import pathlib
+import tempfile
 import threading
 from copy import deepcopy
 
 import cantera as ct
 import numpy as np
+from cantera.yaml2ck import convert as soln2ck
 
 from frhodo.simulation.mechanism.coef_helpers import arrhenius_coefNames, set_bnds
 from frhodo.simulation.mechanism.fit_coeffs import fit_arrhenius, fit_generic
@@ -207,6 +209,8 @@ class ChemicalMechanism:
                     rate = ct.TroeRate(low_rate, high_rate, falloff_coeffs)
                 elif falloff_type == "SRI":
                     rate = ct.SriRate(low_rate, high_rate, falloff_coeffs)
+                else:
+                    raise ValueError(f"unexpected falloff_type: {falloff_type!r}")
 
                 third_body = ct.ThirdBody(
                     efficiencies=mech_dict[rxnIdx]["rxnCoeffs"]["efficiencies"]
@@ -229,6 +233,11 @@ class ChemicalMechanism:
                     mech_dict[rxnIdx]["reactants"],
                     mech_dict[rxnIdx]["products"],
                     rate=rate,
+                )
+
+            else:
+                raise ValueError(
+                    f"unexpected rxnType: {mech_dict[rxnIdx]['rxnType']!r}"
                 )
 
             rxn.duplicate = mech_dict[rxnIdx]["duplicate"]
@@ -1022,10 +1031,12 @@ class ChemicalMechanism:
         output = {"success": False, "message": []}
         if T <= 0 or np.isnan(T):
             output["message"].append("Error: Temperature is invalid")
+
             return output
 
         elif P <= 0 or np.isnan(P):
             output["message"].append("Error: Pressure is invalid")
+
             return output
 
         elif len(X) > 0:
@@ -1034,6 +1045,7 @@ class ChemicalMechanism:
                     output["message"].append(
                         "Species: {:s} is not in the mechanism".format(species)
                     )
+
                     return output
 
             self.gas.TPX = T, P, X
@@ -1042,6 +1054,7 @@ class ChemicalMechanism:
             self.gas.TP = T, P
 
         output["success"] = True
+
         return output
 
     def M(self, rxnIdx, TPX=[]):
@@ -1067,6 +1080,7 @@ class ChemicalMechanism:
             third_body_M = self.gas.third_body_concentrations[rxnIdx]
             if np.isnan(third_body_M):
                 return self.gas.density_mole
+
             return third_body_M
 
         if len(TPX) == 0:
@@ -1077,6 +1091,7 @@ class ChemicalMechanism:
         for i in range(len(T)):
             self.set_TPX(T[i], P[i], X)
             M[i] = get_M()
+
         return M
 
     def recast_pdep_at_pressure(
@@ -1241,7 +1256,6 @@ class ChemicalMechanism:
             YAML serialization of the gas, including any in-place
             coefficient modifications.
         """
-        import tempfile
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".yaml", delete=False
         ) as f:
@@ -1251,6 +1265,7 @@ class ChemicalMechanism:
                 self.gas.write_yaml(str(tmp))
             else:
                 self.gas.write_yaml(str(tmp), units=units)
+
             return tmp.read_text()
         finally:
             tmp.unlink(missing_ok=True)
@@ -1266,7 +1281,6 @@ class ChemicalMechanism:
             sort_species: Species ordering hint forwarded to
                 ``cantera.yaml2ck.convert``.
         """
-        from cantera.yaml2ck import convert as soln2ck
         soln2ck(
             self.gas,
             mechanism_path=str(mech_path),
@@ -1364,9 +1378,11 @@ class Uncertainty:
 
 def list2ct_mixture(mix) -> str:
     """Format a list of ``(species, mol_frac)`` pairs as a Cantera mixture string."""
-    return ", ".join(
+    mixture = ", ".join(
         "{!s}:{!r}".format(species, mol_frac) for (species, mol_frac) in mix
     )
+
+    return mixture
 
 
 def check_rxn_rates(gas) -> list[int]:

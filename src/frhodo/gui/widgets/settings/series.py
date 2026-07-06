@@ -7,6 +7,7 @@ from scipy import integrate
 from frhodo.experiment import ExperimentLoader, ExperimentalShock, double_sigmoid
 
 
+
 class series:
     """Per-series experiment state: parsed shocks, weights, uncertainties.
 
@@ -74,11 +75,13 @@ class series:
             parent.path["exp_main"] in self.path
         ):  # check if series already exists before adding
             self.change_shock()
+
             return
 
         parent.path["shock"] = parent.path_set.shock_paths(prefix="Shock", ext="exp")
         if len(parent.path["shock"]) == 0:  # if no shocks in listed directory
             parent.directory.update_icons(invalid=["exp_main"])
+
             return
 
         if (
@@ -234,6 +237,9 @@ class series:
                 shock.T_reactor = getattr(shock, f"T{val:d}")
                 shock.P_reactor = getattr(shock, f"P{val:d}")
 
+        else:
+            raise ValueError(f"unexpected series key: {key!r}")
+
     def thermo_mix(self, shock=None):
         parent = self.parent
         alias = self.current["species_alias"]
@@ -275,6 +281,7 @@ class series:
         )
         if not mech_out["success"]:
             self.parent.log.append(mech_out["message"])
+
             return None
 
         if rxnIdxs is None:

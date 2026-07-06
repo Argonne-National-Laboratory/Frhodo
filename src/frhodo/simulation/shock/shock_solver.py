@@ -36,6 +36,7 @@ from scipy.optimize import root
 from frhodo.common.errors import FailureReason, ShockJumpError
 
 
+
 Ru = ct.gas_constant
 
 ALL_VARS: tuple[str, ...] = ("T1", "P1", "u1", "T2", "P2", "T5", "P5")
@@ -217,9 +218,10 @@ class ShockJumpSolver:
                 f"shock_vars['mix_driver'] must be a dict[str, float] of mole "
                 f"fractions, got {type(mix_driver).__name__}",
             )
-        self.X_driver: dict[str, float] | None = (
-            dict(mix_driver) if mix_driver is not None else None
-        )
+        if mix_driver is not None:
+            self.X_driver: dict[str, float] | None = dict(mix_driver)
+        else:
+            self.X_driver = None
 
         # Frozen chemistry — MW is constant across zones 1/2/5; cache once.
         # Bad species or malformed composition → INPUT_INVALID.
@@ -288,16 +290,19 @@ class ShockJumpSolver:
             self.gas.TPX = T, P, X
 
     def _shock_variables(self, known_vars, unknown_vars=(), x=()):
-        return {
+        variables = {
             **{v: self._get_var(v) for v in known_vars},
             **dict(zip(unknown_vars, x)),
         }
+
+        return variables
 
     def _mach1(self):
         """Mach number for zone 1 from current zone state."""
         z = self.zones[1]
         self._set_gas(z.T, z.P, self.X_driven)
         gamma = self.gas.cp / self.gas.cv
+
         return z.u / np.sqrt(gamma * self._R_specific * z.T)
 
     def _perfect_gas_shock(self, rel_tol=PERFECT_GAS_REL_TOL,
@@ -366,6 +371,7 @@ class ShockJumpSolver:
         self.zones[1].u = x[1]
         self._perfect_gas_shock()
         resolved = self._shock_variables(known_vars)
+
         return [resolved[v] - val for v, val in zip(known_vars, known_vals) if v != "T1"]
 
     def _frosh_state_at(self, known_vars, unknown_vars, x):
@@ -414,12 +420,14 @@ class ShockJumpSolver:
         z1, z2, z5 = self.zones[1], self.zones[2], self.zones[5]
         R = self._R_specific
         u1s, a, b = self._frosh_u1s, self._frosh_a, self._frosh_b
-        return [
+        residuals = [
             (z2.P / z1.P - 1) + (u1s * (a - 1) / (R * z1.T)),
             (2 / u1s * (z2.h - z1.h)) + (a * a - 1),
             (z5.P / z2.P - 1) + (u1s / (R * z2.T) * (1 - a) ** 2 / (b - 1)),
             (2 * (z5.h - z2.h) / (u1s * (1 - a) ** 2)) + 2 / (b - 1) + 1,
         ]
+
+        return residuals
 
     def _frosh_jacobian(self, known_vars, unknown_vars, x):
         """Analytical Jacobian; column per unknown.
@@ -540,16 +548,23 @@ class ShockJumpSolver:
             )
 
         z1, z2, z5 = self.zones[1], self.zones[2], self.zones[5]
+
+        if self.X_driver is not None:
+            X_driver = dict(self.X_driver)
+        else:
+            X_driver = None
+
         result = ShockJumpResult(
             T1=z1.T, P1=z1.P, u1=z1.u, rho1=z1.rho,
             T2=z2.T, P2=z2.P, u2=z2.u, rho2=z2.rho,
             T5=z5.T, P5=z5.P, u5=z5.u, rho5=z5.rho,
             X_driven=dict(self.X_driven),
-            X_driver=dict(self.X_driver) if self.X_driver is not None else None,
+            X_driver=X_driver,
         )
         # Inject implementation state so lazy properties (Mach_i, gamma_i, P4)
         # can do per-property gas work without touching the solver.
         result._gas = self.gas
         result._MW_driven = self._MW
         result._R_specific = self._R_specific
+
         return result

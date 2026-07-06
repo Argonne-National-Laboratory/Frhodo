@@ -25,6 +25,7 @@ from frhodo.simulation.shock.reactor_output import (
 from frhodo.simulation.shock.sensitivity import compute_sensitivity
 
 
+
 SENSITIVITY_VARIANTS: dict[str, str] = {
     "Temperature Sensitivity Analysis": "T",
     "Pressure Sensitivity Analysis": "P",
@@ -102,6 +103,8 @@ class SIM_Explorer_Widgets(QtCore.QObject):
         elif axis == "y2":
             layout = parent.sim_ychoice2_layout
             main_parameter_box.setCurrentIndex(0)
+        else:
+            raise ValueError(f"unexpected axis: {axis!r}")
 
         if axis in ["x", "y"]:
             layout.addWidget(main_parameter_box, 0, 0)
@@ -111,6 +114,8 @@ class SIM_Explorer_Widgets(QtCore.QObject):
             layout.addWidget(sub_parameter_box, 0, 0)
             layout.addItem(spacer, 0, 1)
             layout.addWidget(main_parameter_box, 0, 2)
+        else:
+            raise ValueError(f"unexpected axis: {axis!r}")
 
         # connect signals
         main_parameter_box.currentIndexChanged[str].connect(self.main_parameter_changed)
@@ -198,7 +203,11 @@ class SIM_Explorer_Widgets(QtCore.QObject):
             ]
             subComboBox.addItems(items)
             for n, text in enumerate(items):
-                stripped = text.split(":")[1].lstrip() if ":" in text else text
+                if ":" in text:
+                    stripped = text.split(":")[1].lstrip()
+                else:
+                    stripped = text
+
                 if itemMemory["selected"] == stripped:
                     prior["selected"] = n
                 if any(value == stripped for value in itemMemory["checked"]):
@@ -297,6 +306,7 @@ class SIM_Explorer_Widgets(QtCore.QObject):
                 itemMemory["selected"] = text
 
             self.update_plot(self.parent.SIM)
+
             return
 
         # If the sender is a checkbox perform following
@@ -481,10 +491,12 @@ class SIM_Explorer_Widgets(QtCore.QObject):
         return sub_types_for_display(main_choice)
 
     def _sensitivity_selected(self) -> bool:
-        return any(
+        selected = any(
             boxes[0].currentText() in SENSITIVITY_VARIANTS
             for boxes in self.widget
         )
+
+        return selected
 
     def _sim_explorer_active(self) -> bool:
         idx = self.parent.plot_tab_widget.currentIndex()
@@ -524,10 +536,10 @@ class SIM_Explorer_Widgets(QtCore.QObject):
             return None
 
         observable = SENSITIVITY_VARIANTS[variant_label]
-        species_idx = (
-            self._sensitivity_species_idx() if observable in _SPECIES_SENSITIVITIES
-            else None
-        )
+        if observable in _SPECIES_SENSITIVITIES:
+            species_idx = self._sensitivity_species_idx()
+        else:
+            species_idx = None
 
         gas = self.parent.mech.gas
         cache_key = (id(gas), id(SIM), observable, species_idx)
@@ -536,7 +548,10 @@ class SIM_Explorer_Widgets(QtCore.QObject):
             return cached
 
         shock = self.parent.display_shock
-        t_grid = SIM.t_lab(units="SI") if hasattr(SIM, "t_lab") else None
+        if hasattr(SIM, "t_lab"):
+            t_grid = SIM.t_lab(units="SI")
+        else:
+            t_grid = None
 
         t, sens = compute_sensitivity(
             self.parent.mech,

@@ -50,7 +50,7 @@ def shock1_cfg(shock_state):
     return ShockTubeConfig(
         initial=PostShockState(
             T_reac=shock_state.T2, P_reac=shock_state.P2,
-            u_incident=shock_state.u2, rho1=shock_state.rho1,
+            u2=shock_state.u2, rho1=shock_state.rho1,
             composition=dict(MIX),
         ),
         t_end=T_END,
@@ -126,7 +126,7 @@ class TestRunShockTubeHappyPath:
 def _post_shock(shock_state, composition=MIX):
     return PostShockState(
         T_reac=shock_state.T2, P_reac=shock_state.P2,
-        u_incident=shock_state.u2, rho1=shock_state.rho1,
+        u2=shock_state.u2, rho1=shock_state.rho1,
         composition=dict(composition),
     )
 
@@ -138,7 +138,7 @@ class TestRunShockTubeFailureModes:
         cfg = ShockTubeConfig(
             initial=PostShockState(
                 T_reac=shock_state.T2, P_reac=shock_state.P2,
-                u_incident=shock_state.u2, rho1=shock_state.rho1,
+                u2=shock_state.u2, rho1=shock_state.rho1,
                 composition={"NOT_A_REAL_SPECIES": 1.0},
             ),
             t_end=T_END,
@@ -151,7 +151,7 @@ class TestRunShockTubeFailureModes:
         with pytest.raises(ValidationError):
             PostShockState(
                 T_reac=float("nan"), P_reac=shock_state.P2,
-                u_incident=shock_state.u2, rho1=shock_state.rho1,
+                u2=shock_state.u2, rho1=shock_state.rho1,
                 composition=dict(MIX),
             )
 
@@ -364,7 +364,7 @@ class TestCompositionDictOnly:
         with pytest.raises(ValidationError):
             PostShockState(
                 T_reac=1500.0, P_reac=20000.0,
-                u_incident=1029.0, rho1=0.4,
+                u2=1029.0, rho1=0.4,
                 composition="Kr:0.96, cC7H14:0.04",
             )
 
@@ -385,7 +385,7 @@ class TestCompositionDictOnly:
         cfg = ShockTubeConfig(
             initial=PostShockState(
                 T_reac=1500.0, P_reac=20000.0,
-                u_incident=1029.0, rho1=0.4, composition=comp,
+                u2=1029.0, rho1=0.4, composition=comp,
             ),
             t_end=5e-5,
         )
@@ -428,7 +428,7 @@ class TestShockTubeDiscriminator:
         assert s.kind == "pre_shock"
 
     def test_post_shock_validates(self):
-        s = PostShockState(T_reac=1500.0, P_reac=2e5, u_incident=1029.0,
+        s = PostShockState(T_reac=1500.0, P_reac=2e5, u2=1029.0,
                            rho1=0.4, composition={"Ar": 1.0})
         assert s.kind == "post_shock"
 
@@ -438,7 +438,7 @@ class TestShockTubeDiscriminator:
             initial={
                 "kind": "post_shock",
                 "T_reac": 1500.0, "P_reac": 2e5,
-                "u_incident": 1029.0, "rho1": 0.4,
+                "u2": 1029.0, "rho1": 0.4,
                 "composition": {"Ar": 1.0},
             },
             t_end=5e-5,
@@ -523,7 +523,7 @@ class TestSolverObservableSettings:
     def test_default_solver(self):
         cfg = ShockTubeConfig(
             initial=PostShockState(
-                T_reac=1500.0, P_reac=2e5, u_incident=1029.0, rho1=0.4,
+                T_reac=1500.0, P_reac=2e5, u2=1029.0, rho1=0.4,
                 composition={"Ar": 1.0},
             ),
             t_end=5e-5,
@@ -535,7 +535,7 @@ class TestSolverObservableSettings:
     def test_custom_settings_round_trip(self):
         cfg = ShockTubeConfig(
             initial=PostShockState(
-                T_reac=1500.0, P_reac=2e5, u_incident=1029.0, rho1=0.4,
+                T_reac=1500.0, P_reac=2e5, u2=1029.0, rho1=0.4,
                 composition={"Ar": 1.0},
             ),
             t_end=5e-5,

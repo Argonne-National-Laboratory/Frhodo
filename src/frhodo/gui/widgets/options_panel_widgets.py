@@ -6,11 +6,15 @@
 Each controller wraps one section of the left-side options panel and
 syncs its Qt widgets with the project state held on the main window.
 """
-import pathlib, os, sys
+import logging
+import os
+import pathlib
+import sys
 from copy import deepcopy
 
 import nlopt
 import numpy as np
+from scipy.interpolate import CubicSpline
 from scipy.optimize import minimize
 from qtpy import QtCore, QtGui, QtWidgets
 from qtpy.QtWidgets import (
@@ -18,6 +22,7 @@ from qtpy.QtWidgets import (
     QTableWidgetItem, QTextEdit, QToolButton, QWidget,
 )
 
+from frhodo.common.logging import GuiLogHandler
 from frhodo.common.units import OoM
 from frhodo.experiment import double_sigmoid
 from frhodo.gui.optimize_orchestrator import Multithread_Optimize
@@ -28,7 +33,9 @@ from frhodo.gui.widgets import (
     series_viewer_widget,
     thermo_widget,
 )
+from frhodo.optimize.cost.fit_fcn import _solve_t_unc
 from frhodo.simulation.shock.shock_solver import ShockJumpSolver
+
 
 
 class Initialize(QtCore.QObject):
@@ -41,10 +48,6 @@ class Initialize(QtCore.QObject):
 
     def __init__(self, parent):
         super().__init__(parent)
-
-        import logging
-
-        from frhodo.common.logging import GuiLogHandler
 
         parent.log = Log(
             parent.option_tab_widget,
@@ -170,12 +173,17 @@ class Initialize(QtCore.QObject):
         """Append a checkable Auto-fit entry to the spinbox's standard context menu."""
         box = self.sender()
         parent = self.parent()
-        line_edit = box.lineEdit() if hasattr(box, "lineEdit") else None
-        menu = (
-            line_edit.createStandardContextMenu()
-            if line_edit is not None
-            else QtWidgets.QMenu(box)
-        )
+
+        if hasattr(box, "lineEdit"):
+            line_edit = box.lineEdit()
+        else:
+            line_edit = None
+
+        if line_edit is not None:
+            menu = line_edit.createStandardContextMenu()
+        else:
+            menu = QtWidgets.QMenu(box)
+
         menu.addSeparator()
         auto_action = menu.addAction("Auto-fit time offset")
         auto_action.setCheckable(True)
@@ -198,6 +206,7 @@ class Initialize(QtCore.QObject):
             return
         if parent.run_control.run_block or not parent.load_state.mech_loaded:
             apply_auto_fit_time_offset(parent)
+
             return
         parent.run_single()
 
@@ -214,8 +223,7 @@ def apply_auto_fit_time_offset(parent):
 
     During an optimization run the per-iteration ``CostFunction`` is
     already solving the same problem and writing its result to
-    ``shock.last_t_unc``; auto-fit reuses that instead of running its
-    own competing solve.
+    ``shock.last_t_unc``; auto-fit reuses that result.
 
     Outside optimization, the search bound is the falling-sigmoid
     inflection of the active weight profile — ``weight_shift[1]``.
@@ -224,9 +232,6 @@ def apply_auto_fit_time_offset(parent):
     elastic-net dropped-weight penalty as the optimizer's
     per-cost-call t_unc solve.
     """
-    from scipy.interpolate import CubicSpline
-    from frhodo.optimize.cost.fit_fcn import _solve_t_unc
-
     if not parent.time_uncertainty.auto_fit:
         return
     shock = getattr(parent, "display_shock", None)
@@ -651,6 +656,7 @@ class Shock_Settings(QtCore.QObject):
                     parent.log.append(err)
 
             self.error_msg = []  # reset error message and return
+
             return
 
         # Setup variables to be sent to shock solver
@@ -800,10 +806,12 @@ class CheckableTabWidget(QTabWidget):
         )
 
     def isChecked(self, index):
-        return (
+        checked = (
             self.tabBar().tabButton(index, QTabBar.LeftSide).checkState()
             != QtCore.Qt.Unchecked
         )
+
+        return checked
 
     def setCheckState(self, index, checkState):
         self.tabBar().tabButton(index, QTabBar.LeftSide).setCheckState(checkState)
@@ -1445,6 +1453,7 @@ class Optimization(QtCore.QObject):
                 ):
                     if box is not self.sender():
                         box.setEnabled(self.settings[opt_type]["run"])
+
                 return
 
             elif var_type == "algorithm":

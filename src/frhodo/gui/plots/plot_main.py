@@ -11,6 +11,7 @@ from frhodo.gui.plots import (
 )
 
 
+
 class All_Plots:
     """Owns the four plot canvases (raw signal, signal, sim explorer, optimization)."""
 

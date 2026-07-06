@@ -17,6 +17,7 @@ from frhodo.common.errors import MechanismLoadError
 from frhodo.simulation.mechanism.mech_fcns import ChemicalMechanism
 
 
+
 def _atomic_convert(target, do_convert):
     """Write ``target`` via a sibling ``.tmp`` followed by ``os.replace``.
 
@@ -38,10 +39,12 @@ def _chemkin_to_cantera(paths):
     if paths["thermo"] is not None:
         kwargs["thermo_file"] = paths["thermo"]
 
-    return _atomic_convert(
+    result = _atomic_convert(
         paths["Cantera_Mech"],
         lambda out: ck2yaml.convert(paths["mech"], out_name=out, **kwargs),
     )
+
+    return result
 
 
 def _resolve_yaml_path(paths) -> str:

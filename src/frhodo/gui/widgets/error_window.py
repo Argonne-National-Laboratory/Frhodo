@@ -5,11 +5,15 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level
 # directory for license and copyright information.
 
-import sys, logging, traceback
+import sys
+import logging
+import traceback
 from logging.handlers import RotatingFileHandler
 
 from qtpy.QtWidgets import QApplication, QDialog
 from qtpy import uic, QtCore, QtGui
+
+
 
 path = {}
 

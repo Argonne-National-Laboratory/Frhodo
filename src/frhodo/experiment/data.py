@@ -19,12 +19,15 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 
+
 def _empty_array() -> np.ndarray:
     return np.array([])
 
 
 def _nan_pair() -> list[float]:
-    return [float("nan"), float("nan")]
+    pair = [float("nan"), float("nan")]
+
+    return pair
 
 
 class ExperimentalShock(BaseModel):

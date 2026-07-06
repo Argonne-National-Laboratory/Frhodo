@@ -4,7 +4,9 @@
 
 from qtpy.QtWidgets import QMessageBox, QLabel
 from qtpy import QtCore, QtGui
-import requests, re
+import requests
+import re
+
 
 
 github_link = "https://github.com/Argonne-National-Laboratory/Frhodo/releases"

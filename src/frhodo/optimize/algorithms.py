@@ -9,14 +9,15 @@ import pathlib
 import platform
 from timeit import default_timer as timer
 
-import nlopt
-import numpy as np
-import rbfopt
-
 try:
     import pygmo
 except ImportError:
     pygmo = None
+
+import nlopt
+import numpy as np
+import rbfopt
+
 
 
 nlopt_algorithms = [
@@ -184,6 +185,10 @@ class Optimize:
             opt.set_maxeval(int(options["stop_criteria_val"]) - 1)
         elif options["stop_criteria_type"] == "Maximum Time [min]":
             opt.set_maxtime(options["stop_criteria_val"] * 60)
+        else:
+            raise ValueError(
+                f"unexpected stop_criteria_type: {options['stop_criteria_type']!r}"
+            )
 
         opt.set_xtol_rel(options["xtol_rel"])
         opt.set_ftol_rel(options["ftol_rel"])
@@ -249,7 +254,9 @@ class Optimize:
                 self.bnds = bnds
 
             def fitness(self, x):
-                return [self.obj_fcn(x)]
+                fitness_value = [self.obj_fcn(x)]
+
+                return fitness_value
 
             def get_bounds(self):
                 return self.bnds
@@ -264,6 +271,10 @@ class Optimize:
             num_gen = int(np.ceil(options["stop_criteria_val"] / pop_size))
         elif options["stop_criteria_type"] == "Maximum Time [min]":
             num_gen = int(np.ceil(1e20 / pop_size))
+        else:
+            raise ValueError(
+                f"unexpected stop_criteria_type: {options['stop_criteria_type']!r}"
+            )
 
         prob = pygmo.problem(pygmo_objective_fcn(self.obj_fcn, tuple(bnds)))
         pop = pygmo.population(prob, pop_size - 1)
@@ -281,6 +292,8 @@ class Optimize:
             algo = pygmo.algorithm(pygmo.gwo(gen=num_gen))
         elif options["algorithm"] == "pygmo_IPOPT":
             algo = pygmo.algorithm(pygmo.ipopt())
+        else:
+            raise ValueError(f"unexpected pygmo algorithm: {options['algorithm']!r}")
 
         pop = algo.evolve(pop)
 
@@ -309,6 +322,10 @@ class Optimize:
         elif options["stop_criteria_type"] == "Maximum Time [min]":
             max_eval = 10000
             max_time = options["stop_criteria_val"] * 60
+        else:
+            raise ValueError(
+                f"unexpected stop_criteria_type: {options['stop_criteria_type']!r}"
+            )
 
         var_type = ["R"] * np.size(x0)
 

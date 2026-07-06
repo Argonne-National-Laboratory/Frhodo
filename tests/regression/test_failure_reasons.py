@@ -61,7 +61,7 @@ class TestRunShockTubeFailureReason:
         cfg = ShockTubeConfig(
             initial=PostShockState(
                 T_reac=300.0, P_reac=1.0,
-                u_incident=10.0, rho1=1e-30,
+                u2=10.0, rho1=1e-30,
                 composition={"AR": 1.0},
             ),
             t_end=1e-3,
@@ -84,7 +84,7 @@ class TestRunShockTubeFailureReason:
         cfg = ShockTubeConfig(
             initial=PostShockState(
                 T_reac=300.0, P_reac=1.0,
-                u_incident=10.0, rho1=1e-30,
+                u2=10.0, rho1=1e-30,
                 composition={"AR": 1.0},
             ),
             t_end=1e-3,
@@ -99,7 +99,7 @@ class TestRunShockTubeFailureReason:
         cfg = ShockTubeConfig(
             initial=PostShockState(
                 T_reac=1500.0, P_reac=20_000.0,
-                u_incident=1029.0, rho1=0.05,
+                u2=1029.0, rho1=0.05,
                 composition={"H2": 0.04, "O2": 0.02, "AR": 0.94},
             ),
             t_end=5e-5,

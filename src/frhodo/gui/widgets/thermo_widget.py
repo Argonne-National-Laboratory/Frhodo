@@ -2,7 +2,9 @@
 # and licensed under BSD-3-Clause. See License.txt in the top-level
 # directory for license and copyright information.
 
-import sys, ast, re
+import sys
+import ast
+import re
 from copy import deepcopy
 
 import cantera as ct
@@ -13,6 +15,7 @@ from qtpy.QtCore import QAbstractItemModel, QModelIndex
 from qtpy.QtWidgets import QTreeView
 
 from frhodo.gui.widgets import misc_widget
+
 
 
 def silentSetValue(obj, value):
@@ -91,6 +94,7 @@ class ThermoModel(QtCore.QAbstractItemModel):
         if not parent.isValid():
             return self.createIndex(row, column, self.rootNodes[row])
         parentNode = parent.internalPointer()
+
         return self.createIndex(row, column, parentNode.subnodes[row])
 
     def parent(self, index):
@@ -110,4 +114,5 @@ class ThermoModel(QtCore.QAbstractItemModel):
         if not parent.isValid():
             return len(self.rootNodes)
         node = parent.internalPointer()
+
         return len(node.subnodes)

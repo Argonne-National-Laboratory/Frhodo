@@ -8,6 +8,7 @@ custom Python exception classes, so the side channel is required.
 import enum
 
 
+
 class FailureReason(str, enum.Enum):
     """Categorical reason an integrator or jump solver gave up.
 

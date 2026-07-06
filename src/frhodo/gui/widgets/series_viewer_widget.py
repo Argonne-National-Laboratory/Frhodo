@@ -16,6 +16,7 @@ from qtpy.QtWidgets import (
 from frhodo.simulation.shock.shock_solver import ShockJumpSolver
 
 
+
 class Series_Viewer:
     """Top-level controller for the Series tab.
 
@@ -168,6 +169,7 @@ class TreeWidget(QTreeWidget):
             index = self.indexFromItem(it.value())
             height += self.rowHeight(index)
             it += 1
+
         return QtCore.QSize(self.header().length() + 2 * self.frameWidth(), height)
 
 
@@ -312,6 +314,7 @@ class DataSetsTable(QTableWidget):
         h = self.horizontalHeader().height() + 2
         for i in range(self.rowCount()):
             h += self.rowHeight(i)
+
         return QtCore.QSize(w, h)
 
     def _selection_change(self):
@@ -345,6 +348,7 @@ class DataSetsTable(QTableWidget):
                 parent.shock_choice_box.setValue(
                     self.all_shocks[n]
                 )  # set to selected row's shock num
+
                 return
 
     def _toggle_checkbox(self, event=None, **kwargs):
@@ -408,6 +412,7 @@ class DataSetsTable(QTableWidget):
                     self.selectRow(selected_row - 1)
                 else:
                     self.selectRow(selected_row + 1)
+
                 return
             elif event.key() in key["select_toggle"].values():
                 if event.key() == key["select_toggle"]["delete"]:
@@ -415,6 +420,7 @@ class DataSetsTable(QTableWidget):
                 else:
                     include_exp = self.include_box[selected_row].isChecked()
                     self.include_box[selected_row].setChecked(not include_exp)
+
                 return
 
         super(DataSetsTable, self).keyPressEvent(

@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 
+
 def zero_d_mode_from_label(label: str) -> Literal["constant_volume", "constant_pressure"]:
     """Translate the GUI's 0-D reactor display label to the engine enum.
 

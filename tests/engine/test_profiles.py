@@ -131,7 +131,7 @@ class TestExperimentShock:
             t=[0.0, 1e-5], observable=[1.0, 2.0],
             initial=PostShockState(
                 T_reac=1500.0, P_reac=2e5,
-                u_incident=1029.0, rho1=0.4, composition={"Ar": 1.0},
+                u2=1029.0, rho1=0.4, composition={"Ar": 1.0},
             ),
             t_end=1e-5,
         )

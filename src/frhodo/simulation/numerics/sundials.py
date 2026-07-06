@@ -51,6 +51,7 @@ from typing import Callable
 import numpy as np
 
 
+
 c_sunrealtype     = ctypes.c_double
 c_sunindextype    = ctypes.c_int64
 c_sunbooleantype  = ctypes.c_int
@@ -334,7 +335,11 @@ def _load_sundials() -> _CompositeLib:
 
     # Load sibling libs first (in dep order) so the Cantera extension
     # can resolve its imports against already-loaded SUNDIALS symbols.
-    mode = 0 if sys.platform == "win32" else ctypes.RTLD_GLOBAL
+    if sys.platform == "win32":
+        mode = 0
+    else:
+        mode = ctypes.RTLD_GLOBAL
+
     for p in sibling_libs:
         loaded.append(ctypes.CDLL(str(p), mode=mode))
     loaded.append(ctypes.CDLL(str(ext_path), mode=mode))
@@ -698,7 +703,9 @@ class DenseMatrix:
 def _resolve_dense_linear_solver():
     for name in _DENSE_LINEAR_SOLVERS:
         if name in _lib:
-            return name, getattr(_lib, name)
+            ctor = getattr(_lib, name)
+
+            return name, ctor
     raise SundialsBindingError(
         f"none of {_DENSE_LINEAR_SOLVERS} are available; "
         f"cannot construct a dense linear solver"
@@ -784,7 +791,10 @@ class CVodeIntegrator:
         stab_lim_det: bool = True,
     ) -> None:
         self._owns_ctx = ctx is None
-        self._ctx = ctx if ctx is not None else SundialsContext()
+        if ctx is not None:
+            self._ctx = ctx
+        else:
+            self._ctx = SundialsContext()
         self.n_state = int(n_state)
         self._py_rhs = rhs
         self._py_jac = jac
@@ -802,7 +812,10 @@ class CVodeIntegrator:
         self._mem = ctypes.c_void_p(mem)
 
         self._rhs_cb = CVRhsFn(self._rhs_trampoline)
-        self._jac_cb = CVLsJacFn(self._jac_trampoline) if jac is not None else None
+        if jac is not None:
+            self._jac_cb = CVLsJacFn(self._jac_trampoline)
+        else:
+            self._jac_cb = None
 
         self._y.view()[:] = 0.0
         _check(
@@ -825,8 +838,13 @@ class CVodeIntegrator:
         )
         _check(_lib.CVodeSetMaxOrd(self._mem, ctypes.c_int(int(max_order))),
                "CVodeSetMaxOrd")
+        if stab_lim_det:
+            stab_flag = 1
+        else:
+            stab_flag = 0
+
         _check(
-            _lib.CVodeSetStabLimDet(self._mem, ctypes.c_int(1 if stab_lim_det else 0)),
+            _lib.CVodeSetStabLimDet(self._mem, ctypes.c_int(stab_flag)),
             "CVodeSetStabLimDet",
         )
         if max_step is not None:
@@ -910,7 +928,10 @@ class CVodeIntegrator:
                 raise self._py_exception
             raise
 
-        return float(self._tret.value), self._y.view().copy()
+        t_reached = float(self._tret.value)
+        y_copy = self._y.view().copy()
+
+        return t_reached, y_copy
 
     def get_dky(self, t: float, k: int = 0) -> np.ndarray:
         """Dense interpolated state (``k=0``) or k-th derivative at ``t``.
@@ -965,6 +986,7 @@ class CVodeIntegrator:
         def _long(name: str) -> int:
             n = ctypes.c_long(0)
             _check(getattr(_lib, name)(self._mem, ctypes.byref(n)), name)
+
             return int(n.value)
 
         order = ctypes.c_int(0)
@@ -974,7 +996,7 @@ class CVodeIntegrator:
         _check(_lib.CVodeGetLastStep(self._mem, ctypes.byref(last_h)),
                "CVodeGetLastStep")
 
-        return {
+        snapshot = {
             "num_steps":                  _long("CVodeGetNumSteps"),
             "num_rhs_evals":              _long("CVodeGetNumRhsEvals"),
             "num_jac_evals":              _long("CVodeGetNumJacEvals"),
@@ -986,6 +1008,8 @@ class CVodeIntegrator:
             "last_order":                 int(order.value),
             "last_step":                  float(last_h.value),
         }
+
+        return snapshot
 
     def _rhs_trampoline(self, t, y_ptr, ydot_ptr, _ud):
         try:
@@ -1105,7 +1129,10 @@ class AdjointProblem:
         )
 
         self._yB    = NVector(self._n_state, self._ctx)
-        self._qB    = NVector(self._n_quad,  self._ctx) if self._n_quad > 0 else None
+        if self._n_quad > 0:
+            self._qB = NVector(self._n_quad, self._ctx)
+        else:
+            self._qB = None
         self._matB  = DenseMatrix(self._n_state, self._n_state, self._ctx)
         self._LSB   = DenseLinearSolver(self._yB, self._matB, self._ctx)
 
@@ -1138,9 +1165,10 @@ class AdjointProblem:
 
         self._rhsB_cb  = CVRhsFnB(self._rhsB_trampoline)
         self._jacB_cb  = CVLsJacFnB(self._jacB_trampoline)
-        self._quadB_cb = (
-            CVQuadRhsFnB(self._quadB_trampoline) if self._qB is not None else None
-        )
+        if self._qB is not None:
+            self._quadB_cb = CVQuadRhsFnB(self._quadB_trampoline)
+        else:
+            self._quadB_cb = None
 
         self._whichB = ctypes.c_int(-1)
         self._ncheck = ctypes.c_int(0)

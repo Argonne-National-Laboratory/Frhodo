@@ -41,7 +41,7 @@ def _synthetic_shock():
         t=t, observable=np.zeros_like(t),
         initial=PostShockState(
             T_reac=1500.0, P_reac=20000.0,
-            u_incident=181.85, rho1=0.0230433,
+            u2=181.85, rho1=0.0230433,
             composition={"Kr": 0.96, "cC7H14": 0.04},
         ),
         t_end=5e-5,

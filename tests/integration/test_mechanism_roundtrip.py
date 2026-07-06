@@ -114,7 +114,7 @@ class TestRoundTripPreservesSimulation:
             cfg = ShockTubeConfig(
                 initial=PostShockState(
                     T_reac=ss.T2, P_reac=ss.P2,
-                    u_incident=ss.u2, rho1=ss.rho1,
+                    u2=ss.u2, rho1=ss.rho1,
                     composition=dict(MIX),
                 ),
                 t_end=5e-5,

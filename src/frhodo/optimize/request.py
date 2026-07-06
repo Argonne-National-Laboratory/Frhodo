@@ -27,6 +27,7 @@ from frhodo.optimize.spec import OptimizableSpec
 from frhodo.simulation.shock.state import RuntimeReactorState
 
 
+
 class OptimizationRequest(BaseModel):
     """All inputs to one :func:`frhodo.api.optimize_residual` call.
 

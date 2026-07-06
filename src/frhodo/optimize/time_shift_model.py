@@ -64,7 +64,7 @@ def build_shift_features(conditions):
     return X, names
 
 
-def regularized_shifts(conditions, t_star, t_unc, *, l1_ratios=_L1_RATIOS, random_state=0):
+def regularized_shifts(conditions, t_star, t_unc, *, l1_ratios=_L1_RATIOS):
     """Fit Δt(T,P,X) by standardized elastic-net CV on free-optimal shifts.
 
     Args:
@@ -90,6 +90,9 @@ def regularized_shifts(conditions, t_star, t_unc, *, l1_ratios=_L1_RATIOS, rando
         return shifts, info
 
     X, names = build_shift_features(conditions)
+    # Integer cv gives unshuffled deterministic folds and coordinate
+    # descent is cyclic, so the fit is deterministic with no RNG — the
+    # objective stays a pure function of x.
     cv = max(2, min(5, n))
     # The polynomial features are strongly collinear (T with T², T·P),
     # so coordinate descent needs far more than its default 1000
@@ -98,8 +101,7 @@ def regularized_shifts(conditions, t_star, t_unc, *, l1_ratios=_L1_RATIOS, rando
     # model to its intercept, one shared shift for every shock.
     model = make_pipeline(
         StandardScaler(),
-        ElasticNetCV(l1_ratio=list(l1_ratios), cv=cv, max_iter=10_000,
-                     random_state=random_state),
+        ElasticNetCV(l1_ratio=list(l1_ratios), cv=cv, max_iter=10_000),
     )
     model.fit(X, t_star)
     enet = model.named_steps["elasticnetcv"]

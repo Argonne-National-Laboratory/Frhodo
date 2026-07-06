@@ -27,6 +27,7 @@ from frhodo.common.config import PostShockState, PreShockState
 from frhodo.experiment.weight import double_sigmoid
 
 
+
 class WeightProfile(BaseModel):
     """Two-sided sigmoid envelope used as per-sample cost weights.
 
@@ -72,12 +73,14 @@ class WeightProfile(BaseModel):
         equivalent input values.
         """
         t = np.asarray(t, dtype=float)
-        return double_sigmoid(
+        weights = double_sigmoid(
             t,
             A=[self.floor_pre, self.peak, self.floor_post],
             k=[self.growth_rate_rise, self.growth_rate_fall],
             x0=[self.time_rise, self.time_fall],
         )
+
+        return weights
 
 
 class ExperimentShock(BaseModel):
@@ -88,11 +91,16 @@ class ExperimentShock(BaseModel):
     ``np.ndarray`` views for numerical use. Weight and uncertainty
     profiles override the request-level defaults when set.
     """
-    t: list[float]
-    observable: list[float]
+    t: list[float] = Field(description="Sample times [s]")
+    observable: list[float] = Field(
+        description="Measured observable at each sample time, in the "
+                    "observable's native units"
+    )
     initial: PreShockState | PostShockState = Field(discriminator="kind")
-    t_end: PositiveFloat
-    scalar_weight: PositiveFloat = 1.0
+    t_end: PositiveFloat = Field(description="Simulation end time [s]")
+    scalar_weight: PositiveFloat = Field(
+        default=1.0, description="Dimensionless per-shock weight multiplier"
+    )
     weight_profile: WeightProfile | None = None
 
     model_config = ConfigDict(extra="forbid", frozen=True)
