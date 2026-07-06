@@ -5,16 +5,14 @@ Pins the contract of :func:`frhodo.experiment.uncertainty.estimate_pointwise_sig
 - robustness to sharp signal features (real edges live in the
   SUREShrink-denoised signal, not the σ estimate),
 - heteroscedastic noise detection (σ tracks slow trends),
-- works in the optimizer's residual scale (Linear / Log / Bisymlog)
-  so the σ feeding CheKiPEUQ matches the cost function's likelihood,
-- ``bounds_from_sigma`` round-trips through the scale transform.
+- works in the optimizer's residual scale (Linear / Log / Bisymlog),
+- ``sigma_bar`` reduces σ(t) to the per-shock standardizing scale.
 """
 import numpy as np
 import pytest
 
 from frhodo.common.scale import Scale
 from frhodo.experiment.uncertainty import (
-    bounds_from_sigma,
     correlation_length,
     estimate_pointwise_sigma,
     sigma_bar,
@@ -156,48 +154,6 @@ class TestSmoothCenterline:
         mu = smooth_centerline(y, scale=LINEAR)
 
         np.testing.assert_array_equal(mu, y)
-
-
-class TestBoundsFromSigma:
-    def test_shape_is_N_by_2(self):
-        y = np.linspace(0.0, 1.0, 32)
-        sigma = np.full_like(y, 0.05)
-
-        bounds = bounds_from_sigma(y, sigma, sigma_multiple=3.0, scale=LINEAR)
-
-        assert bounds.shape == (32, 2)
-
-    def test_linear_scale_symmetric(self):
-        y = np.array([1.0, 2.0, 3.0])
-        sigma = np.array([0.1, 0.2, 0.3])
-
-        bounds = bounds_from_sigma(y, sigma, sigma_multiple=2.0, scale=LINEAR)
-
-        assert bounds[1, 0] == pytest.approx(2.0 - 2.0 * 0.2)
-        assert bounds[1, 1] == pytest.approx(2.0 + 2.0 * 0.2)
-
-    def test_log_scale_round_trips(self):
-        """``bounds_from_sigma`` in Log space must satisfy
-        ``log10(upper) - log10(y) == k·σ`` so the cost function's own
-        log-transform on the bounds recovers the same σ CheKiPEUQ
-        receives via ``sigma_multiple``."""
-        y = np.array([1.0, 10.0, 100.0])
-        sigma = np.array([0.05, 0.05, 0.05])
-        log_scale = Scale("Log")
-
-        bounds = bounds_from_sigma(y, sigma, sigma_multiple=2.0, scale=log_scale)
-
-        log_upper_delta = np.log10(bounds[:, 1]) - np.log10(y)
-        log_lower_delta = np.log10(y) - np.log10(bounds[:, 0])
-        np.testing.assert_allclose(log_upper_delta, 2.0 * sigma)
-        np.testing.assert_allclose(log_lower_delta, 2.0 * sigma)
-
-    def test_shape_mismatch_raises(self):
-        y = np.zeros(10)
-        sigma = np.zeros(5)
-
-        with pytest.raises(ValueError, match="shape mismatch"):
-            bounds_from_sigma(y, sigma, sigma_multiple=3.0, scale=LINEAR)
 
 
 class TestEnvelopeInvariance:

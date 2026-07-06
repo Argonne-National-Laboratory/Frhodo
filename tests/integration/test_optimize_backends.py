@@ -64,9 +64,8 @@ def _build_request(loaded_cycloheptane, algorithm_label: str, max_iters: int):
             sim_interp_factor=1, ode_solver="BDF", ode_rtol=1e-4, ode_atol=1e-7,
         ),
         cost=CostSettings(
-            obj_fcn_type="Residual", scale="Linear",
+            scale="Linear",
             bisymlog_scaling_factor=1.0, loss_alpha=2.0, loss_c=1.0,
-            bayes_dist_type="Automatic", bayes_unc_sigma=2.0,
         ),
         algorithm=AlgorithmSettings(
             global_stage=AlgorithmStage(
@@ -169,9 +168,8 @@ class TestRateOptAnchorAlignment:
                 ode_atol=1e-7,
             ),
             cost=CostSettings(
-                obj_fcn_type="Residual", scale="Linear",
+                scale="Linear",
                 bisymlog_scaling_factor=1.0, loss_alpha=2.0, loss_c=1.0,
-                bayes_dist_type="Automatic", bayes_unc_sigma=2.0,
             ),
             algorithm=AlgorithmSettings(
                 global_stage=AlgorithmStage(algorithm="RBFOpt", enabled=False),
@@ -244,9 +242,8 @@ class TestRBFOptBackend:
                 sim_interp_factor=1, ode_solver="BDF", ode_rtol=1e-4, ode_atol=1e-7,
             ),
             cost=CostSettings(
-                obj_fcn_type="Residual", scale="Linear",
+                scale="Linear",
                 bisymlog_scaling_factor=1.0, loss_alpha=2.0, loss_c=1.0,
-                bayes_dist_type="Automatic", bayes_unc_sigma=2.0,
             ),
             algorithm=AlgorithmSettings(
                 global_stage=AlgorithmStage(

@@ -102,13 +102,10 @@ def _synthetic_shock():
 
 def _cost_settings():
     settings = CostSettings(
-        obj_fcn_type="Residual",
         scale="Linear",
         bisymlog_scaling_factor=1.0,
         loss_alpha=2.0,
         loss_c=1.0,
-        bayes_dist_type="Automatic",
-        bayes_unc_sigma=2.0,
     )
 
     return settings

@@ -44,15 +44,10 @@ from frhodo.common import (
     SolverSettings,
     ZeroDConfig,
 )
-from frhodo.common.scale import Scale
 from frhodo.common.units import kJ_per_mol, kcal_per_mol
 from frhodo.experiment.profiles import (
     ExperimentShock,
     WeightProfile,
-)
-from frhodo.experiment.uncertainty import (
-    bounds_from_sigma,
-    estimate_pointwise_sigma,
 )
 from frhodo.optimize._worker_context import MechBuildPayload, WorkerContext
 from frhodo.optimize.algorithm_settings import AlgorithmSettings, AlgorithmStage
@@ -936,17 +931,6 @@ def _to_internal_shock(shock: "ExperimentShock", request: "OptimizationRequest",
     )
     normalized_weights = np.where(in_window, envelope * shock.scalar_weight, 0.0)
 
-    abs_uncertainties = np.zeros((0, 2))
-    sigma_t = np.array([])
-    if request.cost.obj_fcn_type == "Bayesian":
-        scale = Scale(request.cost.scale, calibration_data=obs)
-        sigma_t = estimate_pointwise_sigma(obs, scale=scale)
-        abs_uncertainties = bounds_from_sigma(
-            obs, sigma_t,
-            sigma_multiple=request.cost.bayes_unc_sigma,
-            scale=scale,
-        )
-
     return ExperimentalShock.from_dict({
         "T1": T1, "P1": P1, "u1": u1, "rho1": rho1, "u2": u2,
         "T_reactor": T_reac, "P_reactor": P_reac,
@@ -958,8 +942,6 @@ def _to_internal_shock(shock: "ExperimentShock", request: "OptimizationRequest",
         "exp_data": exp_data,
         "normalized_weights": normalized_weights,
         "weights": normalized_weights.copy(),
-        "sigma_t": sigma_t,
-        "abs_uncertainties": abs_uncertainties,
         "opt_time_offset": 0.0,
     })
 

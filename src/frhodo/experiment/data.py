@@ -171,7 +171,7 @@ class ExperimentalShock(BaseModel):
         description="Sub-slice of ``exp_data`` covering only the optimization-active window.",
     )
 
-    # Weights / uncertainties (residual / Bayesian paths)
+    # Weights
     weights: Any = Field(
         default_factory=_empty_array,
         description="Per-sample residual weights produced by the weight function over ``exp_data``.",
@@ -183,18 +183,6 @@ class ExperimentalShock(BaseModel):
     normalized_weights: Any = Field(
         default_factory=_empty_array,
         description="``weights`` rescaled to sum to 1 across the trace.",
-    )
-    sigma_t: Any = Field(
-        default_factory=_empty_array,
-        description="Per-sample wavelet-estimated noise std σ(t); length matches ``exp_data``.",
-    )
-    abs_uncertainties: Any = Field(
-        default_factory=_empty_array,
-        description="``y ± sigma_multiple·σ(t)`` lower/upper bounds; shape (N, 2).",
-    )
-    abs_uncertainties_trim: Any = Field(
-        default_factory=_empty_array,
-        description="``abs_uncertainties`` restricted to the optimization-active window.",
     )
 
     # Last simulation result attached for plotting / display

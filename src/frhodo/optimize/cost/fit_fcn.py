@@ -5,8 +5,7 @@
 
 The :class:`CostFunction` instance is what the algorithms in
 :mod:`frhodo.optimize.algorithms` call once per iteration; it owns
-the worker pool, the parameter unpacking, and the loss-shape choice
-(residual / Bayesian / adaptive).
+the worker pool, the parameter unpacking, and the adaptive loss shape.
 """
 import contextlib
 import io
@@ -28,7 +27,6 @@ from frhodo.optimize._worker_context import MechBuildPayload, WorkerContext
 from frhodo._vendor.opendsm.adaptive_loss import adaptive_weights
 from frhodo._vendor.opendsm.stats_basic import weighted_quantile
 from frhodo.simulation.mechanism.fit_coeffs import fit_coeffs
-from frhodo.optimize.cost.bayesian import CheKiPEUQ_Frhodo_interface
 from frhodo.optimize.cost.aggregation import (
     LOSS_C_FLOOR_K,
     coverage_weights,
@@ -295,47 +293,6 @@ def _solve_t_unc(
     return float(min(finite)[1])
 
 
-def rescale_loss_fcn(x, loss, x_outlier=None, weights=[]):
-    """Linearly map ``loss`` into the ``x`` value range.
-
-    Used to bring an adaptive-loss output back to residual-magnitude
-    units so it is comparable across stages. Outlier rows beyond
-    ``x_outlier`` are trimmed for the rescaling bounds but the full
-    ``loss`` is returned. Weights, when supplied, drive a weighted
-    min/max for the bound computation.
-    """
-    x = x.copy()
-    weights = weights.copy()
-
-    if x_outlier is not None:
-        trimmed_indices = np.argwhere(abs(x) < x_outlier)
-        x = x[trimmed_indices]
-        loss_trimmed = loss[trimmed_indices]
-        weights = weights[trimmed_indices]
-    else:
-        loss_trimmed = loss
-
-    if len(weights) == len(x):
-        x_q1, x_q3 = weighted_quantile(x, np.array([0.0, 1.0]), weights=weights)
-        loss_q1, loss_q3 = weighted_quantile(
-            loss_trimmed, np.array([0.0, 1.0]), weights=weights
-        )
-
-    else:
-        x_q1, x_q3 = x.min(), x.max()
-        loss_q1, loss_q3 = loss_trimmed.min(), loss_trimmed.max()
-
-    if (
-        x_q1 != x_q3 and loss_q1 != loss_q3
-    ):  # prevent divide by zero if values end up the same
-        loss_scaled = (x_q3 - x_q1) / (loss_q3 - loss_q1) * (loss - loss_q1) + x_q1
-
-    else:
-        loss_scaled = loss
-
-    return loss_scaled
-
-
 def update_mech_coef_opt(mech, coef_opt, x):
     """Push optimizer-space coefficients ``x`` back into ``mech``.
 
@@ -473,7 +430,6 @@ def _degenerate_trace_output(shock, ind_var: np.ndarray, obs_sim: np.ndarray,
         "aggregate_weights": one.copy(),
         "obs_sim_interp": np.array([constant_value]),
         "obs_exp": np.array([0.0]),
-        "obs_bounds": [],
         "shock": shock,
         "independent_var": ind_var,
         "observable": obs_sim,
@@ -507,7 +463,6 @@ def calculate_residuals(mech, args_list):
         t_exp,
         obs_exp,
         weights,
-        obs_bounds=[],
         loss_alpha=2,
         loss_c=1,
         loss_penalty=True,
@@ -515,7 +470,6 @@ def calculate_residuals(mech, args_list):
         bisymlog=None,
         DoF=1,
         sigma_bar=1.0,
-        opt_type="Residual",
         verbose=False,
     ):
         shift = t_offset + t_adjust
@@ -527,8 +481,6 @@ def calculate_residuals(mech, args_list):
             obs_exp[exp_bounds],
             weights[exp_bounds],
         )
-        if opt_type == "Bayesian":
-            obs_bounds = obs_bounds[exp_bounds]
 
         obs_sim_interp = f_interp(t_exp - shift)
 
@@ -543,10 +495,6 @@ def calculate_residuals(mech, args_list):
             resid = (
                 np.log10(obs_exp[ind]) - np.log10(obs_sim_interp[ind])
             ).flatten()
-            if verbose and opt_type == "Bayesian":
-                obs_exp = np.log10(obs_exp[ind]).squeeze()
-                obs_sim_interp = np.log10(obs_sim_interp[ind]).squeeze()
-                obs_bounds = np.log10(obs_bounds[ind]).squeeze()
 
         elif scale == "AbsoluteLog":
             ind = np.argwhere((obs_exp != 0.0) & (obs_sim_interp != 0.0))
@@ -554,19 +502,11 @@ def calculate_residuals(mech, args_list):
             weights = weights[ind].flatten()
 
             resid = _log_ratio(obs_exp[ind], obs_sim_interp[ind]).flatten()
-            if verbose and opt_type == "Bayesian":
-                obs_exp = np.log10(np.abs(obs_exp[ind])).squeeze()
-                obs_sim_interp = np.log10(np.abs(obs_sim_interp[ind])).squeeze()
-                obs_bounds = np.log10(np.abs(obs_bounds[ind])).squeeze()
 
         elif scale == "Bisymlog":
             obs_exp_bisymlog = bisymlog.transform(obs_exp)
             obs_sim_interp_bisymlog = bisymlog.transform(obs_sim_interp)
             resid = np.subtract(obs_exp_bisymlog, obs_sim_interp_bisymlog)
-            if verbose and opt_type == "Bayesian":
-                obs_exp = obs_exp_bisymlog
-                obs_sim_interp = obs_sim_interp_bisymlog
-                obs_bounds = bisymlog.transform(obs_bounds)  # THIS NEEDS TO BE CHECKED
 
         else:
             raise ValueError(f"unknown residual scale {scale!r}")
@@ -589,7 +529,6 @@ def calculate_residuals(mech, args_list):
                     "aggregate_weights": np.array([1.0]),
                     "obs_sim_interp": np.array([0.0]),
                     "obs_exp": np.array([0.0]),
-                    "obs_bounds": [],
                 }
 
                 return output
@@ -623,7 +562,6 @@ def calculate_residuals(mech, args_list):
                 "aggregate_weights": agg_weights,
                 "obs_sim_interp": obs_sim_interp,
                 "obs_exp": obs_exp,
-                "obs_bounds": obs_bounds,
             }
 
             return output
@@ -679,9 +617,6 @@ def calculate_residuals(mech, args_list):
 
     weights = shock.weights_trim
     obs_exp = shock.exp_data_trim
-    obs_bounds = []
-    if var["obj_fcn_type"] == "Bayesian":
-        obs_bounds = shock.abs_uncertainties_trim
 
     s_bar = float(getattr(shock, "sigma_total", 1.0) or 1.0)
 
@@ -699,12 +634,10 @@ def calculate_residuals(mech, args_list):
             obs_exp[:, 0],
             obs_exp[:, 1],
             weights,
-            obs_bounds,
             scale=var["scale"],
             bisymlog=getattr(shock, "bisymlog", None),
             DoF=len(coef_opt),
             sigma_bar=s_bar,
-            opt_type=var["obj_fcn_type"],
         )
 
         t_unc = None
@@ -739,7 +672,6 @@ def calculate_residuals(mech, args_list):
             obs_exp[:, 0],
             obs_exp[:, 1],
             weights,
-            obs_bounds,
             loss_alpha=alpha,
             loss_c=var["loss_c"],
             loss_penalty=True,
@@ -747,7 +679,6 @@ def calculate_residuals(mech, args_list):
             bisymlog=getattr(shock, "bisymlog", None),
             DoF=len(coef_opt),
             sigma_bar=s_bar,
-            opt_type=var["obj_fcn_type"],
         )
 
         res = minimize_scalar(
@@ -758,11 +689,6 @@ def calculate_residuals(mech, args_list):
         )
         loss_alpha = res.x
 
-    if var["obj_fcn_type"] == "Residual":
-        loss_penalty = True
-    else:
-        loss_penalty = False
-
     output = resid_func(
         shock.opt_time_offset,
         t_unc,
@@ -770,15 +696,13 @@ def calculate_residuals(mech, args_list):
         obs_exp[:, 0],
         obs_exp[:, 1],
         weights,
-        obs_bounds,
         loss_alpha=loss_alpha,
         loss_c=var["loss_c"],
-        loss_penalty=loss_penalty,
+        loss_penalty=True,
         scale=var["scale"],
         bisymlog=getattr(shock, "bisymlog", None),
         DoF=len(coef_opt),
         sigma_bar=s_bar,
-        opt_type=var["obj_fcn_type"],
         verbose=True,
     )
 
@@ -806,7 +730,7 @@ class CostFunction:
         x0: Initial scaled rates baseline; the optimizer's argument
             ``s`` is added to this to get the absolute scaled rates.
         opt_type: Stage label (``"global"`` / ``"local"``); used in
-            log lines and to switch behavior inside Bayesian mode.
+            log lines.
         i: Iteration counter the optimization loop reads to format
             progress lines.
     """
@@ -860,19 +784,9 @@ class CostFunction:
         self._progress = progress_callback or (lambda update: None)
         self.i = 0
         self.__abort = False
-        self._last_aggregate_loss_alpha: float | None = None
         self.random_t_uncertainty = inputs.random_t_uncertainty
         self._shift_model_info: dict | None = None
         self._shift_model_logged = False
-
-        if inputs.cost_settings.obj_fcn_type == "Bayesian":
-            self.CheKiPEUQ_Frhodo_interface = CheKiPEUQ_Frhodo_interface(
-                bayes_dist_type=inputs.cost_settings.bayes_dist_type,
-                coef_opt=inputs.coef_opt,
-                rxn_coef_opt=inputs.rxn_coef_opt,
-                rxn_rate_opt=inputs.rxn_rate_opt,
-                bayes_unc_sigma=inputs.cost_settings.bayes_unc_sigma,
-            )
 
     def _build_var_dict(self) -> dict:
         """Per-call settings bundle the residual workers consume."""
@@ -1074,24 +988,12 @@ class CostFunction:
                 )
 
         loss_resid = np.array(output_dict["loss"])
-
-        if self.cost_settings.obj_fcn_type == "Bayesian":
-            # Multiply by the same scale resid_func divided by, so the
-            # frozen Bayesian flow sees unstandardized losses exactly.
-            sigma_totals = np.array([
-                float(getattr(s2, "sigma_total", 1.0) or 1.0)
-                for s2 in self.shocks2run
-            ])
-            obj_fcn = self._bayesian_obj_fcn(
-                x, loss_resid * sigma_totals, log_opt_rates, output_dict,
-            )
-        else:
-            obj_fcn = self._residual_obj_fcn(loss_resid, output_dict)
+        obj_fcn = self._residual_obj_fcn(loss_resid, output_dict)
 
         # For updating
         self.i += 1
         if not optimizing or self.i % 1 == 0:  # 5 == 0: # updates plot every 5
-            if obj_fcn == 0 and self.cost_settings.obj_fcn_type != "Bayesian":
+            if obj_fcn == 0:
                 obj_fcn = np.inf
 
             stat_plot = {
@@ -1313,148 +1215,6 @@ class CostFunction:
         value = float(np.average(loss_exp, weights=weights))
 
         return value
-
-    def _bayesian_obj_fcn(self, x, loss_resid, log_opt_rates, output_dict):
-        """Frozen legacy flow for Bayesian mode, pending its disposition.
-
-        Consumes unstandardized losses and the legacy aggregation so
-        Bayesian-mode behavior matches its golden pins exactly.
-        """
-        loss_alpha = self.cost_settings.loss_alpha
-        if loss_alpha == 3.0:
-            if np.size(loss_resid) <= 2:  # optimizing only a few experiments, use SSE
-                loss_alpha = 2.0
-
-            else:  # alpha based on the legacy residual aggregation
-                loss_alpha_fcn = lambda alpha: self._legacy_obj_fcn(
-                    x,
-                    loss_resid,
-                    alpha,
-                    log_opt_rates,
-                    output_dict,
-                    obj_fcn_type="Residual",
-                )
-
-                full_alpha_bounds = np.array([-100.0, 2.0])
-                alpha_bounds = _narrow_bounds(
-                    full_alpha_bounds, self._last_aggregate_loss_alpha,
-                )
-                res = minimize_scalar(
-                    loss_alpha_fcn, bounds=alpha_bounds, method="bounded",
-                )
-                if _hit_edge(res.x, alpha_bounds) and alpha_bounds is not full_alpha_bounds:
-                    res = minimize_scalar(
-                        loss_alpha_fcn, bounds=full_alpha_bounds, method="bounded",
-                    )
-                loss_alpha = res.x
-                self._last_aggregate_loss_alpha = loss_alpha
-
-        result = self._legacy_obj_fcn(
-            x,
-            loss_resid,
-            loss_alpha,
-            log_opt_rates,
-            output_dict,
-            obj_fcn_type="Bayesian",
-        )
-
-        return result
-
-    def _legacy_obj_fcn(
-        self,
-        x,
-        loss_resid,
-        alpha,
-        log_opt_rates,
-        output_dict,
-        obj_fcn_type="Residual",
-        loss_outlier=0,
-    ):
-        """Legacy experiment-level aggregation, retained for Bayesian mode.
-
-        Args:
-            x: Fitted coefficients passed through to the Bayesian
-                evaluator; unused for residual objectives.
-            loss_resid: Per-experiment residual scalars.
-            alpha: Adaptive-loss shape parameter, refined in place.
-            log_opt_rates: Log-scaled rates for Bayesian priors.
-            output_dict: Aggregated per-shock outputs (used to pull
-                Bayesian weights).
-            obj_fcn_type: ``"Residual"`` or ``"Bayesian"``.
-            loss_outlier: Outlier mask threshold for the residual
-                aggregator.
-
-        Returns:
-            Scalar objective. Lower is better.
-        """
-        C = self.cost_settings.loss_c
-        self.loss_outlier = loss_outlier
-
-        # If any shock returned an inf loss (degenerate sim), the
-        # objective is undefined at this point — return inf so the
-        # optimizer can reject it. Aggregating finite + inf via
-        # downstream weighting would produce nonsense for the Bayesian
-        # path (CheKiPEUQ can't ingest inf bounds).
-        if np.any(~np.isfinite(np.asarray(loss_resid, dtype=float))):
-            return np.inf
-
-        if np.size(loss_resid) == 1:  # optimizing single experiment
-            loss_outlier = 0
-            loss_exp = loss_resid
-        else:  # optimizing multiple experiments
-            loss_min = loss_resid.min()
-            exp_loss_weights, C, alpha = adaptive_weights(
-                loss_resid - loss_min, C_scalar=C, alpha=alpha
-            )
-            loss_exp = exp_loss_weights * (loss_resid - loss_min) ** 2
-
-        self.loss_outlier = loss_outlier
-
-        if obj_fcn_type == "Residual":
-            if np.size(loss_resid) == 1:  # optimizing single experiment
-                obj_fcn = loss_exp[0]
-            else:
-                loss_exp = loss_exp - loss_exp.min() + loss_min
-                # obj_fcn = np.median(loss_exp)
-                obj_fcn = np.average(loss_exp)
-
-        elif obj_fcn_type == "Bayesian":
-            if np.size(loss_resid) == 1:  # optimizing single experiment
-                Bayesian_weights = np.array(
-                    output_dict["aggregate_weights"], dtype=object
-                ).flatten()
-            else:
-                loss_exp = rescale_loss_fcn(loss_resid, loss_exp)
-                aggregate_weights = np.array(
-                    output_dict["aggregate_weights"], dtype=object
-                )
-                exp_loss_weights, C, alpha = adaptive_weights(
-                    loss_resid, C_scalar=C, alpha=alpha
-                )
-
-                # SSE = penalized_loss_fcn(loss_resid, mu=loss_min, use_penalty=False)
-                # SSE = rescale_loss_fcn(loss_resid, SSE)
-                # exp_loss_weights = loss_exp/SSE # comparison is between selected loss fcn and SSE (L2 loss)
-
-                Bayesian_weights = np.concatenate(
-                    aggregate_weights.T * exp_loss_weights, axis=0
-                ).flatten()
-
-            # need to normalize weight values between iterations
-            Bayesian_weights = Bayesian_weights / Bayesian_weights.sum()
-
-            obj_fcn = self.CheKiPEUQ_Frhodo_interface.evaluate(
-                log_opt_rates=log_opt_rates,
-                x=x,
-                output_dict=output_dict,
-                bayesian_weights=Bayesian_weights,
-                iteration_num=self.i,
-            )
-
-        else:
-            raise ValueError(f"unknown objective type {obj_fcn_type!r}")
-
-        return obj_fcn
 
     def _build_fit_args(self, all_rates):
         """Per-reaction ``fit_coeffs`` argument tuples for ``all_rates``."""

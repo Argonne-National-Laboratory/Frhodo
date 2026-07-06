@@ -26,8 +26,8 @@ Pipeline (any scale):
    scatter that captures the correlated-noise excursion scale so the
    band envelopes the data, yet stays smooth and heteroscedastic.
 
-Bounds for the optimizer's CheKiPEUQ likelihood center on each observed
-point via :func:`bounds_from_sigma`.
+:func:`sigma_bar` reduces σ(t) to the per-shock scalar noise scale that
+standardizes each shock's residual losses.
 """
 from __future__ import annotations
 
@@ -319,30 +319,6 @@ def estimate_pointwise_sigma(y: np.ndarray, *, scale: Scale) -> np.ndarray:
         sigma = np.maximum(_smooth_sigma(sigma_unsmoothed), float(np.min(sigma_unsmoothed)))
 
     return sigma
-
-
-def bounds_from_sigma(
-    y: np.ndarray, sigma: np.ndarray, *, sigma_multiple: float, scale: Scale,
-) -> np.ndarray:
-    """Build CheKiPEUQ-shaped ``(N, 2)`` bounds in linear ``y`` units.
-
-    ``sigma`` is the per-point std in ``scale``-space. Bounds are
-    ``inverse(forward(y) ± k·σ)`` so the cost function's own forward
-    transform on ``obs_bounds`` recovers exactly ``k·σ``. Centered on
-    each observed point so the optimizer's likelihood matches what the
-    bounds represent.
-    """
-    y_arr = np.asarray(y, dtype=float).ravel()
-    sigma_arr = np.asarray(sigma, dtype=float).ravel()
-    if y_arr.shape != sigma_arr.shape:
-        raise ValueError(f"shape mismatch: y={y_arr.shape}, sigma={sigma_arr.shape}")
-    k = float(sigma_multiple)
-    y_scaled = scale.forward(y_arr)
-    lower = scale.inverse(y_scaled - k * sigma_arr)
-    upper = scale.inverse(y_scaled + k * sigma_arr)
-    bounds = np.column_stack([lower, upper])
-
-    return bounds
 
 
 def sigma_bar(

@@ -108,13 +108,10 @@ class GUI_settings:
         opt = cfg.optimization
         _set_box(parent.time_unc_box, opt.time_uncertainty)
         _set_box(parent.random_t_unc_box, opt.random_t_uncertainty)
-        _set_box(parent.obj_fcn_type_box, opt.objective_function_type)
         _set_box(parent.obj_fcn_scale_box, opt.objective_function_scale)
         _set_box(parent.loss_alpha_box, str(opt.loss_function_alpha))
         _set_box(parent.loss_c_box, opt.loss_function_c)
         _set_box(parent.coverage_weighting_box, opt.coverage_weighting)
-        _set_box(parent.bayes_dist_type_box, opt.bayesian_distribution_type)
-        _set_box(parent.bayes_unc_sigma_box, opt.bayesian_uncertainty_sigma)
         _set_box(parent.multiprocessing_box, opt.multiprocessing)
 
         for opt_type in ("global", "local"):
@@ -199,7 +196,6 @@ class GUI_settings:
         opt = cfg.optimization
         opt.time_uncertainty = parent.time_unc_box.value()
         opt.random_t_uncertainty = parent.random_t_unc_box.isChecked()
-        opt.objective_function_type = parent.obj_fcn_type_box.currentText()
         opt.objective_function_scale = parent.obj_fcn_scale_box.currentText()
         loss_alpha_text = parent.loss_alpha_box.currentText()
         try:
@@ -208,8 +204,6 @@ class GUI_settings:
             opt.loss_function_alpha = loss_alpha_text
         opt.loss_function_c = parent.loss_c_box.value()
         opt.coverage_weighting = parent.coverage_weighting_box.isChecked()
-        opt.bayesian_distribution_type = parent.bayes_dist_type_box.currentText()
-        opt.bayesian_uncertainty_sigma = parent.bayes_unc_sigma_box.value()
         opt.multiprocessing = parent.multiprocessing_box.isChecked()
 
         for opt_type in ("global", "local"):

@@ -66,13 +66,10 @@ class WeightFunction(BaseModel):
 class OptimizationSettings(BaseModel):
     time_uncertainty: float = 0.0
     random_t_uncertainty: bool = True
-    objective_function_type: Literal["Residual", "Bayesian"] = "Residual"
     objective_function_scale: Literal["Linear", "Log", "AbsoluteLog", "Bisymlog"] = "Bisymlog"
     loss_function_alpha: str | float = "Adaptive"
     loss_function_c: float = 1.0
     coverage_weighting: bool = True
-    bayesian_distribution_type: str = "Automatic"
-    bayesian_uncertainty_sigma: float = 3.0
     multiprocessing: bool = True
     enabled: dict[str, bool] = Field(
         default_factory=lambda: {"global": True, "local": True}

@@ -34,7 +34,7 @@ class OptimizationRequest(BaseModel):
         shocks: Experiment shocks to fit against.
         optimizable: Target reactions + coefficients + bounds.
         reactor_state: Per-shock reactor configuration.
-        cost: Cost-function settings (residual vs Bayesian, scale).
+        cost: Cost-function settings (scale, loss shape, weighting).
         algorithm: Optimizer choice and stop criteria.
         observable: Observable selection (shared across shocks).
         default_weight_profile: Applied to any shock that lacks one.

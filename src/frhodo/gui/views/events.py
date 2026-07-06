@@ -65,8 +65,7 @@ class IterationEvent(BaseModel):
     @classmethod
     def from_update(cls, update: dict, is_best: bool) -> "IterationEvent | None":
         """Build the event from a raw progress update; ``None`` when the
-        update lacks the per-shock diagnostics (degenerate iterations,
-        Bayesian mode)."""
+        update lacks the per-shock diagnostics (degenerate iterations)."""
         stat = update.get("stat_plot") or {}
         diag = stat.get("per_shock")
         views = update.get("views") or {}

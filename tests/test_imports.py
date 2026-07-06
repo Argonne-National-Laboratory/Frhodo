@@ -35,7 +35,6 @@ ENGINE_MODULES = [
     "frhodo._vendor.opendsm.outliers",
     "frhodo._vendor.opendsm.stats_basic",
     "frhodo._vendor.opendsm.utils",
-    "frhodo.optimize.cost.bayesian",
     "frhodo.optimize.cost.fit_fcn",
     "frhodo.optimize.cost.settings",
 ]

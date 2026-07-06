@@ -1,4 +1,4 @@
-"""``calculate.optimize.fit_fcn`` helpers: ``rescale_loss_fcn``, ``_log_ratio``."""
+"""``calculate.optimize.fit_fcn`` helpers: ``_log_ratio`` and friends."""
 import types
 
 import numpy as np
@@ -8,59 +8,8 @@ from frhodo.optimize.cost.fit_fcn import (
     CostFunction,
     _degenerate_trace_output,
     _log_ratio,
-    rescale_loss_fcn,
 )
 
-
-
-class TestRescaleLossFcn:
-    """Maps the loss array onto the input array's quantile range."""
-
-    def test_scaled_loss_endpoints_match_input_endpoints(self):
-        """The transformed loss should span [x.min, x.max]."""
-        x = np.linspace(0.0, 10.0, 11)
-        loss = np.linspace(100.0, 900.0, 11)  # arbitrary loss scale
-
-        scaled = rescale_loss_fcn(x, loss)
-
-        assert scaled.min() == pytest.approx(x.min(), rel=1e-9), (
-            f"scaled loss min should equal x.min()={x.min()}, got {scaled.min()}"
-        )
-        assert scaled.max() == pytest.approx(x.max(), rel=1e-9), (
-            f"scaled loss max should equal x.max()={x.max()}, got {scaled.max()}"
-        )
-
-    def test_scaling_is_linear(self):
-        """A linear loss vs. linear x should produce a linear output."""
-        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-        loss = 2.0 * x + 7.0  # exactly linear in x
-
-        scaled = rescale_loss_fcn(x, loss)
-
-        diffs = np.diff(scaled)
-        np.testing.assert_allclose(diffs, diffs[0], rtol=1e-9), (
-            "linear loss should produce linearly spaced output"
-        )
-
-    def test_constant_loss_returns_loss_unchanged(self):
-        """Degenerate case: zero variance triggers the early-return branch."""
-        x = np.linspace(0.0, 10.0, 11)
-        loss = np.full_like(x, 5.0)
-
-        scaled = rescale_loss_fcn(x, loss)
-
-        np.testing.assert_array_equal(scaled, loss), (
-            "constant loss should pass through unchanged (avoids divide-by-zero)"
-        )
-
-    def test_constant_x_returns_loss_unchanged(self):
-        """If x is constant, rescaling is undefined; function falls through."""
-        x = np.full(11, 3.14)
-        loss = np.linspace(100.0, 900.0, 11)
-
-        scaled = rescale_loss_fcn(x, loss)
-
-        np.testing.assert_array_equal(scaled, loss)
 
 
 class TestLogRatio:
@@ -147,7 +96,7 @@ class TestDegenerateTraceOutput:
         )
         required = {
             "wsse", "resid", "resid_outlier", "loss", "weights",
-            "aggregate_weights", "obs_sim_interp", "obs_exp", "obs_bounds",
+            "aggregate_weights", "obs_sim_interp", "obs_exp",
             "shock", "independent_var", "observable", "t_unc",
             "loss_alpha",
         }

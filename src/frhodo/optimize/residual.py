@@ -67,18 +67,15 @@ def _trim_shocks(shocks2run: list, cost_settings: "CostSettings") -> None:
     """Pre-mask each shock to the points where the weight profile is non-zero.
 
     Mutates each ``shock`` in place — populates ``weights_trim``,
-    ``exp_data_trim``, ``abs_uncertainties_trim``, ``bisymlog``, and
-    ``sigma_bar`` (the per-shock noise scale standardizing its losses).
-    Skipping zero-weight rows up front saves work inside every cost
-    evaluation.
+    ``exp_data_trim``, ``bisymlog``, and ``sigma_bar`` (the per-shock
+    noise scale standardizing its losses). Skipping zero-weight rows up
+    front saves work inside every cost evaluation.
     """
     for shock in shocks2run:
         weights = shock.normalized_weights
         exp_bounds = np.nonzero(weights)[0]
         shock.weights_trim = weights[exp_bounds]
         shock.exp_data_trim = shock.exp_data[exp_bounds, :]
-        if shock.abs_uncertainties.size > 0:
-            shock.abs_uncertainties_trim = shock.abs_uncertainties[exp_bounds, :]
 
         if cost_settings.scale == "Bisymlog":
             bisymlog = Bisymlog(

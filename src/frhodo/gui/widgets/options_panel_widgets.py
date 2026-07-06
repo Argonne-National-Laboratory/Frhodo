@@ -218,8 +218,7 @@ def apply_auto_fit_time_offset(parent):
     own competing solve.
 
     Outside optimization, the search bound is the falling-sigmoid
-    inflection of the active weight / uncertainty profile —
-    ``weight_shift[1]`` in both Residual and Bayesian modes.
+    inflection of the active weight profile — ``weight_shift[1]``.
     Falls back to half the experiment span when unset. Routes through
     ``_solve_t_unc`` so the search uses the same soft-window brentq +
     elastic-net dropped-weight penalty as the optimizer's
@@ -1286,15 +1285,12 @@ class Optimization(QtCore.QObject):
 
         self.settings = {"obj_fcn": {}, "global": {}, "local": {}}
 
-        for box in [parent.loss_c_box, parent.bayes_unc_sigma_box]:
-            box.valueChanged.connect(self.update_obj_fcn_settings)
+        parent.loss_c_box.valueChanged.connect(self.update_obj_fcn_settings)
         for box in [
             parent.loss_alpha_box,
-            parent.obj_fcn_type_box,
             parent.obj_fcn_scale_box,
             parent.global_stop_criteria_box,
             parent.local_opt_choice_box,
-            parent.bayes_dist_type_box,
         ]:
             box.currentTextChanged.connect(self.update_obj_fcn_settings)
         parent.coverage_weighting_box.stateChanged.connect(self.update_obj_fcn_settings)
@@ -1400,7 +1396,6 @@ class Optimization(QtCore.QObject):
         sender = self.sender()
         settings = self.settings["obj_fcn"]
 
-        settings["type"] = parent.obj_fcn_type_box.currentText()
         settings["scale"] = parent.obj_fcn_scale_box.currentText()
 
         loss_alpha_txt = parent.loss_alpha_box.currentText()
@@ -1426,23 +1421,9 @@ class Optimization(QtCore.QObject):
         )  # this makes increasing values decrease outlier influence
         settings["coverage_weighting"] = parent.coverage_weighting_box.isChecked()
 
-        settings["bayes_dist_type"] = parent.bayes_dist_type_box.currentText()
-        settings["bayes_unc_sigma"] = parent.bayes_unc_sigma_box.value()
-
-        if sender is parent.obj_fcn_type_box or event is None:
-            parent.plot.signal.on_obj_fcn_type_changed()
+        if event is None:
             stackWidget = parent.weight_unc_parameters_stacked_widget
             stackWidget.setCurrentWidget(parent.WeightFunctionPage)
-            if settings["type"] == "Residual":
-                parent.obj_fcn_tab_widget.removeTab(
-                    parent.obj_fcn_tab_widget.indexOf(parent.Bayesian_tab)
-                )
-            else:
-                parent.obj_fcn_tab_widget.insertTab(
-                    parent.obj_fcn_tab_widget.count() + 1,
-                    parent.Bayesian_tab,
-                    "Bayesian",
-                )
 
         if sender is parent.obj_fcn_scale_box:
             parent.plot.signal.on_obj_fcn_scale_changed()

@@ -9,7 +9,6 @@ import numpy as np
 from scipy import stats
 
 from frhodo.common.units import OoM
-from frhodo.experiment.uncertainty import smooth_centerline
 from frhodo.gui.plots.base_plot import Base_Plot
 from frhodo.gui.plots.draggable import Draggable
 
@@ -161,16 +160,6 @@ class Plot(Base_Plot):
         ## Set lower plots ##
         self.ax.append(self.fig.add_subplot(4, 1, (2, 4), sharex=self.ax[0]))
         self.ax[1].item = {}
-        init_array = [0, 1]
-        self.ax[1].item["unc_shading"] = self.ax[1].fill_between(
-            init_array,
-            init_array,
-            init_array,
-            color="#0C94FC",
-            alpha=0.2,
-            linewidth=0,
-            zorder=0,
-        )
         self.ax[1].item["exp_data"] = self.ax[1].scatter(
             [], [], color="0", facecolors="0", linewidth=0.5, alpha=0.85, zorder=2
         )
@@ -223,6 +212,9 @@ class Plot(Base_Plot):
         # Create canvas from Base
         super().create_canvas()
         self._set_scale("y", "abslog", self.ax[1])  # set Signal/SIM y axis to abslog
+        # Seed a positive view range so the log locator has bounds before any
+        # data loads; autoscale takes over once a trace is drawn.
+        self.ax[1].set_ylim(1e-7, 1e-1)
         self.ax[
             0
         ].animateAxisLabels = True  # set weight/unc plot to have animated axis labels
@@ -390,7 +382,6 @@ class Plot(Base_Plot):
         data = parent.display_shock.exp_data[:, 1]
 
         self.update_weight_plot()
-        self.update_uncertainty_shading()
 
         # Update lower plot
         weights = parent.display_shock.weights
@@ -477,56 +468,6 @@ class Plot(Base_Plot):
             weight_fcn(t_extrema, calcIntegral=False)
         )
 
-    def update_uncertainty_shading(self):
-        """Shade the 95% credible interval around the experimental trace.
-
-        Draws ``μ̂(t) ± 1.96·σ̂(t)`` in the optimizer's residual scale,
-        where μ̂ is a σ-weighted smoothing spline through the data and
-        σ̂ comes from the 4th-order Hall-Müller + Lepski estimator,
-        post-smoothed for visual continuity. Hidden in Residual mode.
-        """
-        parent = self.parent
-        shock = parent.display_shock
-        if parent.obj_fcn_type_box.currentText() != "Bayesian":
-            self.ax[1].item["unc_shading"].set_visible(False)
-
-            return
-        if shock.exp_data.size == 0:
-            self.ax[1].item["unc_shading"].set_visible(False)
-
-            return
-
-        scale = parent.series.scale_for(shock)
-        sigma_t = getattr(shock, "sigma_t", None)
-        if sigma_t is None or sigma_t.size != shock.exp_data.shape[0]:
-            parent.series.uncertainties(shock)
-            sigma_t = shock.sigma_t
-
-        t = shock.exp_data[:, 0]
-        y = shock.exp_data[:, 1]
-        mu_scaled = smooth_centerline(y, scale=scale)
-        k = 1.96
-        lower = scale.inverse(mu_scaled - k * sigma_t)
-        upper = scale.inverse(mu_scaled + k * sigma_t)
-
-        finite = np.isfinite(t) & np.isfinite(lower) & np.isfinite(upper)
-        if not finite.any():
-            self.ax[1].item["unc_shading"].set_visible(False)
-
-            return
-
-        self.ax[1].item["unc_shading"].remove()
-        self.ax[1].item["unc_shading"] = self.ax[1].fill_between(
-            t[finite], lower[finite], upper[finite],
-            color="#0C94FC", alpha=0.3, linewidth=0, zorder=3,
-        )
-
-    def on_obj_fcn_type_changed(self):
-        """Show the data-uncertainty band only in Bayesian mode."""
-        self.update_uncertainty_shading()
-        self.update()
-        self._draw_items_artist()
-
     def _set_scale(self, coord, type, event, update_xylim=False):
         """Set an axis scale; mirror the observable y-scale to the obj-fcn box."""
         super()._set_scale(coord, type, event, update_xylim)
@@ -560,17 +501,13 @@ class Plot(Base_Plot):
             self._scale_syncing = False
 
     def on_obj_fcn_scale_changed(self):
-        """Sync the y-axis to the cost scale, then recompute σ for the shock."""
+        """Sync the observable y-axis to the cost scale."""
         parent = self.parent
         self._sync_y_scale_to_obj_fcn()
         for shock_group in getattr(parent.series, "shock", None) or []:
             for shock in shock_group:
                 if hasattr(shock, "_scale"):
                     del shock._scale
-        shock = getattr(parent, "display_shock", None)
-        if shock is not None and getattr(shock, "exp_data", np.array([])).size > 0:
-            parent.series.uncertainties(shock)
-        self.update_uncertainty_shading()
         self.update()
         self._draw_items_artist()
 

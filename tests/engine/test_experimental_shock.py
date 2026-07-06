@@ -56,8 +56,7 @@ class TestDefaults:
     @pytest.mark.parametrize(
         "field",
         ["raw_data", "exp_data", "exp_data_trim",
-         "weights", "weights_trim", "normalized_weights", "sigma_t",
-         "abs_uncertainties", "abs_uncertainties_trim", "SIM"],
+         "weights", "weights_trim", "normalized_weights", "SIM"],
     )
     def test_array_fields_default_empty_ndarray(self, field):
         s = ExperimentalShock.empty(num=1, path={}, series_name="")

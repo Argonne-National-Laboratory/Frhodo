@@ -4,12 +4,7 @@ from copy import deepcopy
 import numpy as np
 from scipy import integrate
 
-from frhodo.common.scale import Scale
 from frhodo.experiment import ExperimentLoader, ExperimentalShock, double_sigmoid
-from frhodo.experiment.uncertainty import (
-    bounds_from_sigma,
-    estimate_pointwise_sigma,
-)
 
 
 class series:
@@ -192,74 +187,6 @@ class series:
 
         return weights
 
-    def uncertainties(self, shock=None):
-        """Estimate measurement-noise σ(t) and write linear-space bounds.
-
-        Builds (or refreshes) a :class:`Scale` for the shock against
-        the optimizer's current ``cost.scale``, stashes it on
-        ``shock._scale``, and uses it for both σ estimation and the
-        linear-unit bounds CheKiPEUQ ingests. Same ``Scale`` is read
-        by the plot, so band visualization and likelihood always
-        agree.
-        """
-        if shock is None:
-            shock = self.shock[self.idx][self.shock_idx]
-        scale = self.scale_for(shock)
-        if shock.exp_data.size == 0:
-            shock.sigma_t = np.array([])
-            shock.abs_uncertainties = np.zeros((0, 2))
-
-            return shock.sigma_t
-
-        obs = shock.exp_data[:, 1]
-        sigma_t = estimate_pointwise_sigma(obs, scale=scale)
-        shock.sigma_t = sigma_t
-        sigma_multiple = self._bayes_sigma_multiple()
-        shock.abs_uncertainties = bounds_from_sigma(
-            obs, sigma_t,
-            sigma_multiple=sigma_multiple,
-            scale=scale,
-        )
-
-        return sigma_t
-
-    def scale_for(self, shock) -> Scale:
-        """Return the ``Scale`` to use for ``shock``, building if needed.
-
-        Caches on ``shock._scale`` so repeated calls don't re-calibrate
-        Bisymlog. Rebuilds when the optimizer's ``cost.scale`` setting
-        no longer matches the cached mode.
-        """
-        mode = self._cost_scale_mode()
-        cached: Scale | None = getattr(shock, "_scale", None)
-        if cached is not None and cached.mode == mode:
-            return cached
-        data = shock.exp_data[:, 1] if shock.exp_data.size else None
-        scale = Scale(mode, calibration_data=data)
-        shock._scale = scale
-
-        return scale
-
-    def _bayes_sigma_multiple(self) -> float:
-        """Current ``bayes_unc_sigma`` knob, defaulting to 3 when unset."""
-        try:
-            val = self.parent.optimization_settings.get("obj_fcn", "bayes_unc_sigma")
-        except (AttributeError, KeyError):
-
-            return 3.0
-
-        return float(val) if val is not None else 3.0
-
-    def _cost_scale_mode(self) -> str:
-        """Current optimizer residual scale (Linear / Log / AbsoluteLog / Bisymlog)."""
-        try:
-            val = self.parent.optimization_settings.get("obj_fcn", "scale")
-        except (AttributeError, KeyError):
-
-            return "Linear"
-
-        return str(val) if val else "Linear"
-
     def set(self, key, val=[], **kwargs):
         parent = self.parent
         if key == "exp_data":
@@ -328,7 +255,7 @@ class series:
             shock: Carries the reactor T/P/composition. When
                 ``rxnIdxs`` is ``None`` the full rate vector is
                 also cached onto ``shock.rate_val`` for downstream
-                consumers (Bayesian cost, plotters).
+                consumers (plotters).
             rxnIdxs: Restrict computation to these reactions.
                 ``None`` recomputes every reaction. Accepts an int
                 for a single reaction.

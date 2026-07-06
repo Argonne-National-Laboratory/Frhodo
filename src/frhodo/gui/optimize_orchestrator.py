@@ -283,7 +283,6 @@ class Multithread_Optimize:
             if np.isnan([shock.T_reactor, shock.P_reactor]).any():
                 parent.series.set("zone", shock.zone)
 
-            parent.series.uncertainties(shock)
             parent.series.rate_bnds(shock)
 
         self.shocks2run = shocks2run
@@ -320,14 +319,11 @@ class Multithread_Optimize:
         p = self.parent
         opt_settings = p.optimization_settings
         cost_settings = CostSettings(
-            obj_fcn_type=opt_settings.get("obj_fcn", "type"),
             scale=opt_settings.get("obj_fcn", "scale"),
             bisymlog_scaling_factor=p.plot.signal.bisymlog.scaling_factor,
             loss_alpha=opt_settings.get("obj_fcn", "alpha"),
             loss_c=opt_settings.get("obj_fcn", "c"),
             coverage_weighting=opt_settings.get("obj_fcn", "coverage_weighting"),
-            bayes_dist_type=opt_settings.get("obj_fcn", "bayes_dist_type"),
-            bayes_unc_sigma=opt_settings.get("obj_fcn", "bayes_unc_sigma"),
         )
 
         return WorkerInputs(

@@ -397,13 +397,10 @@ def _make_fit_fun(
         ),
         time_unc=time_unc,
         cost_settings=CostSettings(
-            obj_fcn_type="Residual",
             scale="Linear",
             bisymlog_scaling_factor=1.0,
             loss_alpha=2.0,
             loss_c=1.0,
-            bayes_dist_type="Automatic",
-            bayes_unc_sigma=2.0,
         ),
         opt_settings_optimize={},
         multiprocessing=multiprocessing,
