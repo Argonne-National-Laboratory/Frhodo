@@ -8,12 +8,14 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 
+
 class CostSettings(BaseModel):
     obj_fcn_type: Literal["Residual", "Bayesian"] = "Residual"
-    scale: Literal["Linear", "Log", "AbsoluteLog", "Bisymlog"] = "Linear"
+    scale: Literal["Linear", "Log", "AbsoluteLog", "Bisymlog"] = "Bisymlog"
     bisymlog_scaling_factor: float = 1.0
     loss_alpha: float = 3.0  # 3.0 sentinel selects adaptive tuning
     loss_c: float = 1.0
+    coverage_weighting: bool = True  # inverse condition-space density weights
     bayes_dist_type: str = "Automatic"
     bayes_unc_sigma: float = 3.0
 

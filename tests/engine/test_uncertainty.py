@@ -15,9 +15,12 @@ import pytest
 from frhodo.common.scale import Scale
 from frhodo.experiment.uncertainty import (
     bounds_from_sigma,
+    correlation_length,
     estimate_pointwise_sigma,
+    sigma_bar,
     smooth_centerline,
 )
+
 
 
 LINEAR = Scale("Linear")
@@ -208,8 +211,10 @@ class TestEnvelopeInvariance:
         z = scale.forward(y)
         finite = np.isfinite(z) & np.isfinite(sigma) & np.isfinite(center)
         inside = np.abs(z[finite] - center[finite]) <= 1.96 * sigma[finite]
+        coverage_pct = 100.0 * inside.sum() / finite.sum()
+        sigma_finite = sigma[finite]
 
-        return 100.0 * inside.sum() / finite.sum(), sigma[finite]
+        return coverage_pct, sigma_finite
 
     @pytest.mark.parametrize("mode", ["Linear", "Bisymlog", "AbsoluteLog"])
     def test_band_envelopes_zero_crossing_data(self, mode):
@@ -287,3 +292,113 @@ class TestScale:
     def test_unknown_mode_rejected(self):
         with pytest.raises(ValueError, match="unknown scale"):
             Scale("Bogus")
+
+
+class TestSigmaBar:
+    """Per-shock scalar noise scale for cross-shock standardization."""
+
+    def _trace(self, sigma0=0.02, n=400, seed=0):
+        rng = np.random.default_rng(seed)
+        t = np.linspace(0.0, 1.0, n)
+        trace = 1.0 + np.exp(-3.0 * t) + sigma0 * rng.standard_normal(n)
+
+        return trace
+
+    def test_recovers_homoscedastic_sigma_within_tolerance(self):
+        y = self._trace(sigma0=0.02)
+        result = sigma_bar(
+            y, scale=Scale("Linear", calibration_data=y),
+            window_weights=np.ones(y.size),
+        )
+        assert result == pytest.approx(0.02, rel=0.25), (
+            f"sigma_bar {result:.4f} should be within 25% of true 0.02"
+        )
+
+    def test_out_of_window_noise_does_not_matter(self):
+        """Late-trace noise outside the weight window must not move σ̄."""
+        y = self._trace(sigma0=0.02)
+        noisy = y.copy()
+        noisy[300:] += 0.5 * np.random.default_rng(1).standard_normal(100)
+        window = np.ones(y.size)
+        window[300:] = 0.0
+        clean = sigma_bar(
+            y, scale=Scale("Linear", calibration_data=y), window_weights=window,
+        )
+        with_late_noise = sigma_bar(
+            noisy, scale=Scale("Linear", calibration_data=noisy),
+            window_weights=window,
+        )
+        assert with_late_noise == pytest.approx(clean, rel=0.15), (
+            f"late noise leaked into sigma_bar: {clean:.5f} -> "
+            f"{with_late_noise:.5f}"
+        )
+
+    def test_noise_free_trace_returns_small_positive_scale(self):
+        """The pointwise estimator's internal floor keeps σ̄ positive on a
+        smooth noise-free trace, far below the signal scale."""
+        t = np.linspace(0.0, 1.0, 400)
+        y = 1.0 + np.exp(-3.0 * t)
+        result = sigma_bar(
+            y, scale=Scale("Linear", calibration_data=y),
+            window_weights=np.ones(y.size),
+        )
+        signal_rms = float(np.std(y))
+        assert 0.0 < result < 0.05 * signal_rms, (
+            f"noise-free sigma_bar {result:.5f} should be tiny vs signal "
+            f"RMS {signal_rms:.3f}"
+        )
+
+    def test_constant_trace_returns_nan(self):
+        y = np.full(400, 1.0)
+        result = sigma_bar(
+            y, scale=Scale("Linear", calibration_data=y),
+            window_weights=np.ones(y.size),
+        )
+        assert np.isnan(result), "degenerate signal must return NaN"
+
+    def test_too_few_window_samples_returns_nan(self):
+        y = self._trace()
+        window = np.zeros(y.size)
+        window[:5] = 1.0
+        result = sigma_bar(
+            y, scale=Scale("Linear", calibration_data=y), window_weights=window,
+        )
+        assert np.isnan(result)
+
+
+class TestCorrelationLength:
+    """Residual autocorrelation length feeding the loss-floor effective dof."""
+
+    def test_white_noise_gives_one(self):
+        rng = np.random.default_rng(0)
+        y = 1.0 + 0.02 * rng.standard_normal(2000)
+        tau = correlation_length(
+            y, scale=Scale("Linear", calibration_data=y),
+            window_weights=np.ones(y.size),
+        )
+        assert tau == 1.0, f"white noise must give tau=1, got {tau}"
+
+    def test_ar1_noise_recovers_persistence_scale(self):
+        rng = np.random.default_rng(0)
+        n = 2000
+        ar = np.zeros(n)
+        e = rng.standard_normal(n)
+        for i in range(1, n):
+            ar[i] = 0.6 * ar[i - 1] + e[i]
+        y = 1.0 + 0.02 * ar
+        tau = correlation_length(
+            y, scale=Scale("Linear", calibration_data=y),
+            window_weights=np.ones(y.size),
+        )
+        assert tau == pytest.approx(2.0, abs=1.0), (
+            f"AR(0.6) has 1/e crossing near 2 samples, got {tau}"
+        )
+
+    def test_short_window_falls_back_to_one(self):
+        y = np.linspace(0.0, 1.0, 400)
+        window = np.zeros(400)
+        window[:5] = 1.0
+        tau = correlation_length(
+            y, scale=Scale("Linear", calibration_data=y), window_weights=window,
+        )
+        assert tau == 1.0

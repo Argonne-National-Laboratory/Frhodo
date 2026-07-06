@@ -8,7 +8,8 @@ The :class:`CostFunction` instance is what the algorithms in
 the worker pool, the parameter unpacking, and the loss-shape choice
 (residual / Bayesian / adaptive).
 """
-import io, contextlib
+import contextlib
+import io
 import numpy as np
 import nlopt
 from scipy.optimize import minimize_scalar, brentq
@@ -29,6 +30,12 @@ from frhodo._vendor.opendsm.adaptive_loss import adaptive_weights
 from frhodo._vendor.opendsm.stats_basic import weighted_quantile
 from frhodo.simulation.mechanism.fit_coeffs import fit_coeffs
 from frhodo.optimize.cost.bayesian import CheKiPEUQ_Frhodo_interface
+from frhodo.optimize.cost.aggregation import (
+    LOSS_C_FLOOR_K,
+    coverage_weights,
+    model_error_floor,
+    solve_m_location,
+)
 from frhodo.optimize.cost.settings import CostSettings
 from frhodo.optimize.time_shift_model import regularized_shifts
 
@@ -46,17 +53,13 @@ def initialize_parallel_worker(payload: MechBuildPayload):
     chatters to stdout/stderr during ``set_mechanism``; both streams
     are redirected to avoid garbling the parent's log.
 
-    Sets ``NUMBA_CACHE_DIR`` to a per-worker temp directory before any
-    ``@njit(cache=True)`` function is called. Numba's atomic-rename
-    cache write is not robust across concurrent multiprocessing
-    workers on Windows — two workers can race on the same target
-    filename and one sees ``WinError None / file not found`` during
-    the rename. Per-worker cache dirs eliminate the shared target.
+    Numba cache safety is handled by the staged warmup in
+    :meth:`CostFunction.warmup_workers` — one worker compiles and
+    writes the on-disk kernel cache alone before the rest fan out as
+    readers. (A per-worker ``NUMBA_CACHE_DIR`` cannot work here: spawn
+    workers import this module — fixing numba's cache locators — before
+    any pool initializer runs.)
     """
-    import os
-    import tempfile
-
-    os.environ["NUMBA_CACHE_DIR"] = tempfile.mkdtemp(prefix="frhodo_numba_")
 
     global _pool_worker_ctx
     mech = ChemicalMechanism()
@@ -133,7 +136,6 @@ def _solve_t_unc(
     loss_c,
     loss_alpha,
     full_bounds,
-    warm_start_t_unc=None,
     penalty_fraction=T_UNC_PENALTY_FRACTION,
 ):
     """Brentq root-find on ``dL/dτ = 0`` over ``τ ∈ full_bounds``.
@@ -141,10 +143,9 @@ def _solve_t_unc(
     ``L_fit(τ) = Σ wᵢ_agg · soft_w(tᵢ, τ) · rᵢ²`` where ``soft_w`` is a
     pair of logistic sigmoids around the sim-domain edges. As τ slides
     the window past an experiment point, that point's contribution
-    smoothly fades from 1 to 0 over the smoothing scale ε. With ε
-    small relative to data spacing, ``soft_w`` is essentially the hard
-    mask except in a tiny transition zone — but ``L_fit`` and its
-    derivative are C¹ in τ, so brentq applies at any bracket width.
+    smoothly fades from 1 to 0 over the smoothing scale ε, so ``L_fit``
+    and its derivative are C¹ in τ and brentq applies at any bracket
+    width.
 
     ``Penalty(τ) = α₁·S(τ) + α₂·S(τ)²`` with ``S(τ) = Σ wᵢ_agg · (1 −
     soft_w)`` — aggregate weight of points the soft mask is excluding.
@@ -153,13 +154,11 @@ def _solve_t_unc(
     points without forbidding them when the fit gain is larger than
     the penalty.
 
-    For narrow brackets where no point transitions through the window
-    edge (the optimizer's typical case), ``soft_w ≡ 1``, ``S ≡ 0``,
-    penalty is inert, and behavior matches the previous intersection-
-    window brentq path.
-
     ``agg_weights = user_weights · adaptive_loss_weights`` are frozen
-    at the seed τ. Points outside the seed soft-window keep their user
+    at a deterministic anchor: phase 1 anchors at τ = 0 and coarse-scans
+    the grid for the best τ; phase 2 re-freezes the weights there. The
+    result depends only on the current simulation, never on evaluation
+    history. Points outside the anchor soft-window keep their user
     weight (adaptive factor 1).
 
     Linear residuals only — caller must guard on ``scale``.
@@ -174,100 +173,108 @@ def _solve_t_unc(
 
     sim_lo, sim_hi = float(f_interp.x[0]), float(f_interp.x[-1])
 
-    seed_tau = warm_start_t_unc if warm_start_t_unc is not None else 0.0
-    seed_tau = float(np.clip(seed_tau, full_lo, full_hi))
-    seed_shift = t_offset + seed_tau
-
     # ε = half the median exp-grid spacing — soft mask transitions over
     # roughly one data point. Floor avoids divide-by-zero on degenerate
     # grids.
     dt = np.diff(t_exp)
-    eps = max(0.5 * float(np.median(dt)) if dt.size else 0.0, 1e-12)
+    if dt.size:
+        eps = max(0.5 * float(np.median(dt)), 1e-12)
+    else:
+        eps = 1e-12
 
     def soft_w_components(shift):
         u = (t_exp - sim_lo - shift) / eps
         v = (sim_hi + shift - t_exp) / eps
         sig_lo = expit(u)
         sig_hi = expit(v)
+        sw = sig_lo * sig_hi
 
-        return sig_lo, sig_hi, sig_lo * sig_hi
-
-    # Freeze adaptive_weights at the seed τ — points with non-trivial
-    # soft weight at the seed contribute to the loss-shape estimate.
-    sig_lo_s, sig_hi_s, sw_seed = soft_w_components(seed_shift)
-    valid_seed = sw_seed > 1e-3
-    loss_weights = np.ones_like(weights, dtype=float)
-    if valid_seed.sum() >= 2:
-        resid_seed = obs_exp[valid_seed] - f_interp(t_exp[valid_seed] - seed_shift)
-        seed_w = (weights * sw_seed)[valid_seed]
-        lw_seed, _, _ = adaptive_weights(
-            resid_seed, weights=seed_w, C_scalar=loss_c, alpha=loss_alpha,
-        )
-        loss_weights[valid_seed] = lw_seed
-    agg_weights = weights * loss_weights
-    total_weight = float(np.sum(agg_weights))
-
-    def L_fit_at(tau):
-        shift = t_offset + tau
-        _, _, sw = soft_w_components(shift)
-        r = obs_exp - f_interp(t_exp - shift)
-
-        return float(np.sum(agg_weights * sw * r * r))
-
-    L0_fit = L_fit_at(0.0)
-    if not np.isfinite(L0_fit) or L0_fit <= 0:
-        L0_fit = 1.0
-
-    if total_weight > 0 and penalty_fraction > 0:
-        target = penalty_fraction * L0_fit
-        alpha_L1 = 0.5 * target / total_weight
-        alpha_L2 = 0.5 * target / (total_weight * total_weight)
-    else:
-        alpha_L1 = 0.0
-        alpha_L2 = 0.0
-
-    def L_total_at(tau):
-        shift = t_offset + tau
-        _, _, sw = soft_w_components(shift)
-        r = obs_exp - f_interp(t_exp - shift)
-        fit = float(np.sum(agg_weights * sw * r * r))
-        S = float(np.sum(agg_weights * (1.0 - sw)))
-
-        return fit + alpha_L1 * S + alpha_L2 * S * S
+        return sig_lo, sig_hi, sw
 
     f_deriv = f_interp.derivative()
 
-    def dL_dtau(tau):
-        shift = t_offset + tau
-        sig_lo, sig_hi, sw = soft_w_components(shift)
-        # dsoft_w/dτ = (σ_lo·σ_hi/ε)·(σ_lo − σ_hi)
-        dsw = (sw / eps) * (sig_lo - sig_hi)
+    def build_objectives(anchor_tau):
+        """Loss closures with adaptive weights frozen at the anchor τ."""
+        anchor_shift = t_offset + anchor_tau
+        _, _, sw_anchor = soft_w_components(anchor_shift)
+        valid = sw_anchor > 1e-3
+        loss_weights = np.ones_like(weights, dtype=float)
+        if valid.sum() >= 2:
+            resid_anchor = obs_exp[valid] - f_interp(t_exp[valid] - anchor_shift)
+            w_anchor = (weights * sw_anchor)[valid]
+            lw_valid, _, _ = adaptive_weights(
+                resid_anchor, weights=w_anchor, C_scalar=loss_c, alpha=loss_alpha,
+            )
+            loss_weights[valid] = lw_valid
+        agg_weights = weights * loss_weights
+        total_weight = float(np.sum(agg_weights))
 
-        r = obs_exp - f_interp(t_exp - shift)
-        d_obs = f_deriv(t_exp - shift)
-        # d(sw·r²)/dτ = dsw·r² + 2·sw·r·obs_sim'(t−shift)
-        d_L_fit = float(np.sum(agg_weights * (dsw * r * r + 2.0 * sw * r * d_obs)))
+        def L_fit_at(tau):
+            shift = t_offset + tau
+            _, _, sw = soft_w_components(shift)
+            r = obs_exp - f_interp(t_exp - shift)
 
-        # S(τ) = Σ w_agg·(1 − sw); dS/dτ = −Σ w_agg·dsw
-        S = float(np.sum(agg_weights * (1.0 - sw)))
-        d_S = -float(np.sum(agg_weights * dsw))
-        d_Penalty = (alpha_L1 + 2.0 * alpha_L2 * S) * d_S
+            return float(np.sum(agg_weights * sw * r * r))
 
-        return d_L_fit + d_Penalty
+        L0_fit = L_fit_at(0.0)
+        if not np.isfinite(L0_fit) or L0_fit <= 0:
+            L0_fit = 1.0
+
+        if total_weight > 0 and penalty_fraction > 0:
+            target = penalty_fraction * L0_fit
+            alpha_L1 = 0.5 * target / total_weight
+            alpha_L2 = 0.5 * target / (total_weight * total_weight)
+        else:
+            alpha_L1 = 0.0
+            alpha_L2 = 0.0
+
+        def L_total_at(tau):
+            shift = t_offset + tau
+            _, _, sw = soft_w_components(shift)
+            r = obs_exp - f_interp(t_exp - shift)
+            fit = float(np.sum(agg_weights * sw * r * r))
+            S = float(np.sum(agg_weights * (1.0 - sw)))
+
+            return fit + alpha_L1 * S + alpha_L2 * S * S
+
+        def dL_dtau(tau):
+            shift = t_offset + tau
+            sig_lo, sig_hi, sw = soft_w_components(shift)
+            # dsoft_w/dτ = (σ_lo·σ_hi/ε)·(σ_lo − σ_hi)
+            dsw = (sw / eps) * (sig_lo - sig_hi)
+
+            r = obs_exp - f_interp(t_exp - shift)
+            d_obs = f_deriv(t_exp - shift)
+            # d(sw·r²)/dτ = dsw·r² + 2·sw·r·obs_sim'(t−shift)
+            d_L_fit = float(np.sum(agg_weights * (dsw * r * r + 2.0 * sw * r * d_obs)))
+
+            # S(τ) = Σ w_agg·(1 − sw); dS/dτ = −Σ w_agg·dsw
+            S = float(np.sum(agg_weights * (1.0 - sw)))
+            d_S = -float(np.sum(agg_weights * dsw))
+            d_Penalty = (alpha_L1 + 2.0 * alpha_L2 * S) * d_S
+
+            return d_L_fit + d_Penalty
+
+        return L_total_at, dL_dtau
 
     # L_total can be multi-modal — the penalty creates a barrier around
     # the "drop everything" region, but the unpenalized fit may dip again
     # at large τ where only the plateau is in window. Grid-scan dL/dτ for
     # every sign change, brentq each, and return the argmin of L_total
-    # over {bounds, warm-start, all roots}.
+    # over {bounds, anchor, all roots}.
     n_grid = int(np.clip((full_hi - full_lo) / eps * 4, 11, 100))
     grid = np.linspace(full_lo, full_hi, n_grid)
+
+    # Phase 1: τ=0-anchored coarse scan picks the deterministic anchor.
+    L_total_phase1, _ = build_objectives(0.0)
+    phase1_vals = np.array([L_total_phase1(t) for t in grid])
+    anchor_tau = float(grid[int(np.argmin(phase1_vals))])
+
+    # Phase 2: weights re-frozen at the anchor drive the actual solve.
+    L_total_at, dL_dtau = build_objectives(anchor_tau)
     dL_vals = np.array([dL_dtau(t) for t in grid])
 
-    candidates = [full_lo, full_hi]
-    if warm_start_t_unc is not None and full_lo <= seed_tau <= full_hi:
-        candidates.append(seed_tau)
-
+    candidates = [full_lo, full_hi, anchor_tau]
     for i in range(n_grid - 1):
         if dL_vals[i] * dL_vals[i + 1] < 0:
             try:
@@ -383,7 +390,13 @@ def _aggregate_ode_errors(per_shock: list[str]) -> str | None:
                     rxn_set.add(token)
     n = len(per_shock)
     if rxn_set:
-        rxns = ",".join(sorted(rxn_set, key=lambda v: int(v) if v.isdigit() else 0))
+        def rxn_sort_key(v):
+            if v.isdigit():
+                return int(v)
+
+            return 0
+
+        rxns = ",".join(sorted(rxn_set, key=rxn_sort_key))
 
         return f"ODE: {n} shocks failed; rxns {rxns}"
 
@@ -407,7 +420,10 @@ def _summarize_ode_failure(verbose) -> str | None:
     if not msg:
         return None
     parts = [p.strip() for p in msg.replace("ODE Error:", "").split("\n") if p.strip()]
-    head = parts[0] if parts else ""
+    if parts:
+        head = parts[0]
+    else:
+        head = ""
     rxn_part = next(
         (p.split(":", 1)[1].strip() for p in parts if p.startswith("Suggested Reactions")),
         None,
@@ -416,6 +432,14 @@ def _summarize_ode_failure(verbose) -> str | None:
         return f"ODE: {head}; rxns {rxn_part}"
 
     return f"ODE: {head}"
+
+
+def _finite_loss_alpha(var: dict) -> float:
+    raw = var.get("loss_alpha", 2.0)
+    if isinstance(raw, str):
+        return 2.0
+
+    return float(raw)
 
 
 def _degenerate_trace_output(shock, ind_var: np.ndarray, obs_sim: np.ndarray,
@@ -432,9 +456,12 @@ def _degenerate_trace_output(shock, ind_var: np.ndarray, obs_sim: np.ndarray,
     bookkeeping (stat_plot, KDE) doesn't crash on shape checks.
     """
     one = np.array([1.0])
-    constant_value = float(obs_sim[0, 0]) if obs_sim.size else 0.0
+    if obs_sim.size:
+        constant_value = float(obs_sim[0, 0])
+    else:
+        constant_value = 0.0
 
-    return {
+    output = {
         "wsse": np.inf,
         "resid": np.array([0.0]),
         "resid_outlier": 0.0,
@@ -448,12 +475,12 @@ def _degenerate_trace_output(shock, ind_var: np.ndarray, obs_sim: np.ndarray,
         "independent_var": ind_var,
         "observable": obs_sim,
         "t_unc": 0.0,
-        "loss_alpha": float(var.get("loss_alpha", 2.0)) if not isinstance(
-            var.get("loss_alpha"), str
-        ) else 2.0,
+        "loss_alpha": _finite_loss_alpha(var),
         "KDE": np.column_stack(([0.0], [1.0])),
         "ode_error": ode_error,
     }
+
+    return output
 
 
 def calculate_residuals(mech, args_list):
@@ -485,6 +512,7 @@ def calculate_residuals(mech, args_list):
         scale="Linear",
         bisymlog=None,
         DoF=1,
+        sigma_bar=1.0,
         opt_type="Residual",
         verbose=False,
     ):
@@ -537,6 +565,34 @@ def calculate_residuals(mech, args_list):
                 obs_exp = obs_exp_bisymlog
                 obs_sim_interp = obs_sim_interp_bisymlog
                 obs_bounds = bisymlog.transform(obs_bounds)  # THIS NEEDS TO BE CHECKED
+
+        else:
+            raise ValueError(f"unknown residual scale {scale!r}")
+
+        # Standardize by the shock's data-derived noise scale so losses
+        # are dimensionless and cross-shock comparable.
+        resid = resid / sigma_bar
+
+        # An overflowed sim trace can interpolate to non-finite values;
+        # the objective is undefined there, so signal inf for the
+        # optimizer to reject.
+        if not np.all(np.isfinite(resid)):
+            if verbose:
+                output = {
+                    "wsse": np.inf,
+                    "resid": np.array([0.0]),
+                    "resid_outlier": 0.0,
+                    "loss": np.inf,
+                    "weights": np.array([1.0]),
+                    "aggregate_weights": np.array([1.0]),
+                    "obs_sim_interp": np.array([0.0]),
+                    "obs_exp": np.array([0.0]),
+                    "obs_bounds": [],
+                }
+
+                return output
+
+            return np.inf
 
         loss_weights, C, alpha = adaptive_weights(
             resid, weights=weights, C_scalar=loss_c, alpha=loss_alpha
@@ -632,10 +688,12 @@ def calculate_residuals(mech, args_list):
         raise ValueError(f"unknown reactor: {var['name']!r}")
     ind_var, obs_sim = SIM.independent_var[:, None], SIM.observable[:, None]
     if ind_var.size < 2:
-        return _degenerate_trace_output(
+        degenerate = _degenerate_trace_output(
             shock, ind_var, obs_sim, coef_opt, var,
             ode_error=_summarize_ode_failure(verbose),
         )
+
+        return degenerate
     f_interp = CubicSpline(ind_var.flatten(), obs_sim.flatten())
 
     weights = shock.weights_trim
@@ -643,6 +701,8 @@ def calculate_residuals(mech, args_list):
     obs_bounds = []
     if var["obj_fcn_type"] == "Bayesian":
         obs_bounds = shock.abs_uncertainties_trim
+
+    s_bar = float(getattr(shock, "sigma_total", 1.0) or 1.0)
 
     t_unc_max = float(np.max(np.abs(var["t_unc"])))
     if fixed_t_unc is not None:
@@ -662,11 +722,9 @@ def calculate_residuals(mech, args_list):
             scale=var["scale"],
             bisymlog=getattr(shock, "bisymlog", None),
             DoF=len(coef_opt),
+            sigma_bar=s_bar,
             opt_type=var["obj_fcn_type"],
         )
-
-        full_bounds = var["t_unc"] / 10**t_unc_OoM
-        cached_t_unc = getattr(shock, "last_t_unc", None)
 
         t_unc = None
         if var["scale"] == "Linear":
@@ -679,27 +737,15 @@ def calculate_residuals(mech, args_list):
                 loss_c=var["loss_c"],
                 loss_alpha=2,
                 full_bounds=var["t_unc"],
-                warm_start_t_unc=cached_t_unc,
             )
 
         if t_unc is None:
-            cached_scaled = (
-                cached_t_unc / 10**t_unc_OoM if cached_t_unc is not None else None
-            )
-            bounds = _narrow_bounds(full_bounds, cached_scaled)
             res = minimize_scalar(
                 time_adj_func,
-                bounds=bounds,
+                bounds=var["t_unc"] / 10**t_unc_OoM,
                 method="bounded",
                 options={"xatol": 1e-3},
             )
-            if _hit_edge(res.x, bounds) and bounds is not full_bounds:
-                res = minimize_scalar(
-                    time_adj_func,
-                    bounds=full_bounds,
-                    method="bounded",
-                    options={"xatol": 1e-3},
-                )
             t_unc = res.x * 10**t_unc_OoM
 
     # calculate loss shape function (alpha) if it is set to adaptive
@@ -719,26 +765,16 @@ def calculate_residuals(mech, args_list):
             scale=var["scale"],
             bisymlog=getattr(shock, "bisymlog", None),
             DoF=len(coef_opt),
+            sigma_bar=s_bar,
             opt_type=var["obj_fcn_type"],
         )
 
-        full_alpha_bounds = np.array([-100.0, 2.0])
-        alpha_bounds = _narrow_bounds(
-            full_alpha_bounds, getattr(shock, "last_loss_alpha", None),
-        )
         res = minimize_scalar(
             loss_alpha_fcn,
-            bounds=alpha_bounds,
+            bounds=np.array([-100.0, 2.0]),
             method="bounded",
             options={"xatol": 1e-3},
         )
-        if _hit_edge(res.x, alpha_bounds) and alpha_bounds is not full_alpha_bounds:
-            res = minimize_scalar(
-                loss_alpha_fcn,
-                bounds=full_alpha_bounds,
-                method="bounded",
-                options={"xatol": 1e-3},
-            )
         loss_alpha = res.x
 
     if var["obj_fcn_type"] == "Residual":
@@ -760,6 +796,7 @@ def calculate_residuals(mech, args_list):
         scale=var["scale"],
         bisymlog=getattr(shock, "bisymlog", None),
         DoF=len(coef_opt),
+        sigma_bar=s_bar,
         opt_type=var["obj_fcn_type"],
         verbose=True,
     )
@@ -819,9 +856,26 @@ class CostFunction:
         self.opt_type = "local"
         self.dist = inputs.dist
         self.cost_settings = inputs.cost_settings
+        self._user_weights = np.array([
+            float(getattr(s2, "scalar_weight", 1.0) or 1.0)
+            for s2 in inputs.shocks2run
+        ])
+        if inputs.shocks2run:
+            self._cov_features = np.column_stack([
+                [1000.0 / float(s2.T_reactor) for s2 in inputs.shocks2run],
+                [np.log10(float(s2.P_reactor)) for s2 in inputs.shocks2run],
+            ])
+        else:
+            self._cov_features = None
+        self._mloc_diag = None
+        self._model_error_floor = 0.0
+        self._start_loss_raw = None
         self._display_shock_provider = display_shock_provider
         self.pool = pool
-        self.multiprocessing = inputs.multiprocessing if pool is not None else False
+        if pool is not None:
+            self.multiprocessing = inputs.multiprocessing
+        else:
+            self.multiprocessing = False
         self._log = log_callback or (lambda msg: None)
         self._progress = progress_callback or (lambda update: None)
         self.i = 0
@@ -889,28 +943,84 @@ class CostFunction:
     def warmup_workers(self, n_workers: int, initial_scalers: np.ndarray) -> None:
         """Force per-worker numba JIT before the optimizer starts.
 
-        Without this, iterations 1..N pay 1-5s/kernel × N kernels of JIT
-        compilation lazily as workers hit each ``@njit`` function for the
-        first time. Dispatching one full ``calculate_residuals`` per
-        worker on a representative shock fans the JIT cost across all
-        workers in parallel — wall time becomes ~max(per-worker compile)
-        instead of the sum across the first several iterations.
+        Dispatches one full ``calculate_residuals`` per worker on a
+        representative shock so every worker compiles its ``@njit``
+        kernels up front, in parallel — wall time is ~max(per-worker
+        compile) and the optimizer's iterations run on warm kernels.
 
         ``initial_scalers`` is the optimizer's starting point in scaler
         space; it gets passed through the same ``fit_all_coeffs`` path
         the cost function uses on every iteration, so the workers see
-        physical coefficient values instead of raw optimizer offsets.
+        physical coefficient values.
+
+        The warmup is staged so the ``@njit(cache=True)`` on-disk kernel
+        cache is always written by a single worker at a time (numba's
+        cache rename is not atomic under concurrent Windows writers):
+        every per-reaction fit task runs alone first — covering the
+        pooled ``fit_all_coeffs`` path for each reaction type — then one
+        residual task compiles that path's kernels, and only then does
+        the full fan-out run, finding a warm cache and reading only.
         """
         if self.pool is None or not self.shocks2run:
             return
         log_opt_rates = initial_scalers + self.x0
-        x = self.fit_all_coeffs(np.exp(log_opt_rates))
+        all_rates = np.exp(log_opt_rates)
+        for fit_args in self._build_fit_args(all_rates):
+            self.pool.map(_pool_fit_coeffs, [fit_args])
+        x = self.fit_all_coeffs(all_rates)
         if x is None:
             return
         warmup_args = (
             self._build_var_dict(), self.coef_opt, x, self.shocks2run[0],
         )
-        self.pool.map(_pool_calculate_residuals, [warmup_args] * n_workers)
+        self.pool.map(_pool_calculate_residuals, [warmup_args])
+        if n_workers > 1:
+            self.pool.map(_pool_calculate_residuals, [warmup_args] * n_workers)
+
+    def calibrate_error_floor(self, initial_scalers: np.ndarray) -> None:
+        """Set each shock's standardizing scale to its total expected error.
+
+        One probe evaluation at the optimizer start point measures each
+        shock's achieved residual scale r_s; the campaign floor E is a
+        low quantile of the excess of r_s over measurement noise, and
+        every shock standardizes by σ_total = sqrt(σ̄² + E²) thereafter.
+        Measurement noise alone over-amplifies the cleanest shocks —
+        irreducible model and numerical error dominates their tiny σ̄ —
+        manufacturing an upper loss tail on campaigns the model fits
+        well. Runs once, before the optimizer starts, so the objective
+        remains a pure function of x.
+        """
+        if not self.shocks2run:
+            return
+        log_opt_rates = initial_scalers + self.x0
+        all_rates = np.exp(log_opt_rates)
+        x = self.fit_all_coeffs(all_rates)
+        if x is None:
+            self._log(
+                "Model-error floor skipped: start-point coefficient fit failed"
+            )
+
+            return
+        outputs = self._dispatch(x, self._build_var_dict())
+        sigma_bars = np.array([
+            float(getattr(s2, "sigma_bar", 1.0) or 1.0) for s2 in self.shocks2run
+        ])
+        # The probe's losses are standardized by whatever scale each
+        # shock currently carries; multiply by that same scale — not
+        # σ̄ — so recalibration at a stage boundary sees true raw
+        # residual scales.
+        sigma_div = np.array([
+            float(getattr(s2, "sigma_total", 1.0) or 1.0) for s2 in self.shocks2run
+        ])
+        losses = np.array([float(o["loss"]) for o in outputs])
+        resid_scales = losses * sigma_div
+        if self._start_loss_raw is None:
+            self._start_loss_raw = resid_scales
+        floor = model_error_floor(resid_scales, sigma_bars)
+        self._model_error_floor = floor
+        for shock, s_bar in zip(self.shocks2run, sigma_bars):
+            shock.sigma_total = float(np.sqrt(s_bar * s_bar + floor * floor))
+        self._log(f"Model-error floor (campaign): {floor:.4g}")
 
     def __call__(self, s, optimizing=True):
         def append_output(output_dict, calc_resid_output):
@@ -938,11 +1048,10 @@ class CostFunction:
         display_ind_var = None
         display_observable = None
         display_t_offset = None
-        active_display_shock = (
-            self._display_shock_provider()
-            if self._display_shock_provider is not None
-            else None
-        )
+        if self._display_shock_provider is not None:
+            active_display_shock = self._display_shock_provider()
+        else:
+            active_display_shock = None
 
         t_unc_bound = float(self.t_unc[1])
         parametric = (
@@ -978,47 +1087,20 @@ class CostFunction:
                 )
 
         loss_resid = np.array(output_dict["loss"])
-        exp_loss_alpha = np.array(output_dict["loss_alpha"])
 
-        loss_alpha = self.cost_settings.loss_alpha
-        if loss_alpha == 3.0:
-            if np.size(loss_resid) <= 2:  # optimizing only a few experiments, use SSE
-                loss_alpha = 2.0
-
-            else:  # alpha is based on residual loss function, not great, but it's super slow otherwise
-                loss_alpha_fcn = lambda alpha: self.calculate_obj_fcn(
-                    x,
-                    loss_resid,
-                    alpha,
-                    log_opt_rates,
-                    output_dict,
-                    obj_fcn_type="Residual",
-                )
-
-                full_alpha_bounds = np.array([-100.0, 2.0])
-                alpha_bounds = _narrow_bounds(
-                    full_alpha_bounds, self._last_aggregate_loss_alpha,
-                )
-                res = minimize_scalar(
-                    loss_alpha_fcn, bounds=alpha_bounds, method="bounded",
-                )
-                if _hit_edge(res.x, alpha_bounds) and alpha_bounds is not full_alpha_bounds:
-                    res = minimize_scalar(
-                        loss_alpha_fcn, bounds=full_alpha_bounds, method="bounded",
-                    )
-                loss_alpha = res.x
-                self._last_aggregate_loss_alpha = loss_alpha
-
-        # testing loss alphas
-        # print([loss_alpha, *exp_loss_alpha])
-        obj_fcn = self.calculate_obj_fcn(
-            x,
-            loss_resid,
-            loss_alpha,
-            log_opt_rates,
-            output_dict,
-            obj_fcn_type=self.cost_settings.obj_fcn_type,
-        )
+        if self.cost_settings.obj_fcn_type == "Bayesian":
+            # Multiply by the same scale resid_func divided by, so the
+            # frozen Bayesian flow sees unstandardized losses exactly.
+            sigma_totals = np.array([
+                float(getattr(s2, "sigma_total", 1.0) or 1.0)
+                for s2 in self.shocks2run
+            ])
+            obj_fcn = self._bayesian_obj_fcn(
+                x, loss_resid * sigma_totals, log_opt_rates, output_dict,
+            )
+        else:
+            self.loss_outlier = 0.0
+            obj_fcn = self._residual_obj_fcn(loss_resid, output_dict)
 
         # For updating
         self.i += 1
@@ -1031,6 +1113,7 @@ class CostFunction:
                 "resid": output_dict["resid"],
                 "resid_outlier": self.loss_outlier,
                 "weights": output_dict["weights"],
+                "per_shock": self._mloc_diag,
             }
 
             if "KDE" in output_dict:
@@ -1068,10 +1151,167 @@ class CostFunction:
 
         if optimizing:
             return obj_fcn
-        else:
-            return obj_fcn, x, output_dict["shock"]
 
-    def calculate_obj_fcn(
+        shocks_out = output_dict["shock"]
+
+        return obj_fcn, x, shocks_out
+
+    def _residual_obj_fcn(self, loss_resid, output_dict):
+        """Aggregate per-shock losses into the Residual objective.
+
+        The objective is the legacy adaptive aggregation on
+        unstandardized losses, averaged under user × coverage weights.
+        The M-location solve runs on the standardized losses purely as
+        the per-shock report (z, IRLS weights) carried in the progress
+        payload — it never feeds the optimizer.
+        """
+        losses_std = np.asarray(loss_resid, dtype=float)
+        if not np.all(np.isfinite(losses_std)):
+            self._mloc_diag = None
+
+            return np.inf
+
+        n = losses_std.size
+        user_w = self._user_weights
+        sigma_totals = np.array([
+            float(getattr(s2, "sigma_total", 1.0) or 1.0)
+            for s2 in self.shocks2run
+        ])
+        losses_raw = losses_std * sigma_totals
+
+        cov = np.ones(n)
+        if (
+            self.cost_settings.coverage_weighting
+            and self._cov_features is not None
+            and n >= 4
+        ):
+            cov = coverage_weights(self._cov_features, user_w)
+
+        obj_fcn = self._legacy_residual_aggregate(losses_raw, user_w * cov)
+
+        n_coef = len(self.coef_opt)
+        eff_dofs = []
+        for agg_w, shock in zip(output_dict["aggregate_weights"], self.shocks2run):
+            dof = max(float(np.sum(agg_w)) - n_coef, 1.0)
+            tau = float(getattr(shock, "corr_length", 1.0) or 1.0)
+            eff_dofs.append(dof / max(tau, 1.0))
+        c_floor = LOSS_C_FLOOR_K / np.sqrt(2.0 * float(np.median(eff_dofs)))
+
+        if self._start_loss_raw is None:
+            start_raw = np.full(n, np.nan)
+        else:
+            start_raw = self._start_loss_raw
+
+        mloc = solve_m_location(losses_std, user_w * cov, c_floor=c_floor)
+        self._mloc_diag = {
+            "loss": losses_std,
+            "loss_raw": losses_raw,
+            "loss_raw_start": start_raw,
+            "z": mloc.z,
+            "irls_weights": mloc.irls_weights,
+            "coverage": cov,
+            "user": user_w,
+            "mu": mloc.mu,
+            "alpha": mloc.alpha,
+            "c": mloc.c,
+            "c_floor": c_floor,
+            "sigma_bar": np.array([
+                float(getattr(s2, "sigma_bar", 1.0) or 1.0)
+                for s2 in self.shocks2run
+            ]),
+            "sigma_total": sigma_totals,
+            "model_error_floor": self._model_error_floor,
+            "T": np.array([float(s2.T_reactor) for s2 in self.shocks2run]),
+            "P": np.array([float(s2.P_reactor) for s2 in self.shocks2run]),
+        }
+
+        return obj_fcn
+
+    def _legacy_residual_aggregate(self, losses, weights):
+        """Adaptive experiment-level aggregation of raw per-shock losses.
+
+        Per-shock losses are shifted to the campaign minimum, reweighted
+        by the adaptive loss, and averaged under the supplied weights.
+        The aggregate loss shape solves on full bounds every call, so
+        the objective stays a pure function of x.
+        """
+        if losses.size == 1:
+            return float(losses[0])
+
+        loss_alpha = self.cost_settings.loss_alpha
+        if loss_alpha == 3.0:
+            if losses.size <= 2:
+                loss_alpha = 2.0
+            else:
+                res = minimize_scalar(
+                    lambda a: self._aggregate_at(losses, weights, a),
+                    bounds=(-100.0, 2.0), method="bounded",
+                )
+                loss_alpha = float(res.x)
+
+        return self._aggregate_at(losses, weights, loss_alpha)
+
+    def _aggregate_at(self, losses, weights, alpha):
+        """Legacy aggregate at a fixed loss shape: weighted average of
+        adaptively-reweighted squared excursions above the campaign
+        minimum, re-anchored to the loss scale."""
+        loss_min = losses.min()
+        exp_w, _C, _alpha = adaptive_weights(
+            losses - loss_min, C_scalar=self.cost_settings.loss_c, alpha=alpha,
+        )
+        loss_exp = exp_w * (losses - loss_min) ** 2
+        loss_exp = loss_exp - loss_exp.min() + loss_min
+        value = float(np.average(loss_exp, weights=weights))
+
+        return value
+
+    def _bayesian_obj_fcn(self, x, loss_resid, log_opt_rates, output_dict):
+        """Frozen legacy flow for Bayesian mode, pending its disposition.
+
+        Consumes unstandardized losses and the legacy aggregation so
+        Bayesian-mode behavior matches its golden pins exactly.
+        """
+        loss_alpha = self.cost_settings.loss_alpha
+        if loss_alpha == 3.0:
+            if np.size(loss_resid) <= 2:  # optimizing only a few experiments, use SSE
+                loss_alpha = 2.0
+
+            else:  # alpha based on the legacy residual aggregation
+                loss_alpha_fcn = lambda alpha: self._legacy_obj_fcn(
+                    x,
+                    loss_resid,
+                    alpha,
+                    log_opt_rates,
+                    output_dict,
+                    obj_fcn_type="Residual",
+                )
+
+                full_alpha_bounds = np.array([-100.0, 2.0])
+                alpha_bounds = _narrow_bounds(
+                    full_alpha_bounds, self._last_aggregate_loss_alpha,
+                )
+                res = minimize_scalar(
+                    loss_alpha_fcn, bounds=alpha_bounds, method="bounded",
+                )
+                if _hit_edge(res.x, alpha_bounds) and alpha_bounds is not full_alpha_bounds:
+                    res = minimize_scalar(
+                        loss_alpha_fcn, bounds=full_alpha_bounds, method="bounded",
+                    )
+                loss_alpha = res.x
+                self._last_aggregate_loss_alpha = loss_alpha
+
+        result = self._legacy_obj_fcn(
+            x,
+            loss_resid,
+            loss_alpha,
+            log_opt_rates,
+            output_dict,
+            obj_fcn_type="Bayesian",
+        )
+
+        return result
+
+    def _legacy_obj_fcn(
         self,
         x,
         loss_resid,
@@ -1081,7 +1321,7 @@ class CostFunction:
         obj_fcn_type="Residual",
         loss_outlier=0,
     ):
-        """Aggregate per-experiment losses into the optimizer's scalar objective.
+        """Legacy experiment-level aggregation, retained for Bayesian mode.
 
         Args:
             x: Fitted coefficients passed through to the Bayesian
@@ -1162,21 +1402,13 @@ class CostFunction:
                 iteration_num=self.i,
             )
 
+        else:
+            raise ValueError(f"unknown objective type {obj_fcn_type!r}")
+
         return obj_fcn
 
-    def fit_all_coeffs(self, all_rates):
-        """Convert optimizer-space rates into per-reaction Cantera coefficients.
-
-        Walks ``rxn_coef_opt`` and calls
-        :func:`~frhodo.simulation.mechanism.fit_coeffs.fit_coeffs` for
-        each reaction with its slice of ``all_rates``. When a worker
-        pool is available and more than one reaction needs fitting, the
-        per-reaction calls are dispatched across the pool.
-
-        Returns:
-            Flat coefficient vector with each reaction's coefficients
-            concatenated, or ``None`` if any per-reaction fit failed.
-        """
+    def _build_fit_args(self, all_rates):
+        """Per-reaction ``fit_coeffs`` argument tuples for ``all_rates``."""
         args_per_rxn = []
         i = 0
         for rxn_coef in self.rxn_coef_opt:
@@ -1193,6 +1425,23 @@ class CostFunction:
                 [rxn_coef["coef_bnds"]["lower"], rxn_coef["coef_bnds"]["upper"]],
             ))
             i += T_len
+
+        return args_per_rxn
+
+    def fit_all_coeffs(self, all_rates):
+        """Convert optimizer-space rates into per-reaction Cantera coefficients.
+
+        Walks ``rxn_coef_opt`` and calls
+        :func:`~frhodo.simulation.mechanism.fit_coeffs.fit_coeffs` for
+        each reaction with its slice of ``all_rates``. When a worker
+        pool is available and more than one reaction needs fitting, the
+        per-reaction calls are dispatched across the pool.
+
+        Returns:
+            Flat coefficient vector with each reaction's coefficients
+            concatenated, or ``None`` if any per-reaction fit failed.
+        """
+        args_per_rxn = self._build_fit_args(all_rates)
 
         if not args_per_rxn:
             return np.array([])

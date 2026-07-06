@@ -12,15 +12,25 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-"""Bisymlog transform Numba kernels: sign(x) * log_b(|x/C| + 1)."""
+"""Bi-symmetric logarithmic (bisymlog) transform.
 
-import numba
+The bisymlog transform is: sign(x) · log_b(|x/C| + 1)
+where C controls the linear-to-log crossover and b is the base.
+"""
+
 import numpy as np
+import numba
 
+
+
+
+# ---------------------------------------------------------------------------
+# Numba kernels
+# ---------------------------------------------------------------------------
 
 @numba.jit(nopython=True, error_model="numpy", cache=True)
-def bisymlog_forward(x, C, log_base_inv):
-    """Vectorized bisymlog forward: sign(x) · log10(|x/C| + 1) · log_base_inv."""
+def _bisymlog_forward(x, C, log_base_inv):
+    """Vectorized bisymlog forward: sign(x) · log10(|x/C| + 1) / log10(base)."""
     out = np.empty_like(x)
     for i in range(len(x)):
         xi = x[i]
@@ -28,12 +38,11 @@ def bisymlog_forward(x, C, log_base_inv):
             out[i] = np.log10(xi / C + 1.0) * log_base_inv
         else:
             out[i] = -np.log10(-xi / C + 1.0) * log_base_inv
-
     return out
 
 
 @numba.jit(nopython=True, error_model="numpy", cache=True)
-def bisymlog_inverse(y, C, base):
+def _bisymlog_inverse(y, C, base):
     """Vectorized bisymlog inverse: sign(y) · C · (base^|y| - 1)."""
     out = np.empty_like(y)
     for i in range(len(y)):
@@ -42,5 +51,6 @@ def bisymlog_inverse(y, C, base):
             out[i] = C * (base ** yi - 1.0)
         else:
             out[i] = -C * (base ** (-yi) - 1.0)
-
     return out
+
+

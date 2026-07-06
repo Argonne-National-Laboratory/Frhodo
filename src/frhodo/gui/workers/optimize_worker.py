@@ -19,6 +19,7 @@ from frhodo.optimize.residual import OptimizeRunInputs
 from frhodo.simulation.mechanism.coef_helpers import rates
 
 
+
 @dataclass(frozen=True)
 class WorkerInputs:
     """Frozen snapshot of every parameter the optimizer needs.
@@ -63,9 +64,11 @@ class Worker(QRunnable):
 
         lb, ub = inputs.rxn_rate_opt["bnds"]["lower"], inputs.rxn_rate_opt["bnds"]["upper"]
         initial_scalers = rates(inputs.rxn_coef_opt, inputs.mech) - inputs.rxn_rate_opt["x0"]
-        self.initial_scalers = np.clip(
-            initial_scalers, lb * (1 + 1e-9), ub * (1 - 1e-9),
-        )
+        # Clip strictly inside the box. The margin scales with the span
+        # so it lands inside for negative bounds too (lb·(1+ε) sits
+        # OUTSIDE when lb < 0, which nlopt rejects as an invalid start).
+        margin = 1e-9 * (ub - lb)
+        self.initial_scalers = np.clip(initial_scalers, lb + margin, ub - margin)
 
     def optimize_coeffs(self):
         inputs = self.inputs
@@ -93,11 +96,13 @@ class Worker(QRunnable):
             random_t_uncertainty=inputs.time_unc_random,
         )
 
-        return _run_optimization_engine(
+        result = _run_optimization_engine(
             engine_inputs,
             optimizable_set=inputs.optimizable_set,
             callbacks=callbacks,
         )
+
+        return result
 
     @Slot()
     def run(self):

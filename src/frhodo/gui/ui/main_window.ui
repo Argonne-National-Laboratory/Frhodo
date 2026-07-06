@@ -3278,6 +3278,19 @@ p, li { white-space: pre-wrap; }
                          </property>
                         </spacer>
                        </item>
+                       <item row="2" column="0" colspan="3">
+                        <widget class="QCheckBox" name="coverage_weighting_box">
+                         <property name="toolTip">
+                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Weight experiments by inverse density of campaign conditions (1000/T, log P)&lt;/p&gt;&lt;p&gt;so dense condition clusters do not outvote sparse regions&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                         </property>
+                         <property name="text">
+                          <string>Coverage Weighting</string>
+                         </property>
+                         <property name="checked">
+                          <bool>true</bool>
+                         </property>
+                        </widget>
+                       </item>
                       </layout>
                      </widget>
                      <widget class="QWidget" name="Bayesian_tab">

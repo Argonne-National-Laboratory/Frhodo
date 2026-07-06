@@ -1298,6 +1298,7 @@ class Optimization(QtCore.QObject):
             parent.bayes_dist_type_box,
         ]:
             box.currentTextChanged.connect(self.update_obj_fcn_settings)
+        parent.coverage_weighting_box.stateChanged.connect(self.update_obj_fcn_settings)
 
         self.update_obj_fcn_settings()  # initialize settings
 
@@ -1417,10 +1418,13 @@ class Optimization(QtCore.QObject):
             settings["alpha"] = -2.0
         elif loss_alpha_txt == "Welsch":
             settings["alpha"] = -100.0
+        else:
+            raise ValueError(f"unknown loss shape {loss_alpha_txt!r}")
 
         settings["c"] = (
             1 / parent.loss_c_box.value()
         )  # this makes increasing values decrease outlier influence
+        settings["coverage_weighting"] = parent.coverage_weighting_box.isChecked()
 
         settings["bayes_dist_type"] = parent.bayes_dist_type_box.currentText()
         settings["bayes_unc_sigma"] = parent.bayes_unc_sigma_box.value()

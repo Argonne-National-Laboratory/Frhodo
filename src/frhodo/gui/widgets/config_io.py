@@ -15,6 +15,7 @@ from qtpy import QtWidgets
 
 from frhodo.common.errors import SchemaVersionError
 from frhodo.common.config import FrhodoConfig
+from frhodo.optimize.algorithm_settings import MAX_ITERATION_STOP
 
 
 
@@ -61,6 +62,18 @@ class GUI_settings:
         else:
             self.config = FrhodoConfig()
 
+        opt = self.config.optimization
+        for stage, value in opt.stop_criteria_value.items():
+            stage_type = opt.stop_criteria_type.get(stage)
+            if stage_type == "Iteration Maximum" and value > MAX_ITERATION_STOP:
+                opt.stop_criteria_value[stage] = float(MAX_ITERATION_STOP)
+                if hasattr(parent, "log"):
+                    parent.log.append(
+                        f"{stage} stop value {value:g} exceeds the iteration-"
+                        f"count limit; clamped to {MAX_ITERATION_STOP}",
+                        alert=True,
+                    )
+
         self.apply_config_to_boxes()
 
     def apply_config_to_boxes(self):
@@ -99,6 +112,7 @@ class GUI_settings:
         _set_box(parent.obj_fcn_scale_box, opt.objective_function_scale)
         _set_box(parent.loss_alpha_box, str(opt.loss_function_alpha))
         _set_box(parent.loss_c_box, opt.loss_function_c)
+        _set_box(parent.coverage_weighting_box, opt.coverage_weighting)
         _set_box(parent.bayes_dist_type_box, opt.bayesian_distribution_type)
         _set_box(parent.bayes_unc_sigma_box, opt.bayesian_uncertainty_sigma)
         _set_box(parent.multiprocessing_box, opt.multiprocessing)
@@ -193,6 +207,7 @@ class GUI_settings:
         except (TypeError, ValueError):
             opt.loss_function_alpha = loss_alpha_text
         opt.loss_function_c = parent.loss_c_box.value()
+        opt.coverage_weighting = parent.coverage_weighting_box.isChecked()
         opt.bayesian_distribution_type = parent.bayes_dist_type_box.currentText()
         opt.bayesian_uncertainty_sigma = parent.bayes_unc_sigma_box.value()
         opt.multiprocessing = parent.multiprocessing_box.isChecked()

@@ -14,7 +14,6 @@ import cantera as ct
 import numpy as np
 from numba import jit
 
-from frhodo._vendor.opendsm.bisymlog import bisymlog_inverse
 from frhodo.simulation.mechanism.coef_helpers import (
     min_pos_system_value,
     max_pos_system_value,

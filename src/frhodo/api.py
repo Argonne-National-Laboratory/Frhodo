@@ -657,7 +657,11 @@ def optimize_residual(
 
     lb, ub = rxn_rate_opt["bnds"]["lower"], rxn_rate_opt["bnds"]["upper"]
     initial_scalers = compute_rates(rxn_coef_opt, mech) - rxn_rate_opt["x0"]
-    initial_scalers = np.clip(initial_scalers, lb * (1 + 1e-9), ub * (1 - 1e-9))
+    # Clip strictly inside the box. The margin scales with the span so it
+    # lands inside for negative bounds too (lb·(1+ε) sits OUTSIDE when
+    # lb < 0, which nlopt rejects as an invalid start).
+    margin = 1e-9 * (ub - lb)
+    initial_scalers = np.clip(initial_scalers, lb + margin, ub - margin)
 
     default_display_shock = None
     if request.display_shock_index is not None:

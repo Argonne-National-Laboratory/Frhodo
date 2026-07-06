@@ -1,12 +1,16 @@
 """``calculate.optimize.fit_fcn`` helpers: ``rescale_loss_fcn``, ``_log_ratio``."""
+import types
+
 import numpy as np
 import pytest
 
 from frhodo.optimize.cost.fit_fcn import (
+    CostFunction,
     _degenerate_trace_output,
     _log_ratio,
     rescale_loss_fcn,
 )
+
 
 
 class TestRescaleLossFcn:
@@ -156,3 +160,111 @@ class TestDegenerateTraceOutput:
             coef_opt=[], var={"loss_alpha": "Adaptive"},
         )
         assert out["loss_alpha"] == 2.0
+
+
+class TestStagedWarmup:
+    """Warmup must compile the kernel cache in one worker before fan-out
+    (numba's on-disk cache rename races under concurrent Windows writers)."""
+
+    class _RecordingPool:
+        def __init__(self):
+            self.map_sizes = []
+
+        def map(self, fcn, args):
+            self.map_sizes.append(len(args))
+
+            return [None] * len(args)
+
+    def _cost_function_with_pool(self, pool, n_fit_rxns=0):
+        fake = types.SimpleNamespace(
+            pool=pool,
+            shocks2run=[object()],
+            x0=np.zeros(1),
+            fit_all_coeffs=lambda rates: np.zeros(1),
+            _build_fit_args=lambda rates: [object()] * n_fit_rxns,
+            _build_var_dict=lambda: {},
+            coef_opt=[],
+        )
+
+        return fake
+
+    def test_single_task_precedes_fanout(self):
+        pool = self._RecordingPool()
+        fake = self._cost_function_with_pool(pool)
+        CostFunction.warmup_workers(fake, 8, np.zeros(1))
+        assert pool.map_sizes == [1, 8], (
+            f"warmup must stage [1, n_workers], got {pool.map_sizes}"
+        )
+
+    def test_single_worker_pool_warms_once(self):
+        pool = self._RecordingPool()
+        fake = self._cost_function_with_pool(pool)
+        CostFunction.warmup_workers(fake, 1, np.zeros(1))
+        assert pool.map_sizes == [1], (
+            f"single-worker warmup must not fan out, got {pool.map_sizes}"
+        )
+
+    def test_per_reaction_fits_stage_before_everything(self):
+        """Each pooled fit task warms alone so the fit-path kernels are
+        cached before fit_all_coeffs can fan them out mid-run."""
+        pool = self._RecordingPool()
+        fake = self._cost_function_with_pool(pool, n_fit_rxns=3)
+        CostFunction.warmup_workers(fake, 8, np.zeros(1))
+        assert pool.map_sizes == [1, 1, 1, 1, 8], (
+            f"warmup must stage fit tasks singly then [1, n_workers], "
+            f"got {pool.map_sizes}"
+        )
+
+
+class TestCalibrateErrorFloor:
+    """One probe at the start point raises each shock's standardizing
+    scale from measurement noise to total expected error."""
+
+    def _fake(self, sigma_bars, probe_losses, fit_result=np.zeros(1)):
+        shocks = [
+            types.SimpleNamespace(sigma_bar=float(s), sigma_total=float(s))
+            for s in sigma_bars
+        ]
+        logged = []
+        fake = types.SimpleNamespace(
+            shocks2run=shocks,
+            x0=np.zeros(1),
+            fit_all_coeffs=lambda rates: fit_result,
+            _build_var_dict=lambda: {},
+            _dispatch=lambda x, var: [{"loss": float(l)} for l in probe_losses],
+            _log=logged.append,
+            _model_error_floor=0.0,
+            _start_loss_raw=None,
+        )
+
+        return fake, shocks, logged
+
+    def test_sets_total_scale_from_campaign_floor(self):
+        sigma = np.array([0.1, 0.2, 0.4, 0.8])
+        floor = 0.3
+        losses = np.sqrt(sigma**2 + floor**2) / sigma
+        fake, shocks, _ = self._fake(sigma, losses)
+        CostFunction.calibrate_error_floor(fake, np.zeros(1))
+        assert fake._model_error_floor == pytest.approx(floor, rel=1e-6)
+        for shock, s_bar in zip(shocks, sigma):
+            expected = np.sqrt(s_bar**2 + floor**2)
+            assert shock.sigma_total == pytest.approx(expected, rel=1e-6), (
+                f"sigma_total for sigma_bar={s_bar} should be {expected}"
+            )
+
+    def test_failed_start_fit_leaves_scales_untouched(self):
+        sigma = np.array([0.1, 0.2, 0.4, 0.8])
+        fake, shocks, logged = self._fake(sigma, np.ones(4), fit_result=None)
+        CostFunction.calibrate_error_floor(fake, np.zeros(1))
+        for shock, s_bar in zip(shocks, sigma):
+            assert shock.sigma_total == s_bar
+        assert any("skipped" in msg for msg in logged)
+
+    def test_overflowed_probe_shocks_are_ignored(self):
+        sigma = np.full(4, 0.1)
+        floor = 0.2
+        losses = np.sqrt(sigma**2 + floor**2) / sigma
+        losses[0] = np.inf
+        fake, _, _ = self._fake(sigma, losses)
+        CostFunction.calibrate_error_floor(fake, np.zeros(1))
+        assert fake._model_error_floor == pytest.approx(floor, rel=1e-6)

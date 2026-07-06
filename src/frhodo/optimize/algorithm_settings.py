@@ -11,7 +11,15 @@ from __future__ import annotations
 from typing import Literal
 
 import nlopt
-from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PositiveFloat,
+    PositiveInt,
+    model_validator,
+)
+
 
 
 ALGORITHM_LABELS: dict[str, int | str] = {
@@ -32,6 +40,8 @@ ALGORITHM_LABELS: dict[str, int | str] = {
 
 StopCriteria = Literal["Iteration Maximum", "Maximum Time [min]"]
 
+MAX_ITERATION_STOP = 2**31 - 1
+
 
 class AlgorithmStage(BaseModel):
     """One stage (global or local) of the two-stage optimization."""
@@ -46,6 +56,22 @@ class AlgorithmStage(BaseModel):
     enabled: bool = True
 
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+    @model_validator(mode="after")
+    def _iteration_stop_fits_int(self):
+        """An iteration-count stop must survive the int conversion the
+        nlopt/pygmo dispatchers apply."""
+        if (
+            self.stop_criteria == "Iteration Maximum"
+            and self.stop_value > MAX_ITERATION_STOP
+        ):
+            raise ValueError(
+                f"stop_value {self.stop_value:g} exceeds the iteration-count "
+                f"limit ({MAX_ITERATION_STOP}); use stop_criteria "
+                f"'Maximum Time [min]' or a smaller stop_value"
+            )
+
+        return self
 
 
 class AlgorithmSettings(BaseModel):
@@ -66,10 +92,12 @@ class AlgorithmSettings(BaseModel):
     def to_legacy_dict(self) -> dict:
         """Return the dict shape ``frhodo.optimize.algorithms.Optimize``
         consumes (``{"global": {...}, "local": {...}}``)."""
-        return {
+        stages = {
             "global": _stage_to_legacy(self.global_stage),
             "local": _stage_to_legacy(self.local_stage),
         }
+
+        return stages
 
 
 def _resolve_algorithm(label: str) -> int | str:
@@ -83,7 +111,7 @@ def _resolve_algorithm(label: str) -> int | str:
 
 
 def _stage_to_legacy(stage: AlgorithmStage) -> dict:
-    return {
+    legacy = {
         "algorithm": _resolve_algorithm(stage.algorithm),
         "initial_step": stage.initial_step,
         "max_eval": stage.max_eval,
@@ -94,3 +122,5 @@ def _stage_to_legacy(stage: AlgorithmStage) -> dict:
         "stop_criteria_val": stage.stop_value,
         "run": stage.enabled,
     }
+
+    return legacy

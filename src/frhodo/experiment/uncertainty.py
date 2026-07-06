@@ -31,6 +31,8 @@ point via :func:`bounds_from_sigma`.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 from scipy.interpolate import PchipInterpolator
 from scipy.ndimage import median_filter, percentile_filter, uniform_filter1d
@@ -341,3 +343,85 @@ def bounds_from_sigma(
     bounds = np.column_stack([lower, upper])
 
     return bounds
+
+
+def sigma_bar(
+    y: np.ndarray, *, scale: Scale, window_weights: np.ndarray,
+) -> float:
+    """Per-shock scalar noise scale: weighted-median σ(t) over the fit window.
+
+    The window weights are the user's per-sample envelope: samples with
+    zero weight (the pre-window schlieren spike, late-trace noise)
+    contribute nothing to the noise scale, matching their exclusion from
+    the fit. The pointwise estimator's internal floor keeps σ strictly
+    positive whenever the trace carries signal.
+
+    Returns:
+        σ̄ in scaled units; NaN when the window holds too few usable
+        samples or the trace is degenerate (no signal variation) —
+        callers fall back to no standardization.
+    """
+    y_arr = np.asarray(y, dtype=float).ravel()
+    w_arr = np.asarray(window_weights, dtype=float).ravel()
+    if y_arr.shape != w_arr.shape:
+        raise ValueError(
+            f"shape mismatch: y={y_arr.shape}, window_weights={w_arr.shape}"
+        )
+
+    sigma = estimate_pointwise_sigma(y_arr, scale=scale)
+    z = scale.forward(y_arr)
+    ok = (w_arr > 0) & np.isfinite(sigma) & np.isfinite(z)
+    if ok.sum() < _MIN_N_FOR_ESTIMATE:
+        return float("nan")
+
+    sigma_med = _weighted_median(sigma[ok], w_arr[ok])
+    if sigma_med <= 0:
+        return float("nan")
+
+    return sigma_med
+
+
+def _weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
+    order = np.argsort(values)
+    v, w = values[order], weights[order]
+    cdf = np.cumsum(w) / np.sum(w)
+
+    return float(v[np.searchsorted(cdf, 0.5)])
+
+
+def correlation_length(
+    y: np.ndarray, *, scale: Scale, window_weights: np.ndarray,
+) -> float:
+    """Residual autocorrelation length in samples, for effective-dof use.
+
+    Correlation of (forward(y) − smooth centerline) over the fit window:
+    the first lag where the autocorrelation drops below 1/e. White noise
+    gives 1; correlated wobble gives its persistence scale. Floors at 1
+    and returns 1.0 when the window is too short to estimate.
+    """
+    y_arr = np.asarray(y, dtype=float).ravel()
+    w_arr = np.asarray(window_weights, dtype=float).ravel()
+    if y_arr.shape != w_arr.shape:
+        raise ValueError(
+            f"shape mismatch: y={y_arr.shape}, window_weights={w_arr.shape}"
+        )
+
+    z = scale.forward(y_arr)
+    center = smooth_centerline(y_arr, scale=scale)
+    ok = (w_arr > 0) & np.isfinite(z) & np.isfinite(center)
+    if ok.sum() < _MIN_N_FOR_ESTIMATE:
+        return 1.0
+
+    r = z[ok] - center[ok]
+    r = r - r.mean()
+    denom = float(np.sum(r * r))
+    if denom <= 0:
+        return 1.0
+
+    max_lag = min(r.size // 2, 100)
+    for lag in range(1, max_lag + 1):
+        rho = float(np.sum(r[:-lag] * r[lag:]) / denom)
+        if rho < 1.0 / np.e:
+            return float(lag)
+
+    return float(max_lag)

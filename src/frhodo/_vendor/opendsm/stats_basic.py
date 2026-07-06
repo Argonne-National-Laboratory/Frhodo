@@ -1,45 +1,56 @@
-"""Weighted quantiles, MAD, and helpers for adaptive loss / robust stats.
-
-Vendored from OpenDSM (Apache-2.0) with `to_np_array` inlined and the
-import path collapsed under `frhodo.common`.
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
+
+   Copyright 2014-2024 OpenEEmeter contributors
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+"""
+
 from typing import Literal, Optional, Union
 
 import numba
 import numpy as np
+
 from scipy.special import (
-    stdtrit,
-    erfinv,
+    stdtrit,  # faster than using t.ppf
+    erfinv,  # faster than using norm.ppf
 )
 
+from frhodo._vendor.opendsm.utils import to_np_array
 
-# MAD-to-stdev scale factor for normal data: 1 / norm.ppf(0.75)
+
+
+# Constant to convert MAD to std deviation for normal distribution
+# Equivalent to 1 / norm_dist.ppf(0.75)
 MAD_k = 1 / (erfinv(2 * 0.75 - 1) * np.sqrt(2))
 
 
-def to_np_array(x):
-    """Convert scalar/sequence to a 1D numpy array.
+def t_stat(alpha: float, dof: float, tail: Union[int, str] = 2) -> float:
+    """Calculate the t-statistic for a given number of degrees of freedom.
 
-    None passes through unchanged.
+    Args:
+        alpha: Significance level
+        dof: Degrees of freedom
+        tail: Type of tail test - 1/"one" for one-tailed, 2/"two" for two-tailed
+
+    Returns:
+        Calculated t-statistic value
+
+    Raises:
+        ValueError: If tail parameter is invalid
     """
-    if x is None:
-        return None
-
-    if not hasattr(x, "__len__"):
-        x = [x]
-
-    if not isinstance(x, np.ndarray):
-        x = np.array(x)
-
-    if x.ndim == 0:
-        x = np.array([x])
-
-    return np.array(x)
-
-
-def t_stat(alpha: float, n: int, tail: Union[int, str] = 2) -> float:
-    """t-statistic for hypothesis testing at significance level alpha."""
-    degrees_of_freedom = n - 1
     if (tail == "one") or (tail == 1):
         perc = np.asarray(1 - alpha)
     elif (tail == "two") or (tail == 2):
@@ -47,11 +58,22 @@ def t_stat(alpha: float, n: int, tail: Union[int, str] = 2) -> float:
     else:
         raise ValueError(f"Invalid tail parameter: {tail}. Must be 1/'one' or 2/'two'")
 
-    return stdtrit(degrees_of_freedom, perc)
+    return stdtrit(dof, perc)
 
 
 def z_stat(alpha: float, tail: Union[int, str] = 2) -> float:
-    """z-statistic for hypothesis testing at significance level alpha."""
+    """Calculate the z-statistic for hypothesis testing.
+
+    Args:
+        alpha: Significance level
+        tail: Type of tail test - 1/"one" for one-tailed, 2/"two" for two-tailed
+
+    Returns:
+        Calculated z-statistic value
+
+    Raises:
+        ValueError: If tail parameter is invalid
+    """
     if (tail == "one") or (tail == 1):
         perc = np.asarray(1 - alpha)
     elif (tail == "two") or (tail == 2):
@@ -65,11 +87,23 @@ def z_stat(alpha: float, tail: Union[int, str] = 2) -> float:
 def unc_factor(
     n: int, interval: Literal["PI", "CI"] = "PI", alpha: float = 0.10
 ) -> float:
-    """Uncertainty factor for confidence (CI) or prediction (PI) intervals."""
+    """Calculate uncertainty factor for confidence or prediction intervals.
+
+    Args:
+        n: Sample size
+        interval: Interval type - "CI" for Confidence Interval or "PI" for Prediction Interval
+        alpha: Significance level
+
+    Returns:
+        Uncertainty factor value
+
+    Raises:
+        ValueError: If interval type is invalid
+    """
     if interval == "CI":
-        return t_stat(alpha, n) / np.sqrt(n)
+        return t_stat(alpha, n - 1) / np.sqrt(n)
     elif interval == "PI":
-        return t_stat(alpha, n) * (1 + 1 / np.sqrt(n))
+        return t_stat(alpha, n - 1) * (1 + 1 / np.sqrt(n))
     else:
         raise ValueError(f"Invalid interval: {interval}. Must be 'CI' or 'PI'")
 
@@ -81,7 +115,17 @@ def weighted_std(
     mean: Optional[float] = None,
     w_sum_err: float = 1e-6,
 ) -> float:
-    """Weighted standard deviation; renormalizes weights when sum != 1."""
+    """Calculate weighted standard deviation with optional normalization.
+
+    Args:
+        x: Input data array
+        w: Weights for each data point
+        mean: Pre-computed mean (if None, calculated from weighted data)
+        w_sum_err: Tolerance for weight normalization check
+
+    Returns:
+        Weighted standard deviation
+    """
     n = float(len(x))
 
     w_sum = np.sum(w)
@@ -101,7 +145,19 @@ def fast_std(
     weights: Optional[Union[np.ndarray, float, int]] = None,
     mean: Optional[float] = None,
 ) -> float:
-    """Standard deviation; dispatches to weighted variant when weights vary."""
+    """Calculate standard deviation (weighted or unweighted) efficiently.
+
+    Automatically determines whether to use weighted or unweighted calculation
+    based on the weights parameter.
+
+    Args:
+        x: Input data array
+        weights: Optional weights (array, scalar, or None for unweighted)
+        mean: Pre-computed mean (if None, calculated from data)
+
+    Returns:
+        Standard deviation value
+    """
     if isinstance(weights, (int, float)):
         weights = np.array([weights])
 
@@ -127,10 +183,23 @@ def _weighted_quantile(
     values_presorted: bool = False,
     old_style: bool = False,
 ) -> np.ndarray:
-    """Numba-jitted weighted quantile.
+    """Calculate weighted quantiles (numba-optimized internal implementation).
 
-    Reference:
-    https://stackoverflow.com/questions/21844024/weighted-percentile-using-numpy
+    Similar to numpy.percentile but supports weighted observations.
+    Reference: https://stackoverflow.com/questions/21844024/weighted-percentile-using-numpy
+
+    Args:
+        values: Input data array
+        quantiles: Array of quantiles to compute (must be in [0, 1])
+        weights: Optional weights for each value (same length as values)
+        values_presorted: If True, assumes values are already sorted
+        old_style: If True, uses numpy.quantile-compatible output
+
+    Returns:
+        Array of computed quantiles
+
+    Raises:
+        ValueError: If quantiles are not in [0, 1]
     """
     for q in quantiles:
         if not 0 <= q <= 1:
@@ -150,7 +219,7 @@ def _weighted_quantile(
         weights = weights[sorted_idx]
 
     res = np.cumsum(weights) - 0.5 * weights
-    if old_style:
+    if old_style:  # To be convenient with numpy.quantile
         res -= res[0]
         res /= res[-1]
     else:
@@ -166,7 +235,24 @@ def weighted_quantile(
     values_presorted: bool = False,
     old_style: bool = False,
 ) -> np.ndarray:
-    """Weighted quantile with input coercion to numpy arrays."""
+    """Calculate weighted quantiles with input validation.
+
+    Public wrapper for _weighted_quantile that handles input conversion
+    and provides better error messages.
+
+    Args:
+        values: Input data (array-like)
+        quantiles: Quantiles to compute (array-like or scalar, in [0, 1])
+        weights: Optional weights (array-like)
+        values_presorted: If True, assumes values are already sorted
+        old_style: If True, uses numpy.quantile-compatible output
+
+    Returns:
+        Array of computed quantiles
+
+    Raises:
+        Exception: If weighted quantile calculation fails
+    """
     values = to_np_array(values)
     quantiles = to_np_array(quantiles)
 
@@ -193,9 +279,18 @@ def _median_absolute_deviation(
     median: Optional[float] = None,
     weights: Optional[np.ndarray] = None,
 ) -> float:
-    """Median Absolute Deviation scaled to match stdev under normality.
+    """Calculate Median Absolute Deviation (numba-optimized internal implementation).
 
-    1D only.  Pre-computed `median` skips the median pass.
+    Computes MAD scaled to match standard deviation of normal distribution.
+    Supports both weighted and unweighted calculations. Only handles 1D arrays.
+
+    Args:
+        x: Input data array (1D)
+        median: Pre-computed median (if None, calculated from data)
+        weights: Optional weights for weighted MAD calculation
+
+    Returns:
+        MAD value scaled to match standard deviation units
     """
     mu = median
     if weights is None:
@@ -221,17 +316,32 @@ def median_absolute_deviation(
     weights: Optional[Union[np.ndarray, list]] = None,
     axis: Optional[int] = None,
 ) -> Union[float, np.ndarray]:
-    """MAD scaled to standard deviation; supports per-axis evaluation."""
+    """Calculate Median Absolute Deviation (MAD) scaled to standard deviation.
+
+    Public wrapper that handles input conversion. Supports both weighted
+    and unweighted calculations.
+
+    Args:
+        x: Input data (array-like)
+        median: Pre-computed median (if None, calculated from data)
+        weights: Optional weights for weighted MAD calculation
+        axis: Axis along which to compute MAD (None for flattened array)
+
+    Returns:
+        MAD value scaled to match standard deviation units
+    """
     x = to_np_array(x)
 
     if weights is not None:
         weights = to_np_array(weights)
 
     if axis is None:
+        # Flatten array for 1D calculation
         x_flat = x.ravel()
         weights_flat = weights.ravel() if weights is not None else None
         return _median_absolute_deviation(x_flat, median=median, weights=weights_flat)
     else:
+        # Apply along specified axis
         def mad_1d(x_slice):
             return _median_absolute_deviation(x_slice, median=None, weights=None)
 

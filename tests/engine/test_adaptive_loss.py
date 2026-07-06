@@ -12,6 +12,7 @@ from frhodo._vendor.opendsm.adaptive_loss import (
 from frhodo._vendor.opendsm.stats_basic import weighted_quantile
 
 
+
 class TestGeneralizedLossFcn:
     """The generalized loss has closed forms at integer values of ``alpha``.
 
@@ -83,10 +84,11 @@ class TestWeightedQuantile:
 
 
 class TestGeneralizedLossDerivative:
-    """At each special-case ``alpha``, the derivative must match the finite
-    difference of ``generalized_loss_fcn`` at the same point."""
+    """At each ``alpha`` — the special-case branches and the general-alpha
+    branch — the derivative must match the finite difference of
+    ``generalized_loss_fcn`` at the same point."""
 
-    @pytest.mark.parametrize("alpha", [-2.0, 0.0, 1.0, 2.0])
+    @pytest.mark.parametrize("alpha", [-2.0, -1.0, 0.0, 0.5, 1.0, 2.0, 3.0])
     @pytest.mark.parametrize("x", [-2.0, -0.5, 0.5, 2.0])
     def test_matches_finite_difference(self, alpha, x):
         h = 1e-6

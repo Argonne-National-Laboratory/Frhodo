@@ -225,6 +225,14 @@ class TestAlgorithmSettings:
         with pytest.raises(ValueError, match="unknown optimization algorithm"):
             s.to_legacy_dict()
 
+    def test_iteration_stop_value_over_int_limit_rejected(self):
+        with pytest.raises(ValueError, match="iteration-count limit"):
+            AlgorithmStage(stop_criteria="Iteration Maximum", stop_value=1e30)
+
+    def test_huge_stop_value_allowed_for_time_criteria(self):
+        stage = AlgorithmStage(stop_criteria="Maximum Time [min]", stop_value=1e30)
+        assert stage.stop_value == 1e30
+
 
 class TestOptimizableSetSlotIndex:
     """The OptimizableSet helpers let callers interpret result.x slot-by-slot."""

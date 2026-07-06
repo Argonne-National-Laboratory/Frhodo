@@ -23,10 +23,7 @@ from frhodo._vendor.opendsm.outliers import (
     remove_outliers,
     _IQR_outlier,
 )
-from frhodo._vendor.opendsm.stats_basic import (
-    _median_absolute_deviation,
-    _weighted_quantile,
-)
+from frhodo._vendor.opendsm.stats_basic import _median_absolute_deviation, _weighted_quantile
 from frhodo._vendor.opendsm.utils import OoM_numba
 
 # Loss function constants
@@ -184,6 +181,8 @@ def get_C(
         has_weights = True
 
     if algo == "iqr_legacy":
+        # TODO: uncertain if these C functions should use np.min, np.mean, or np.max
+        # suspect we can switch to IQR below, but need to test
         if has_weights:
             bounds = _IQR_outlier(
                 resid - mu, weights=weights_arr, sigma_threshold=sigma, quantile=quantile
@@ -342,7 +341,7 @@ def generalized_loss_derivative(
     elif alpha <= LOSS_ALPHA_MIN:  # at -infinity, Welsch/Leclerc loss
         dloss_dx = x / scale**2 * np.exp(-0.5 * (x / scale) ** 2)
     else:
-        dloss_dx = x / scale**2 * ((x / scale) ** 2 / np.abs(alpha - 2) + 1)
+        dloss_dx = x / scale**2 * ((x / scale) ** 2 / np.abs(alpha - 2) + 1) ** (alpha / 2 - 1)
 
     return dloss_dx
 
@@ -532,86 +531,98 @@ def _numba_loss_weights(x_sq, alpha, alpha_min, min_weight):
 
 @numba.jit(nopython=True, error_model="numpy", cache=True)
 def _numba_brent_alpha(x_sq: np.ndarray, obs_weights: np.ndarray, alpha_min: float = LOSS_ALPHA_MIN) -> float:
-    """Find optimal alpha via Brent's method, fully in numba.
+    """Bounded Brent minimizer over alpha; mirrors scipy's _minimize_scalar_bounded.
 
-    Minimizes the weighted penalized loss over alpha in scaled space [0, 1].
-    Supports both uniform and kernel-weighted observations.
+    Same algorithm and tolerances as
+    ``scipy.optimize.minimize_scalar(method='Bounded',
+    bounds=[-1e-5, 1+1e-5], options={'xatol': 1e-5})``.
+    The parabolic safeguard uses the second-to-last step (Brent's
+    Numerical Recipes form), so `rat` and `e` are tracked separately.
     """
-    # Brent's method on [a, b] with golden section fallback
     a = -1e-5
     b = 1.0 + 1e-5
-    tol = 1e-5
-    golden = 0.3819660112501051  # (3 - sqrt(5)) / 2
+    xatol = 1e-5
+    sqrt_eps = 1.4901161193847656e-08  # sqrt(2.220446049250313e-16)
+    golden_mean = 0.3819660112501051  # 0.5 * (3 - sqrt(5))
+    maxiter = 500
 
-    def _loss(s):
-        return _numba_penalized_loss(x_sq, obs_weights, alpha_scaled(s), alpha_min)
-
-    # Initialize
-    x = a + golden * (b - a)
-    w = x
-    v = x
+    # Initial bracket midpoint via golden section
+    fulc = a + golden_mean * (b - a)
+    nfc = fulc
+    xf = fulc
+    rat = 0.0
     e = 0.0
-    fx = _loss(x)
-    fw = fx
-    fv = fx
+    fx = _numba_penalized_loss(x_sq, obs_weights, alpha_scaled(xf), alpha_min)
+    fnfc = fx
+    ffulc = fx
 
-    for _ in range(50):
-        midpoint = 0.5 * (a + b)
-        tol1 = tol * abs(x) + 1e-10
-        tol2 = 2.0 * tol1
+    xm = 0.5 * (a + b)
+    tol1 = sqrt_eps * abs(xf) + xatol / 3.0
+    tol2 = 2.0 * tol1
 
-        if abs(x - midpoint) <= (tol2 - 0.5 * (b - a)):
+    for _ in range(maxiter):
+        if abs(xf - xm) <= (tol2 - 0.5 * (b - a)):
             break
 
-        # Try parabolic interpolation
-        p = 0.0
-        q = 0.0
-        r = 0.0
+        do_golden = True
         if abs(e) > tol1:
-            r = (x - w) * (fx - fv)
-            q = (x - v) * (fx - fw)
-            p = (x - v) * q - (x - w) * r
+            # Parabolic fit
+            r = (xf - nfc) * (fx - ffulc)
+            q = (xf - fulc) * (fx - fnfc)
+            p = (xf - fulc) * q - (xf - nfc) * r
             q = 2.0 * (q - r)
             if q > 0.0:
                 p = -p
-            else:
-                q = -q
+            q = abs(q)
+            # Step ordering: r holds the step from TWO iterations ago (the
+            # Brent safeguard reference); e advances to the most recent step.
             r = e
+            e = rat
 
-        if abs(p) < abs(0.5 * q * r) and p > q * (a - x) and p < q * (b - x):
-            # Parabolic step
-            e = p / q
-            u = x + e
-            if (u - a) < tol2 or (b - u) < tol2:
-                e = tol1 if x < midpoint else -tol1
-        else:
-            # Golden section step
-            e = (b if x < midpoint else a) - x
-            e = golden * e
+            if abs(p) < abs(0.5 * q * r) and p > q * (a - xf) and p < q * (b - xf):
+                rat = p / q
+                x_new = xf + rat
+                if (x_new - a) < tol2 or (b - x_new) < tol2:
+                    si = 1.0 if (xm - xf) >= 0.0 else -1.0
+                    rat = tol1 * si
+                do_golden = False
 
-        u = x + (e if abs(e) >= tol1 else (tol1 if e > 0 else -tol1))
-        fu = _loss(u)
+        if do_golden:
+            if xf >= xm:
+                e = a - xf
+            else:
+                e = b - xf
+            rat = golden_mean * e
+
+        si = 1.0 if rat >= 0.0 else -1.0
+        step = si * max(abs(rat), tol1)
+        x = xf + step
+        fu = _numba_penalized_loss(x_sq, obs_weights, alpha_scaled(x), alpha_min)
 
         if fu <= fx:
-            if u < x:
-                b = x
+            if x >= xf:
+                a = xf
             else:
-                a = x
-            v = w; fv = fw
-            w = x; fw = fx
-            x = u; fx = fu
+                b = xf
+            fulc = nfc; ffulc = fnfc
+            nfc = xf; fnfc = fx
+            xf = x; fx = fu
         else:
-            if u < x:
-                a = u
+            if x < xf:
+                a = x
             else:
-                b = u
-            if fu <= fw or w == x:
-                v = w; fv = fw
-                w = u; fw = fu
-            elif fu <= fv or v == x or v == w:
-                v = u; fv = fu
+                b = x
+            if fu <= fnfc or nfc == xf:
+                fulc = nfc; ffulc = fnfc
+                nfc = x; fnfc = fu
+            elif fu <= ffulc or fulc == xf or fulc == nfc:
+                fulc = x; ffulc = fu
 
-    return alpha_scaled(x)
+        xm = 0.5 * (a + b)
+        tol1 = sqrt_eps * abs(xf) + xatol / 3.0
+        tol2 = 2.0 * tol1
+
+    return alpha_scaled(xf)
 
 
 def adaptive_loss_fcn(
@@ -635,8 +646,7 @@ def adaptive_loss_fcn(
         replace_nonfinite: Replace non-finite values with max finite value
         obs_weights: Optional per-observation weights for the loss sum.
             When provided, the loss becomes sum(obs_weights * penalized_loss)
-            instead of sum(penalized_loss).  Used by kernel_adaptive_weights
-            to localize alpha estimation.
+            instead of sum(penalized_loss).
 
     Returns:
         Tuple of (total loss value, alpha parameter used)
@@ -743,44 +753,6 @@ def adaptive_weights(
         )
 
     return generalized_loss_weights(x_normalized, alpha=alpha, min_weight=min_weight), C, alpha
-
-
-def _fast_weighted_alpha(r_normalized, obs_weights, n_candidates=20):
-    """Fast weighted alpha optimization via inlined grid search.
-
-    Avoids the overhead of repeated numba-jitted ``penalized_loss_fcn`` calls
-    by inlining the generalized loss computation.  ~7x faster than
-    ``adaptive_loss_fcn`` with ``minimize_scalar`` for typical array sizes.
-
-    Args:
-        r_normalized: Scale-normalized residuals.
-        obs_weights: Per-observation kernel weights (sum to 1).
-        n_candidates: Number of alpha candidates to evaluate.
-
-    Returns:
-        Optimal alpha value.
-    """
-    alpha_grid_s = np.linspace(0, 1, n_candidates)
-    alpha_grid = np.array([alpha_scaled(s) for s in alpha_grid_s])
-
-    x_sq = r_normalized ** 2
-    best_loss = np.inf
-    best_alpha = 2.0
-
-    for a in alpha_grid:
-        if a == 2.0:
-            loss_arr = 0.5 * x_sq
-        elif a <= LOSS_ALPHA_MIN:
-            loss_arr = 1.0 - np.exp(-0.5 * x_sq)
-        else:
-            abs_a_m2 = np.abs(a - 2.0)
-            loss_arr = abs_a_m2 / a * ((x_sq / abs_a_m2 + 1.0) ** (a / 2.0) - 1.0)
-        total = (obs_weights * (loss_arr + ln_Z(a, LOSS_ALPHA_MIN))).sum()
-        if total < best_loss:
-            best_loss = total
-            best_alpha = a
-
-    return best_alpha
 
 
 class KernelWeightCache:
@@ -943,45 +915,6 @@ class KernelWeightCache:
         if return_local_scale:
             return weights, median_alpha, C_interp
         return weights, median_alpha
-
-
-def kernel_adaptive_weights(
-    x: np.ndarray,
-    residuals: np.ndarray,
-    zone_knot_count: int = 10,
-    min_knot_spacing_pct: float = 0.025,
-    n_eff_min: int = 15,
-    min_weight: float = 0.0,
-    return_local_scale: bool = False,
-    _cache: Optional["KernelWeightCache"] = None,
-) -> Tuple[np.ndarray, float] | Tuple[np.ndarray, float, np.ndarray]:
-    """Kernel-weighted adaptive weights with bandwidth tied to model resolution.
-
-    Computes per-observation adaptive weights where both the scale (C) and
-    shape (alpha) of the generalized loss function are estimated locally via
-    Gaussian kernel weighting.
-
-    When called repeatedly on the same temperature array (e.g., across
-    adaptive iterations), pass a ``KernelWeightCache`` via ``_cache`` to
-    avoid recomputing bandwidth, evaluation grids, and kernel matrices.
-
-    Args:
-        x: Temperature values, sorted ascending (typically standardized).
-        residuals: Model residuals corresponding to x (same length).
-        zone_knot_count: Maximum interior knots per zone.
-        min_knot_spacing_pct: Minimum knot spacing as fraction of data range.
-        n_eff_min: Minimum effective neighbors per evaluation point.
-        min_weight: Minimum weight value.
-        return_local_scale: If True, return per-observation local scale (C)
-            as a third element.
-        _cache: Pre-computed kernel geometry.  If None, created internally.
-
-    Returns:
-        Tuple of (weights, median_alpha) or (weights, median_alpha, C_local).
-    """
-    if _cache is None:
-        _cache = KernelWeightCache(x, zone_knot_count, min_knot_spacing_pct, n_eff_min)
-    return _cache.compute_weights(residuals, min_weight=min_weight, return_local_scale=return_local_scale)
 
 
 # Pre-compile all Numba JIT functions at import time to eliminate first-call

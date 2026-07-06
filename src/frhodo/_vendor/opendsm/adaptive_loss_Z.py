@@ -277,11 +277,16 @@ def _de_boor(t, c, k, x):
     for j in range(k + 1):
         d[j] = c[s - k + j]
 
+    # De Boor recurrence: α = (x - t[i+j-p]) / (t[i+j-r+1] - t[i+j-p])
+    # where i is the knot span, p the degree, r the level. With
+    # left = i + j - p (= s - k + j) and right = i + j - r + 1
+    # (= left + k - r + 1), denom is t[right] - t[left] (NOT
+    # t[right + 1] — that off-by-one reaches one knot too far).
     for r in range(1, k + 1):
         for j in range(k, r - 1, -1):
             left = s - k + j
             right = left + k - r + 1
-            denom = t[right + 1] - t[left]
+            denom = t[right] - t[left]
             if denom == 0.0:
                 alpha = 0.0
             else:

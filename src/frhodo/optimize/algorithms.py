@@ -157,6 +157,19 @@ class Optimize:
             elif options["algorithm"] == "RBFOpt":
                 res[opt_type] = self.rbfopt(x0, bnds, options)
 
+            # The next stage starts from this stage's optimum, and the
+            # error floor re-anchors there — near-optimal residuals are
+            # where the floor has its intended meaning.
+            stage_s = res.get(opt_type, {}).get("s")
+            next_stage_runs = opt_type == "global" and opt_options["local"]["run"]
+            if stage_s is not None and np.all(np.isfinite(stage_s)):
+                x0 = np.asarray(stage_s, dtype=float)
+                recalibrate = getattr(
+                    self.Scaled_CostFunction, "calibrate_error_floor", None,
+                )
+                if next_stage_runs and recalibrate is not None:
+                    recalibrate(x0)
+
             if options["algorithm"] is nlopt.GN_MLSL_LDS:
                 break
 
@@ -205,9 +218,9 @@ class Optimize:
             sub_opt.set_ftol_rel(options["ftol_rel"])
             opt.set_local_optimizer(sub_opt)
 
-        x = opt.optimize(x0)
+        s_opt = opt.optimize(x0)
 
-        obj_fcn, x, shock_output = self.Scaled_CostFunction(x, optimizing=False)
+        obj_fcn, x, shock_output = self.Scaled_CostFunction(s_opt, optimizing=False)
 
         if nlopt.SUCCESS > 0:
             success = True
@@ -216,8 +229,9 @@ class Optimize:
             success = False
             msg = neg_msg[nlopt.SUCCESS - 1]
 
-        return {
+        result = {
             "x": x,
+            "s": s_opt,
             "shock": shock_output,
             "fval": obj_fcn,
             "nfev": opt.get_numevals(),
@@ -225,6 +239,8 @@ class Optimize:
             "message": msg,
             "time": timer() - timer_start,
         }
+
+        return result
 
     def pygmo(self, x0, bnds, options):
         class pygmo_objective_fcn:
@@ -268,11 +284,12 @@ class Optimize:
 
         pop = algo.evolve(pop)
 
-        x = pop.champion_x
-        obj_fcn, x, shock_output = self.Scaled_CostFunction(x, optimizing=False)
+        s_opt = pop.champion_x
+        obj_fcn, x, shock_output = self.Scaled_CostFunction(s_opt, optimizing=False)
 
-        return {
+        result = {
             "x": x,
+            "s": s_opt,
             "shock": shock_output,
             "fval": obj_fcn,
             "nfev": pop.problem.get_fevals(),
@@ -280,6 +297,8 @@ class Optimize:
             "message": "Optimization terminated successfully.",
             "time": timer() - timer_start,
         }
+
+        return result
 
     def rbfopt(self, x0, bnds, options):
         timer_start = timer()
@@ -316,15 +335,18 @@ class Optimize:
                     nlp_solver_path=path["ipopt"],
                 )
                 algo = rbfopt.RbfoptAlgorithm(settings, bb, init_node_pos=x0)
-                val, x, itercount, evalcount, fast_evalcount = algo.optimize()
+                val, s_opt, itercount, evalcount, fast_evalcount = algo.optimize()
 
-                obj_fcn, x, shock_output = self.Scaled_CostFunction(x, optimizing=False)
+                obj_fcn, x, shock_output = self.Scaled_CostFunction(
+                    s_opt, optimizing=False,
+                )
 
                 output["message"] = "Optimization terminated successfully."
                 output["success"] = True
 
-        return {
+        result = {
             "x": x,
+            "s": s_opt,
             "shock": shock_output,
             "fval": obj_fcn,
             "nfev": evalcount + fast_evalcount,
@@ -332,3 +354,5 @@ class Optimize:
             "message": output["message"],
             "time": timer() - timer_start,
         }
+
+        return result

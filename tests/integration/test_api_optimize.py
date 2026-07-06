@@ -8,6 +8,10 @@ local-only optimization (2 iterations) against a synthetic shock so
 the test stays under a few seconds.
 """
 import cantera as ct
+import copy
+import sys
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
@@ -34,11 +38,14 @@ from frhodo.simulation.mechanism.mechanism_loader import MechanismLoader
 from frhodo.simulation.shock.state import RuntimeReactorState
 
 
+
 def _first_arrhenius_idx(mech):
-    return next(
+    idx = next(
         i for i, r in enumerate(mech.gas.reactions())
         if type(r.rate) is ct.ArrheniusRate
     )
+
+    return idx
 
 
 def _first_recastable_pdep_idx(mech):
@@ -64,8 +71,6 @@ def loaded_cycloheptane(loaded_cycloheptane):
     the optimizer's ``update_mech_coef_opt`` mutates mech.coeffs in place;
     later tests must not see those mutations.
     """
-    import copy
-
     mech = loaded_cycloheptane
     snapshot = {
         "coeffs": copy.deepcopy(mech.coeffs),
@@ -81,7 +86,7 @@ def loaded_cycloheptane(loaded_cycloheptane):
 
 def _synthetic_shock():
     t = np.linspace(1e-7, 5e-5, 50)
-    return ExperimentShock(
+    shock = ExperimentShock(
         t=t,
         observable=np.zeros_like(t),
         initial=PostShockState(
@@ -92,9 +97,11 @@ def _synthetic_shock():
         t_end=5e-5,
     )
 
+    return shock
+
 
 def _cost_settings():
-    return CostSettings(
+    settings = CostSettings(
         obj_fcn_type="Residual",
         scale="Linear",
         bisymlog_scaling_factor=1.0,
@@ -104,10 +111,12 @@ def _cost_settings():
         bayes_unc_sigma=2.0,
     )
 
+    return settings
+
 
 def _local_only(max_iters=2):
     """Tiny algorithm settings: skip the global stage, run local for ``max_iters``."""
-    return AlgorithmSettings(
+    settings = AlgorithmSettings(
         global_stage=AlgorithmStage(
             algorithm="RBFOpt", enabled=False, stop_value=1.0,
         ),
@@ -118,16 +127,20 @@ def _local_only(max_iters=2):
         ),
     )
 
+    return settings
+
 
 def _reactor_state():
-    return RuntimeReactorState(
+    state = RuntimeReactorState(
         name="Incident Shock Reactor", t_end=5e-5, t_unit_conv=1e-6,
         sim_interp_factor=1, ode_solver="BDF", ode_rtol=1e-4, ode_atol=1e-7,
     )
 
+    return state
+
 
 def _build_request(mech, max_iters=2):
-    return OptimizationRequest(
+    request = OptimizationRequest(
         shocks=[_synthetic_shock()],
         optimizable=OptimizableSpec(rates=[
             OptimizableRate(
@@ -140,6 +153,8 @@ def _build_request(mech, max_iters=2):
         algorithm=_local_only(max_iters),
         observable=ObservableSettings(),
     )
+
+    return request
 
 
 @pytest.mark.slow
@@ -180,6 +195,26 @@ class TestOptimizeResidualTypedRequest:
         assert first.stage in ("global", "local")
         assert np.isfinite(first.fval)
         assert first.is_best is True
+
+    def test_per_shock_diagnostics_reach_the_progress_payload(
+        self, loaded_cycloheptane,
+    ):
+        """The objective's per-shock diagnostics (the outcome-view data
+        contract) must flow through stat_plot every iteration."""
+        request = _build_request(loaded_cycloheptane)
+        updates: list[IterationUpdate] = []
+        cb = OptimizationCallbacks(on_iteration=updates.append)
+        optimize_residual(loaded_cycloheptane, request, callbacks=cb)
+        diag = updates[0].stat_plot["per_shock"]
+        assert diag is not None, "per_shock diagnostics missing from stat_plot"
+        n = len(request.shocks)
+        for key in ("loss", "z", "irls_weights", "coverage", "user",
+                    "sigma_bar", "T", "P"):
+            assert len(np.atleast_1d(diag[key])) == n, (
+                f"per_shock[{key!r}] should have one entry per shock"
+            )
+        assert np.isfinite(diag["mu"]) and 1.0 <= diag["alpha"] <= 2.0
+        assert diag["c_floor"] > 0.0
 
     def test_on_start_fires_with_start_info(self, loaded_cycloheptane):
         request = _build_request(loaded_cycloheptane)
@@ -259,7 +294,6 @@ class TestOptimizeResidualTypedRequest:
     def test_no_qt_dependency(self, loaded_cycloheptane):
         request = _build_request(loaded_cycloheptane, max_iters=1)
         optimize_residual(loaded_cycloheptane, request)
-        import sys
 
         assert "qtpy" not in sys.modules.get("frhodo.api").__dict__
 
@@ -313,7 +347,6 @@ class TestApplyOptimizationResult:
         request = _build_request(loaded_cycloheptane)
         result = optimize_residual(loaded_cycloheptane, request)
         # Manually craft a result with the wrong x length
-        from dataclasses import replace
         bad = replace(result, x=np.array([1.0]))
         with pytest.raises(ValueError, match="entries"):
             apply_optimization_result(loaded_cycloheptane, bad)
@@ -321,7 +354,6 @@ class TestApplyOptimizationResult:
     def test_rejects_missing_optimizable_used(self, loaded_cycloheptane):
         request = _build_request(loaded_cycloheptane)
         result = optimize_residual(loaded_cycloheptane, request)
-        from dataclasses import replace
         bad = replace(result, optimizable_used=None)
         with pytest.raises(ValueError, match="optimizable_used"):
             apply_optimization_result(loaded_cycloheptane, bad)

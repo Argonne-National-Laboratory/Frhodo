@@ -316,6 +316,7 @@ class Multithread_Optimize:
             bisymlog_scaling_factor=p.plot.signal.bisymlog.scaling_factor,
             loss_alpha=opt_settings.get("obj_fcn", "alpha"),
             loss_c=opt_settings.get("obj_fcn", "c"),
+            coverage_weighting=opt_settings.get("obj_fcn", "coverage_weighting"),
             bayes_dist_type=opt_settings.get("obj_fcn", "bayes_dist_type"),
             bayes_unc_sigma=opt_settings.get("obj_fcn", "bayes_unc_sigma"),
         )

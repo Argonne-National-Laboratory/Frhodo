@@ -200,3 +200,46 @@ class TestBayesianWeightsFlow:
 
         np.testing.assert_array_equal(captured["weights_data"], user_weights)
         assert captured["sigma_multiple"] == pytest.approx(iface.bayes_unc_sigma)
+
+
+class TestEvaluateGoldenPin:
+    """Numeric pins on the Bayesian objective path, recorded before the
+    objective rebuild. These freeze current behavior: the Bayesian branch
+    is contractually unchanged until its disposition decision."""
+
+    def _output_dict(self, shift=0.0):
+        obs_exp = [
+            np.array([1.0, 1.2, 1.4, 1.6]),
+            np.array([2.0, 2.2, 2.4]),
+        ]
+        obs_sim = [arr * (1.0 + shift) for arr in obs_exp]
+        obs_bounds = [
+            np.column_stack([arr - 0.3, arr + 0.3]) for arr in obs_exp
+        ]
+
+        return {
+            "obs_sim_interp": obs_sim,
+            "obs_exp": obs_exp,
+            "obs_bounds": obs_bounds,
+        }
+
+    def test_iteration_zero_sets_baseline_and_returns_zero(self):
+        interface = CheKiPEUQ_Frhodo_interface(**_make_inputs())
+        weights = np.full(7, 1.0 / 7.0)
+        log_rates = np.linspace(1.0, 2.0, 2)
+        x = np.array([1.0, 0.0, 5000.0])
+        obj0 = interface.evaluate(log_rates, x, self._output_dict(), weights, 0)
+        assert obj0 == 0.0
+        baseline = float(interface.Bayesian_dict["obj_fcn_initial"])
+        assert baseline == pytest.approx(-0.1180247972179953, rel=1e-9)
+
+    def test_relative_percent_objective_is_pinned(self):
+        interface = CheKiPEUQ_Frhodo_interface(**_make_inputs())
+        weights = np.full(7, 1.0 / 7.0)
+        log_rates = np.linspace(1.0, 2.0, 2)
+        x = np.array([1.0, 0.0, 5000.0])
+        interface.evaluate(log_rates, x, self._output_dict(), weights, 0)
+        obj1 = interface.evaluate(
+            log_rates, x, self._output_dict(shift=0.05), weights, 1
+        )
+        assert obj1 == pytest.approx(326.2026362891302, rel=1e-9)
