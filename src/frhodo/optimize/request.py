@@ -53,6 +53,9 @@ class OptimizationRequest(BaseModel):
             should plot live, or ``None`` to disable live plotting.
         save_recast_path: When set, after the run the recast (Troe)
             mechanism is written here.
+        start_scalers: Explicit optimizer start point in scaler space
+            (one value per rate sample), clipped strictly inside the
+            bounds. ``None`` starts from the mechanism's current rates.
     """
     shocks: list[ExperimentShock]
     optimizable: OptimizableSpec
@@ -67,6 +70,7 @@ class OptimizationRequest(BaseModel):
     max_processors: PositiveInt = 1
     display_shock_index: int | None = None
     save_recast_path: Path | None = None
+    start_scalers: list[float] | None = None
 
     model_config = ConfigDict(extra="forbid", frozen=True,
                               arbitrary_types_allowed=True)

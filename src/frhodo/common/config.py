@@ -75,7 +75,10 @@ class OptimizationSettings(BaseModel):
         default_factory=lambda: {"global": True, "local": True}
     )
     algorithm: dict[str, str] = Field(
-        default_factory=lambda: {"global": "RBFOpt", "local": "Subplex"}
+        default_factory=lambda: {
+            "global": "Smurf (Sensitivity Multistart Rate Fitting)",
+            "local": "Subplex (field basis)",
+        }
     )
     initial_step: dict[str, float] = Field(
         default_factory=lambda: {"global": 5.0e-1, "local": 1.0e-1}
@@ -87,7 +90,7 @@ class OptimizationSettings(BaseModel):
         }
     )
     stop_criteria_value: dict[str, float] = Field(
-        default_factory=lambda: {"global": 2500.0, "local": 2500.0}
+        default_factory=lambda: {"global": 400.0, "local": 2500.0}
     )
     relative_x_tolerance: dict[str, float] = Field(
         default_factory=lambda: {"global": 1.0e-3, "local": 1.0e-4}
@@ -97,6 +100,9 @@ class OptimizationSettings(BaseModel):
     )
     initial_population_multiplier: dict[str, float] = Field(
         default_factory=lambda: {"global": 1.0}
+    )
+    multistart_count: dict[str, int] = Field(
+        default_factory=lambda: {"global": 16}
     )
     weight_function: WeightFunction = Field(default_factory=WeightFunction)
 

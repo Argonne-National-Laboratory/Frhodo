@@ -15,11 +15,14 @@ from frhodo.api import (
 )
 
 
+
 def _first_arrhenius_idx(mech):
-    return next(
+    idx = next(
         i for i, r in enumerate(mech.gas.reactions())
         if type(r.rate) is ct.ArrheniusRate
     )
+
+    return idx
 
 
 class TestCoefUncertainty:
@@ -141,8 +144,6 @@ class TestOptimizableSpecBuild:
         assert coef_names == {"pre_exponential_factor"}
 
     def test_rejects_pdep_with_coef_override(self, loaded_cycloheptane):
-        import cantera as ct
-
         pdep_idx = next(
             (
                 i for i, r in enumerate(loaded_cycloheptane.gas.reactions())
@@ -195,8 +196,11 @@ class TestOptimizableSpecBuilder:
 class TestAlgorithmSettings:
     def test_defaults(self):
         s = AlgorithmSettings()
-        assert s.global_stage.algorithm == "RBFOpt"
-        assert s.local_stage.algorithm == "Subplex"
+        assert s.global_stage.algorithm == (
+            "Smurf (Sensitivity Multistart Rate Fitting)")
+        assert s.global_stage.stop_value == 400.0
+        assert s.global_stage.multistart_count == 16
+        assert s.local_stage.algorithm == "Subplex (field basis)"
         assert s.global_stage.enabled is True
         assert s.local_stage.enabled is True
 

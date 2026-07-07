@@ -19,6 +19,7 @@ from frhodo.simulation.shock.incident_shock_reactor import (
     IncidentShockReactor, _Geometry, _shock_derivatives, _shock_jacobian,
     _shock_param_rhs_gradient,
 )
+from frhodo.optimize.screening import _run_start_sim
 from frhodo.simulation.shock.sensitivity import compute_sensitivity
 from frhodo.simulation.shock.shock_solver import ShockJumpSolver
 from frhodo.simulation.shock.state import RuntimeReactorState

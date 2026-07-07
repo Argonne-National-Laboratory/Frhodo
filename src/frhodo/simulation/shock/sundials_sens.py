@@ -173,6 +173,21 @@ def compute_adjoint_sensitivity(
         NotImplementedError: From :func:`_setup_sundials_sens` for
             unrecognized observables.
     """
+    t_out, sens = _adjoint_sweep(
+        mech, reactor_state, shock, observable, species_idx,
+        time_grid=time_grid, rtol=rtol, atol_T=atol_T,
+        atol_species=atol_species,
+    )
+
+    return t_out, sens
+
+
+def _adjoint_sweep(mech, reactor_state, shock, observable, species_idx, *,
+                   time_grid, rtol, atol_T, atol_species):
+    """Backward-solve driver for per-reaction multiplier sensitivities."""
+    def empty_shape():
+        return (0, mech.gas.n_reactions)
+
     try:
         gas, n_rxns, Wk, saved_TPX, geometry, reactor = _setup_sundials_sens(
             mech, reactor_state, shock, observable, species_idx,
@@ -181,7 +196,7 @@ def compute_adjoint_sensitivity(
         raise
     except Exception:
         empty_t = np.zeros(0)
-        empty_sens = np.zeros((0, mech.gas.n_reactions))
+        empty_sens = np.zeros(empty_shape())
 
         return empty_t, empty_sens
 
@@ -212,6 +227,8 @@ def compute_adjoint_sensitivity(
             J = _jac_at(t, y)
             JB[:] = -J.T
 
+        n_quad = n_rxns
+
         def quad_rhsB(t, y, lam, qdot):
             dgdp = _shock_param_rhs_gradient(gas, y, geometry, Wk)
             qdot[:] = lam @ dgdp
@@ -219,7 +236,7 @@ def compute_adjoint_sensitivity(
         adj = AdjointProblem(
             reactor._integ,
             rhsB=rhsB, jacB=jacB, quad_rhsB=quad_rhsB,
-            n_quadrature=n_rxns, n_checkpoints=150,
+            n_quadrature=n_quad, n_checkpoints=150,
             rtolB=rtol, atolB=atol_vec,
             rtolQB=rtol, atolQB=atol_species,
             # Raise the backward-solve step cap when the setter is
@@ -234,11 +251,11 @@ def compute_adjoint_sensitivity(
             forward_y = adj.run_forward(positive_t)
         except Exception:
             empty_t = np.zeros(0)
-            empty_sens = np.zeros((0, n_rxns))
+            empty_sens = np.zeros(empty_shape())
 
             return empty_t, empty_sens
 
-        sens = np.zeros((output_t.size, n_rxns), dtype=float)
+        sens = np.zeros((output_t.size, *empty_shape()[1:]), dtype=float)
         # CVODES adjoint is most efficient when backward sweeps walk t_m
         # in monotonically decreasing order — the checkpoint scheme is
         # optimized for that traversal.
@@ -272,7 +289,6 @@ def compute_adjoint_sensitivity(
 
 
 # ────────────────────── forward sensitivity backend ────────────────────
-
 def compute_forward_sensitivity(
     mech,
     reactor_state,

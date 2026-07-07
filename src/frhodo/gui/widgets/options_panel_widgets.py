@@ -1269,8 +1269,11 @@ optAlgorithm = {
     "PSO (Particle Swarm Optimization)": "pygmo_PSO",
     "GWO (Grey Wolf Optimizer)": "pygmo_GWO",
     "RBFOpt": "RBFOpt",
+    "Smurf (Sensitivity Multistart Rate Fitting)": "smurf",
     "Nelder-Mead Simplex": nlopt.LN_NELDERMEAD,
     "Subplex": nlopt.LN_SBPLX,
+    "Subplex (whitened)": "whitened_sbplx",
+    "Subplex (field basis)": "field_sbplx",
     "COBYLA": nlopt.LN_COBYLA,
     "BOBYQA": nlopt.LN_BOBYQA,
     "IPOPT (Interior Point Optimizer)": "pygmo_IPOPT",
@@ -1281,7 +1284,39 @@ populationAlgorithms = [
     nlopt.GN_MLSL_LDS,
     nlopt.GN_MLSL,
     nlopt.GN_ISRES,
+    "pygmo_DE",
+    "pygmo_SaDE",
+    "pygmo_PSO",
+    "pygmo_GWO",
 ]
+
+# Per-algorithm reset values (Ctrl+R / right-click Reset) for the stage
+# settings boxes; algorithms absent from a table keep the generic reset.
+GLOBAL_RESETS = {
+    "smurf": {"stop_criteria_val": 400, "initial_step": 0.5,
+              "xtol_rel": 1e-3, "ftol_rel": 5e-2, "multistart_count": 16},
+    "RBFOpt": {"stop_criteria_val": 600, "initial_step": 0.5,
+               "xtol_rel": 1e-3, "ftol_rel": 5e-2},
+    nlopt.GN_DIRECT: {"stop_criteria_val": 2500, "initial_step": 0.5},
+    nlopt.GN_DIRECT_L: {"stop_criteria_val": 2500, "initial_step": 0.5},
+    nlopt.GN_CRS2_LM: {"stop_criteria_val": 2500, "initial_step": 0.5,
+                       "initial_pop_multiplier": 1.0},
+    "pygmo_DE": {"stop_criteria_val": 2500, "initial_pop_multiplier": 1.0},
+    "pygmo_SaDE": {"stop_criteria_val": 2500, "initial_pop_multiplier": 1.0},
+    "pygmo_PSO": {"stop_criteria_val": 2500, "initial_pop_multiplier": 1.0},
+    "pygmo_GWO": {"stop_criteria_val": 2500, "initial_pop_multiplier": 1.0},
+}
+LOCAL_RESETS = {
+    "field_sbplx": {"stop_criteria_val": 1500, "initial_step": 0.1,
+                    "xtol_rel": 1e-4, "ftol_rel": 1e-3},
+    "whitened_sbplx": {"stop_criteria_val": 1500, "initial_step": 0.1,
+                       "xtol_rel": 1e-4, "ftol_rel": 1e-3},
+    nlopt.LN_SBPLX: {"stop_criteria_val": 2500, "initial_step": 1e-2,
+                     "xtol_rel": 1e-4, "ftol_rel": 1e-3},
+    nlopt.LN_NELDERMEAD: {"stop_criteria_val": 2500, "initial_step": 1e-2},
+    nlopt.LN_COBYLA: {"stop_criteria_val": 2500, "initial_step": 1e-2},
+    nlopt.LN_BOBYQA: {"stop_criteria_val": 2500, "initial_step": 1e-2},
+}
 
 
 class Optimization(QtCore.QObject):
@@ -1317,6 +1352,7 @@ class Optimization(QtCore.QObject):
                 "xtol_rel": [],
                 "ftol_rel": [],
                 "initial_pop_multiplier": [],
+                "multistart_count": [],
             },
             "local": {
                 "run": parent.local_opt_enable_box,
@@ -1334,11 +1370,13 @@ class Optimization(QtCore.QObject):
                 parent.global_text_1,
                 parent.global_text_2,
                 parent.global_text_3,
+                parent.global_text_4,
             ],
             "local": [parent.local_text_1, parent.local_text_2, parent.local_text_3],
         }
 
         self._create_spinboxes()
+        self.labels["global"].append(self.multistart_label)
 
         for opt_type, boxes in self.widgets.items():
             for var_type, box in boxes.items():
@@ -1398,6 +1436,23 @@ class Optimization(QtCore.QObject):
                     self.widgets[opt_type][var_type].setStrDecimals(1)
 
                 layout.addWidget(self.widgets[opt_type][var_type], n, 1)
+
+        # Smurf's multistart count shares the pop-multiplier row slot;
+        # visibility is swapped per selected algorithm.
+        count_box = spinbox(parent=parent, value=16, numFormat="g")
+        count_box.setMinimum(1)
+        count_box.setMaximum(256)
+        count_box.setStrDecimals(4)
+        count_box.setSingleIntStep(1)
+        tip = ("Number of Smurf coarse-descent starts (the incumbent "
+               "plus Sobol-placed perturbations); more starts reduce "
+               "run-to-run variance within the evaluation budget")
+        count_box.setToolTip(tip)
+        self.widgets["global"]["multistart_count"] = count_box
+        self.multistart_label = QtWidgets.QLabel("Multistart Count", parent)
+        self.multistart_label.setToolTip(tip)
+        parent.gridLayout_60.addWidget(self.multistart_label, 5, 0)
+        parent.gridLayout_60.addWidget(count_box, 5, 1)
 
     def update_obj_fcn_settings(self, event=None):
         parent = self.parent()
@@ -1483,20 +1538,6 @@ class Optimization(QtCore.QObject):
                         self.settings[opt_type][var_type] = optAlgorithm[
                             box.currentText()
                         ]
-                        if (
-                            sender is box and box is parent.global_opt_choice_box
-                        ):  # Toggle pop_multiplier box
-                            if (
-                                self.settings[opt_type][var_type]
-                                in populationAlgorithms
-                            ):
-                                self.widgets[opt_type][
-                                    "initial_pop_multiplier"
-                                ].setEnabled(True)
-                            else:
-                                self.widgets[opt_type][
-                                    "initial_pop_multiplier"
-                                ].setEnabled(False)
                     else:
                         self.settings[opt_type][var_type] = box.currentText()
                         if (
@@ -1515,7 +1556,36 @@ class Optimization(QtCore.QObject):
                 elif isinstance(box, QtWidgets.QCheckBox):
                     self.settings[opt_type][var_type] = box.isChecked()
 
+        self._update_global_algorithm_extras()
         self.save_settings(event)
+
+    def _update_global_algorithm_extras(self):
+        """Swap the pop-multiplier row for the multistart-count row when
+        Smurf is the global algorithm; the multiplier only applies to
+        population algorithms and stays disabled otherwise. Also points
+        every stage box's reset value at the selected algorithm's
+        recommended settings."""
+        parent = self.parent()
+        algorithm = self.settings["global"]["algorithm"]
+        pop_box = self.widgets["global"]["initial_pop_multiplier"]
+        count_box = self.widgets["global"]["multistart_count"]
+        is_smurf = algorithm == "smurf"
+        parent.global_text_4.setVisible(not is_smurf)
+        pop_box.setVisible(not is_smurf)
+        self.multistart_label.setVisible(is_smurf)
+        count_box.setVisible(is_smurf)
+        if not is_smurf:
+            enabled = algorithm in populationAlgorithms
+            parent.global_text_4.setEnabled(enabled)
+            pop_box.setEnabled(enabled)
+
+        for opt_type, table in (("global", GLOBAL_RESETS),
+                                ("local", LOCAL_RESETS)):
+            resets = table.get(self.settings[opt_type]["algorithm"], {})
+            for var_type, value in resets.items():
+                box = self.widgets[opt_type].get(var_type)
+                if hasattr(box, "_set_reset_value"):
+                    box._set_reset_value(value)
 
     def save_settings(self, event=None):
         if event is None:

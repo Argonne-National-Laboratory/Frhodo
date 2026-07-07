@@ -166,6 +166,22 @@ class TestOptimizeResidualTypedRequest:
         result = optimize_residual(loaded_cycloheptane, request)
         assert result.success, f"optimize_residual failed: {result.message}"
         assert np.isfinite(result.fval), f"fval was {result.fval}"
+
+    @pytest.mark.parametrize("local_algo", ["BOBYQA", "BOBYQA (whitened)", "Subplex (field basis)"])
+    def test_model_based_local_algorithm_runs(self, loaded_cycloheptane,
+                                              local_algo):
+        base = _build_request(loaded_cycloheptane)
+        algorithm = AlgorithmSettings(
+            global_stage=AlgorithmStage(
+                algorithm="RBFOpt", enabled=False, stop_value=1.0),
+            local_stage=AlgorithmStage(
+                algorithm=local_algo, enabled=True, max_eval=8,
+                stop_value=8.0),
+        )
+        request = base.model_copy(update={"algorithm": algorithm})
+        result = optimize_residual(loaded_cycloheptane, request)
+        assert result.success, f"{local_algo} failed: {result.message}"
+        assert np.isfinite(result.fval), f"fval was {result.fval}"
         assert result.nfev >= 1
 
     def test_x_has_one_entry_per_optimized_coefficient(self, loaded_cycloheptane):
@@ -424,3 +440,88 @@ class TestApplyOptimizationResult:
             apply_optimization_result(loaded_cycloheptane, bad)
 
 
+
+
+def _smurf_request(mech, max_iters=24):
+    temps = (1400.0, 1600.0, 1800.0)
+    shocks = []
+    for temperature in temps:
+        t = np.linspace(1e-7, 5e-5, 50)
+        shocks.append(ExperimentShock(
+            t=t, observable=np.zeros_like(t),
+            initial=PostShockState(
+                T_reac=temperature, P_reac=20000.0, u2=181.85,
+                rho1=0.0230433, composition={"Kr": 0.96, "cC7H14": 0.04}),
+            t_end=5e-5))
+    arrh = [i for i, r in enumerate(mech.gas.reactions())
+            if type(r.rate) is ct.ArrheniusRate][:2]
+    request = OptimizationRequest(
+        shocks=shocks,
+        optimizable=OptimizableSpec(rates=[
+            OptimizableRate(rxn_idx=i, rate=RateUncertainty(factor=2.0))
+            for i in arrh]),
+        reactor_state=_reactor_state(),
+        cost=_cost_settings(),
+        algorithm=AlgorithmSettings(
+            global_stage=AlgorithmStage(
+                algorithm="Smurf (Sensitivity Multistart Rate Fitting)",
+                enabled=True, max_eval=max_iters, stop_value=float(max_iters)),
+            local_stage=AlgorithmStage(
+                algorithm="Subplex", enabled=False, stop_value=1.0)),
+        observable=ObservableSettings())
+
+    return request
+
+
+@pytest.mark.slow
+class TestSmurfGlobalStage:
+    def test_smurf_runs_end_to_end(self, loaded_cycloheptane):
+        request = _smurf_request(loaded_cycloheptane)
+        result = optimize_residual(loaded_cycloheptane, request)
+        assert result.success, f"Smurf global stage failed: {result.message}"
+        assert np.isfinite(result.fval)
+        assert result.x.size == len(result.optimizable_used.coefficients)
+
+    def test_smurf_emits_progress_updates_with_sim_traces(
+        self, loaded_cycloheptane,
+    ):
+        """The signal-plot overlay feeds off the raw progress payload;
+        Smurf's scored evaluations must emit it like any other algorithm."""
+        request = _smurf_request(loaded_cycloheptane)
+        raw: list[dict] = []
+        cb = OptimizationCallbacks(on_progress=raw.append)
+        optimize_residual(loaded_cycloheptane, request, callbacks=cb)
+        global_updates = [u for u in raw if u.get("type") == "global"]
+        assert global_updates, "no global-stage progress updates from Smurf"
+        assert "sim_traces" in global_updates[0], (
+            "first Smurf update must carry sim_traces"
+        )
+        assert global_updates[0]["sim_traces"].get("start") is not None, (
+            "start traces must ship on Smurf's first emit"
+        )
+        with_current = [u for u in global_updates
+                        if u.get("sim_traces", {}).get("current")]
+        assert with_current, "no Smurf update carried current sim traces"
+
+    def test_smurf_respects_eval_budget(self, loaded_cycloheptane):
+        budget = 10
+        request = _smurf_request(loaded_cycloheptane, max_iters=budget)
+        result = optimize_residual(loaded_cycloheptane, request)
+        assert result.success, f"Smurf failed: {result.message}"
+        assert result.nfev <= budget, (
+            f"Smurf spent {result.nfev} evals against a budget of "
+            f"{budget}")
+
+    def test_smurf_pooled_run_close_to_serial(self, loaded_cycloheptane):
+        """Pooled and serial runs diverge in trajectory (per-shock
+        time-shift warm-start state evolves master-side only in serial
+        mode), so the bar is closeness, not bit-parity."""
+        serial = optimize_residual(
+            loaded_cycloheptane, _smurf_request(loaded_cycloheptane))
+        pooled_request = _smurf_request(loaded_cycloheptane).model_copy(
+            update={"multiprocessing": True, "max_processors": 2})
+        pooled = optimize_residual(loaded_cycloheptane, pooled_request)
+        assert pooled.success, f"pooled Smurf failed: {pooled.message}"
+        assert pooled.fval == pytest.approx(serial.fval, rel=0.05), (
+            f"pooled run diverged from serial beyond trajectory noise: "
+            f"{pooled.fval} vs {serial.fval}")

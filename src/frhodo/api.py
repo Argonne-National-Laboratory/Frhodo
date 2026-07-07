@@ -65,6 +65,7 @@ from frhodo.optimize.request import OptimizationRequest
 from frhodo.optimize.residual import (
     OptimizeRunCallbacks,
     OptimizeRunInputs,
+    evaluate_residual_points,
     optimize_residual as _run_residual_loop,
 )
 from frhodo.optimize.spec import (
@@ -645,6 +646,118 @@ class OptimizationCallbacks:
     worker_pool: Any = None  # PersistentWorkerPool — Any to avoid circular import
 
 
+def evaluate_residual(
+    mech: ChemicalMechanism,
+    request: "OptimizationRequest",
+    points=None,
+    *,
+    callbacks: OptimizationCallbacks | None = None,
+) -> list[float]:
+    """Objective values at explicit scaler-space points, no search.
+
+    Same preparation as :func:`optimize_residual` (recast, trimming,
+    weighting, floor calibration); each point is evaluated quietly.
+    ``points=None`` scores the mechanism as-is. Used for scoring saved
+    optima on a campaign.
+    """
+    cb = callbacks or OptimizationCallbacks()
+    translated = _translate_request(mech, request, cb.log)
+    if translated is None:
+        raise ValueError(
+            "OptimizableSpec is empty (no reactions or coefficients selected)"
+        )
+    inputs, _optimizable_set, _display = translated
+
+    if inputs.multiprocessing:
+        mech_payload = MechBuildPayload(
+            reset_mech=mech.reset_mech,
+            thermo_coeffs=mech.thermo_coeffs,
+            coeffs=mech.coeffs,
+            coeffs_bnds=mech.coeffs_bnds,
+            rate_bnds=mech.rate_bnds,
+        )
+    else:
+        mech_payload = None
+    engine_callbacks = OptimizeRunCallbacks(mech_payload=mech_payload)
+    values = evaluate_residual_points(inputs, points, engine_callbacks)
+
+    return values
+
+
+def _translate_request(mech, request, log):
+    """Resolve an :class:`OptimizationRequest` into engine inputs.
+
+    Returns ``(inputs, optimizable_set, default_display_shock)`` or
+    ``None`` when the optimizable spec selects nothing. Mutates
+    ``mech`` (bounds bookkeeping and the Troe recast).
+    """
+    optimizable_builder = request.optimizable.to_builder(mech)
+    optimizable_set = optimizable_builder.build(mech)
+    coef_opt = list(optimizable_set.coefficients)
+    if not coef_opt:
+        return None
+
+    shocks2run = [_to_internal_shock(s, request, mech) for s in request.shocks]
+
+    rxn_coef_opt = build_rxn_coef_opt(mech, coef_opt, shocks2run)
+    rxn_rate_opt = build_rxn_rate_opt(mech, rxn_coef_opt)
+
+    _, mech_rebuilt = mech.recast_to_troe(
+        rxn_coef_opt, rxn_rate_opt, optimizable_builder,
+    )
+
+    if log is not None and mech.recast_log_rms:
+        for rxnIdx in sorted(mech.recast_log_rms):
+            log_rms = mech.recast_log_rms[rxnIdx]
+            log(f"R{rxnIdx + 1} recast to Troe: fit log-RMS = {log_rms:.4f}")
+
+    if mech_rebuilt:
+        optimizable_set = request.optimizable.build(mech)
+        coef_opt = list(optimizable_set.coefficients)
+        rxn_coef_opt = build_rxn_coef_opt(mech, coef_opt, shocks2run)
+        rxn_rate_opt = build_rxn_rate_opt(mech, rxn_coef_opt)
+
+    lb, ub = rxn_rate_opt["bnds"]["lower"], rxn_rate_opt["bnds"]["upper"]
+    if request.start_scalers is not None:
+        initial_scalers = np.asarray(request.start_scalers, dtype=float)
+        if initial_scalers.size != rxn_rate_opt["x0"].size:
+            raise ValueError(
+                f"start_scalers has {initial_scalers.size} entries; the "
+                f"optimizable set has {rxn_rate_opt['x0'].size} rate samples"
+            )
+    else:
+        initial_scalers = compute_rates(rxn_coef_opt, mech) - rxn_rate_opt["x0"]
+    # Clip strictly inside the box. The margin scales with the span so it
+    # lands inside for negative bounds too (lb·(1+ε) sits OUTSIDE when
+    # lb < 0, which nlopt rejects as an invalid start).
+    margin = 1e-9 * (ub - lb)
+    initial_scalers = np.clip(initial_scalers, lb + margin, ub - margin)
+
+    default_display_shock = None
+    if request.display_shock_index is not None:
+        default_display_shock = shocks2run[request.display_shock_index]
+
+    inputs = OptimizeRunInputs(
+        mech=mech,
+        shocks2run=shocks2run,
+        coef_opt=coef_opt,
+        rxn_coef_opt=rxn_coef_opt,
+        rxn_rate_opt=rxn_rate_opt,
+        initial_scalers=initial_scalers,
+        reactor_state=request.reactor_state,
+        time_unc=request.time_uncertainty,
+        cost_settings=request.cost,
+        opt_settings_optimize=request.algorithm.to_legacy_dict(),
+        multiprocessing=request.multiprocessing,
+        max_processors=request.max_processors,
+        random_t_uncertainty=request.random_t_uncertainty,
+    )
+
+    translated = (inputs, optimizable_set, default_display_shock)
+
+    return translated
+
+
 def optimize_residual(
     mech: ChemicalMechanism,
     request: "OptimizationRequest",
@@ -671,65 +784,16 @@ def optimize_residual(
     """
     cb = callbacks or OptimizationCallbacks()
 
-    optimizable_builder = request.optimizable.to_builder(mech)
-    optimizable_set = optimizable_builder.build(mech)
-    coef_opt = list(optimizable_set.coefficients)
-    if not coef_opt:
+    translated = _translate_request(mech, request, cb.log)
+    if translated is None:
         empty_result = OptimizationResult(
             success=False,
             message="OptimizableSpec is empty (no reactions or coefficients selected)",
-            optimizable_used=optimizable_set,
+            optimizable_used=request.optimizable.build(mech),
         )
 
         return empty_result
-
-    shocks2run = [_to_internal_shock(s, request, mech) for s in request.shocks]
-
-    rxn_coef_opt = build_rxn_coef_opt(mech, coef_opt, shocks2run)
-    rxn_rate_opt = build_rxn_rate_opt(mech, rxn_coef_opt)
-
-    _, mech_rebuilt = mech.recast_to_troe(
-        rxn_coef_opt, rxn_rate_opt, optimizable_builder,
-    )
-
-    if cb.log is not None and mech.recast_log_rms:
-        for rxnIdx in sorted(mech.recast_log_rms):
-            log_rms = mech.recast_log_rms[rxnIdx]
-            cb.log(f"R{rxnIdx + 1} recast to Troe: fit log-RMS = {log_rms:.4f}")
-
-    if mech_rebuilt:
-        optimizable_set = request.optimizable.build(mech)
-        coef_opt = list(optimizable_set.coefficients)
-        rxn_coef_opt = build_rxn_coef_opt(mech, coef_opt, shocks2run)
-        rxn_rate_opt = build_rxn_rate_opt(mech, rxn_coef_opt)
-
-    lb, ub = rxn_rate_opt["bnds"]["lower"], rxn_rate_opt["bnds"]["upper"]
-    initial_scalers = compute_rates(rxn_coef_opt, mech) - rxn_rate_opt["x0"]
-    # Clip strictly inside the box. The margin scales with the span so it
-    # lands inside for negative bounds too (lb·(1+ε) sits OUTSIDE when
-    # lb < 0, which nlopt rejects as an invalid start).
-    margin = 1e-9 * (ub - lb)
-    initial_scalers = np.clip(initial_scalers, lb + margin, ub - margin)
-
-    default_display_shock = None
-    if request.display_shock_index is not None:
-        default_display_shock = shocks2run[request.display_shock_index]
-
-    inputs = OptimizeRunInputs(
-        mech=mech,
-        shocks2run=shocks2run,
-        coef_opt=coef_opt,
-        rxn_coef_opt=rxn_coef_opt,
-        rxn_rate_opt=rxn_rate_opt,
-        initial_scalers=initial_scalers,
-        reactor_state=request.reactor_state,
-        time_unc=request.time_uncertainty,
-        cost_settings=request.cost,
-        opt_settings_optimize=request.algorithm.to_legacy_dict(),
-        multiprocessing=request.multiprocessing,
-        max_processors=request.max_processors,
-        random_t_uncertainty=request.random_t_uncertainty,
-    )
+    inputs, optimizable_set, default_display_shock = translated
 
     result = _run_optimization_engine(
         inputs,

@@ -9,6 +9,7 @@ the worker pool, the parameter unpacking, and the adaptive loss shape.
 """
 import contextlib
 import io
+import cantera as ct
 import numpy as np
 import nlopt
 from scipy.optimize import minimize_scalar, brentq
@@ -75,6 +76,11 @@ def initialize_parallel_worker(payload: MechBuildPayload):
 
 def _pool_calculate_residuals(args):
     return calculate_residuals(_pool_worker_ctx.mech, args)
+
+
+def pool_worker_mech():
+    """The pool worker's mechanism (for non-residual worker tasks)."""
+    return _pool_worker_ctx.mech
 
 
 def _pool_fit_coeffs(args):

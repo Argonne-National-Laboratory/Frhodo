@@ -15,6 +15,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    NonNegativeInt,
     PositiveFloat,
     PositiveInt,
     model_validator,
@@ -31,8 +32,12 @@ ALGORITHM_LABELS: dict[str, int | str] = {
     "PSO (Particle Swarm Optimization)": "pygmo_PSO",
     "GWO (Grey Wolf Optimizer)": "pygmo_GWO",
     "RBFOpt": "RBFOpt",
+    "Smurf (Sensitivity Multistart Rate Fitting)": "smurf",
     "Nelder-Mead Simplex": nlopt.LN_NELDERMEAD,
     "Subplex": nlopt.LN_SBPLX,
+    "Subplex (whitened)": "whitened_sbplx",
+    "Subplex (field basis)": "field_sbplx",
+    "BOBYQA (whitened)": "whitened_bobyqa",
     "COBYLA": nlopt.LN_COBYLA,
     "BOBYQA": nlopt.LN_BOBYQA,
     "IPOPT (Interior Point Optimizer)": "pygmo_IPOPT",
@@ -50,10 +55,16 @@ class AlgorithmStage(BaseModel):
     max_eval: PositiveInt = 2500
     xtol_rel: PositiveFloat = 1e-3
     ftol_rel: PositiveFloat = 1e-3
+    # Population-size scale for population algorithms (CRS2/MLSL/ISRES).
     initial_population_multiplier: PositiveFloat = 1.0
+    # Number of Smurf multistart descents (incumbent + Sobol starts).
+    multistart_count: PositiveInt = 16
     stop_criteria: StopCriteria = "Iteration Maximum"
     stop_value: PositiveFloat = 2500.0
     enabled: bool = True
+    # Seed for the stage's stochastic sampling (Smurf multistart Sobol,
+    # RBFOpt initial design). 0 keeps each optimizer's own default.
+    random_seed: NonNegativeInt = 0
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -78,12 +89,13 @@ class AlgorithmSettings(BaseModel):
     """Two-stage optimization settings: global search, then local refine."""
     global_stage: AlgorithmStage = Field(
         default_factory=lambda: AlgorithmStage(
-            algorithm="RBFOpt", initial_step=0.5,
+            algorithm="Smurf (Sensitivity Multistart Rate Fitting)",
+            initial_step=0.5, max_eval=400, stop_value=400.0,
         )
     )
     local_stage: AlgorithmStage = Field(
         default_factory=lambda: AlgorithmStage(
-            algorithm="Subplex", initial_step=0.1, xtol_rel=1e-4,
+            algorithm="Subplex (field basis)", initial_step=0.1, xtol_rel=1e-4,
         )
     )
 
@@ -118,9 +130,11 @@ def _stage_to_legacy(stage: AlgorithmStage) -> dict:
         "xtol_rel": stage.xtol_rel,
         "ftol_rel": stage.ftol_rel,
         "initial_pop_multiplier": stage.initial_population_multiplier,
+        "multistart_count": stage.multistart_count,
         "stop_criteria_type": stage.stop_criteria,
         "stop_criteria_val": stage.stop_value,
         "run": stage.enabled,
+        "random_seed": stage.random_seed,
     }
 
     return legacy

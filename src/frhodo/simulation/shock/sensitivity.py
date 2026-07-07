@@ -623,3 +623,34 @@ def _resample(
         )
 
     return grid, out
+
+
+_OBSERVABLE_MAP = {
+    "Temperature": ("T", False),
+    "Pressure": ("P", False),
+    "Density Gradient": ("drhodz_tot", False),
+    "Mole Fraction": ("X", True),
+    "Mass Fraction": ("Y", True),
+    "Concentration": ("conc", True),
+}
+
+
+def sensitivity_observable(shock, gas):
+    """Map a shock's GUI observable to a sensitivity ``Observable`` name
+    plus the species index it needs (``None`` for bulk observables)."""
+    main = shock.observable["main"]
+    if main not in _OBSERVABLE_MAP:
+        raise ValueError(
+            f"sensitivity does not support observable {main!r}; "
+            f"supported: {sorted(_OBSERVABLE_MAP)}"
+        )
+    name, needs_species = _OBSERVABLE_MAP[main]
+    if not needs_species:
+        return name, None
+    sub = shock.observable["sub"]
+    if isinstance(sub, str):
+        species_idx = gas.species_index(sub)
+    else:
+        species_idx = int(sub)
+
+    return name, species_idx

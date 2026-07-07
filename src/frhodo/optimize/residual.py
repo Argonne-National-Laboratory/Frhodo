@@ -21,6 +21,8 @@ from frhodo.optimize.screening import (
     uniqueness_weights,
 )
 from frhodo.optimize.shock_prep import trim_shocks
+import nlopt
+
 from frhodo.optimize.algorithms import Optimize
 from frhodo.optimize.cost.fit_fcn import CostFunction, initialize_parallel_worker
 from frhodo.optimize.cost.settings import CostSettings
@@ -138,29 +140,15 @@ def _apply_uniqueness_weighting(inputs: OptimizeRunInputs, log):
     return weights
 
 
-def optimize_residual(
-    inputs: OptimizeRunInputs,
-    callbacks: OptimizeRunCallbacks | None = None,
-    *,
-    debug: bool = False,
-):
-    """Run a residual optimization over reaction-rate coefficients.
+def _prepare_fit_fun(inputs: OptimizeRunInputs, cb: OptimizeRunCallbacks):
+    """Build the ready-to-evaluate cost function: pool, trimming,
+    uniqueness weighting, worker warmup, and error-floor calibration.
 
-    Args:
-        inputs: Frozen bundle of prepared optimization data + run
-            settings (reactor, cost, algorithm, parallelism).
-        callbacks: Optional event hooks. ``mech_payload`` must be set
-            when ``inputs.multiprocessing`` is ``True``.
-        debug: When ``True``, algorithm exceptions propagate; when
-            ``False`` they are caught and the run returns ``None``.
-
-    Returns:
-        Optimizer result dict, or ``None`` on failure / user abort.
+    Returns ``(fit_fun, inputs, pool, pool_is_persistent)``; the caller
+    owns the pool's lifetime unless it is persistent.
     """
-    cb = callbacks or OptimizeRunCallbacks()
     log = cb.log_callback or (lambda msg: None)
     progress = cb.progress_callback or (lambda update: None)
-    abort = cb.abort_check or (lambda: False)
 
     pool_is_persistent = False
     if inputs.multiprocessing and cb.mech_payload is not None:
@@ -200,18 +188,75 @@ def optimize_residual(
         fit_fun.warmup_workers(inputs.max_processors, inputs.initial_scalers)
     fit_fun.calibrate_error_floor(inputs.initial_scalers)
 
+    return fit_fun, inputs, pool, pool_is_persistent
+
+
+def evaluate_residual_points(inputs: OptimizeRunInputs, points=None,
+                             callbacks: "OptimizeRunCallbacks | None" = None):
+    """Quiet objective values at explicit scaler vectors.
+
+    Runs the same preparation as an optimization (trimming, weighting,
+    floor calibration) and evaluates each point without progress side
+    effects. ``points=None`` evaluates the mechanism's own state (the
+    computed start scalers). Used by the multistart barrier line-probe
+    and cross-campaign scoring.
+    """
+    cb = callbacks or OptimizeRunCallbacks()
+    fit_fun, inputs, pool, pool_is_persistent = _prepare_fit_fun(inputs, cb)
+    if points is None:
+        points = [inputs.initial_scalers]
+    try:
+        values = [float(fit_fun(np.asarray(p, dtype=float), quiet=True))
+                  for p in points]
+    finally:
+        if pool is not None and not pool_is_persistent:
+            pool.close()
+
+    return values
+
+
+def optimize_residual(
+    inputs: OptimizeRunInputs,
+    callbacks: OptimizeRunCallbacks | None = None,
+    *,
+    debug: bool = False,
+):
+    """Run a residual optimization over reaction-rate coefficients.
+
+    Args:
+        inputs: Frozen bundle of prepared optimization data + run
+            settings (reactor, cost, algorithm, parallelism).
+        callbacks: Optional event hooks. ``mech_payload`` must be set
+            when ``inputs.multiprocessing`` is ``True``.
+        debug: When ``True``, algorithm exceptions propagate; when
+            ``False`` they are caught and the run returns ``None``.
+
+    Returns:
+        Optimizer result dict, or ``None`` on failure / user abort.
+    """
+    cb = callbacks or OptimizeRunCallbacks()
+    log = cb.log_callback or (lambda msg: None)
+    abort = cb.abort_check or (lambda: False)
+
+    fit_fun, inputs, pool, pool_is_persistent = _prepare_fit_fun(inputs, cb)
+    progress = cb.progress_callback or (lambda update: None)
+
     def eval_fun(s, grad=None):
         if abort():
             log("\nOptimization aborted")
             raise Exception("Optimization terminated by user")
 
-        return fit_fun(s)
+        value = fit_fun(s)
+
+        return value
+
+    opt_settings = inputs.opt_settings_optimize
 
     optimize = Optimize(
         eval_fun,
         inputs.initial_scalers,
         inputs.rxn_rate_opt["bnds"],
-        inputs.opt_settings_optimize,
+        opt_settings,
         fit_fun,
     )
     try:

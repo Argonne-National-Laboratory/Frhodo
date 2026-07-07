@@ -368,6 +368,8 @@ def _make_fit_fun(
     *, shocks2run=None, multiprocessing=False, pool=None,
     display_shock_provider=None, progress_callback=None,
     time_unc=0.0, random_t_uncertainty=True,
+    ode_rtol=1e-4, ode_atol=1e-7, t_end=5e-5,
+    scale="Linear", loss_alpha=2.0, cost_overrides=None,
 ):
     if shocks2run is None:
         shocks2run = [_synthetic_shock()]
@@ -380,16 +382,17 @@ def _make_fit_fun(
         initial_scalers=np.zeros(rxn_rate_opt["x0"].size),
         reactor_state=RuntimeReactorState(
             name="Incident Shock Reactor",
-            t_end=5e-5, t_unit_conv=1e-6,
+            t_end=t_end, t_unit_conv=1e-6,
             sim_interp_factor=1, ode_solver="BDF",
-            ode_rtol=1e-4, ode_atol=1e-7,
+            ode_rtol=ode_rtol, ode_atol=ode_atol,
         ),
         time_unc=time_unc,
         cost_settings=CostSettings(
-            scale="Linear",
+            scale=scale,
             bisymlog_scaling_factor=1.0,
-            loss_alpha=2.0,
+            loss_alpha=loss_alpha,
             loss_c=1.0,
+            **(cost_overrides or {}),
         ),
         opt_settings_optimize={},
         multiprocessing=multiprocessing,
@@ -838,3 +841,81 @@ class TestFitFunCallEndToEnd:
         s = np.zeros(rxn_rate_opt["x0"].size)
         fit_fun(s, optimizing=True)
         assert messages == []
+
+
+@pytest.fixture
+def private_optimizer_setup(tmp_path):
+    """optimizer_setup on a private mechanism: parity tests compare the
+    parent against workers rebuilt from ``reset_mech``, so any residue
+    another test leaves on the shared mech reads as a false positive."""
+    from frhodo.simulation.mechanism.mechanism_loader import MechanismLoader
+
+    from conftest import EXAMPLE_MECH_DIR
+
+    paths = {
+        "mech": EXAMPLE_MECH_DIR / "cycloheptane.mech",
+        "thermo": EXAMPLE_MECH_DIR / "cycloheptane.therm",
+        "Cantera_Mech": tmp_path / "cyc7.yaml",
+    }
+    mech = MechanismLoader().load(paths)
+    cleanup = _set_one_arrhenius_optimizable(mech)
+    builder = cleanup[-1]
+    optimizable = builder.build(mech)
+    coef_opt = list(optimizable.coefficients)
+    shocks_setup = [
+        ExperimentalShock.from_dict({
+            "T_reactor": 1500.0, "P_reactor": 20000.0,
+            "thermo_mix": {"Kr": 0.96, "cC7H14": 0.04},
+        }),
+    ]
+    rxn_coef_opt = build_rxn_coef_opt(mech, coef_opt, shocks_setup)
+    rxn_rate_opt = build_rxn_rate_opt(mech, rxn_coef_opt)
+
+    return mech, coef_opt, rxn_coef_opt, rxn_rate_opt, optimizable
+
+
+@pytest.mark.slow
+class TestPoolObjectiveParity:
+    def test_pool_objective_matches_serial_exactly(
+        self, private_optimizer_setup,
+    ):
+        """The pooled objective must equal the serial objective bit-for-
+        bit at the same scaler vector — workers rebuild their mechanism
+        from the spawn payload, and any reconstruction or state drift
+        shows up here as a value difference."""
+        mech, coef_opt, rxn_coef_opt, rxn_rate_opt, _ = private_optimizer_setup
+        shocks = [_synthetic_shock(1500.0), _synthetic_shock(1700.0)]
+        fit_serial = _make_fit_fun(
+            mech, coef_opt, rxn_coef_opt, rxn_rate_opt, shocks2run=shocks,
+        )
+        payload = MechBuildPayload(
+            reset_mech=mech.reset_mech,
+            thermo_coeffs=mech.thermo_coeffs,
+            coeffs=mech.coeffs,
+            coeffs_bnds=mech.coeffs_bnds,
+            rate_bnds=mech.rate_bnds,
+        )
+        pool = mp.get_context("spawn").Pool(
+            processes=2,
+            initializer=initialize_parallel_worker,
+            initargs=(payload,),
+        )
+        try:
+            fit_pool = _make_fit_fun(
+                mech, coef_opt, rxn_coef_opt, rxn_rate_opt,
+                shocks2run=shocks, multiprocessing=True, pool=pool,
+            )
+            span = (rxn_rate_opt["bnds"]["upper"]
+                    - rxn_rate_opt["bnds"]["lower"])
+            for frac in (0.0, 0.1, -0.15):
+                s = frac * span
+                serial_val = float(fit_serial(s, quiet=True))
+                pool_val = float(fit_pool(s, quiet=True))
+                assert serial_val == pool_val, (
+                    f"pool objective diverged from serial at s={frac}·span: "
+                    f"serial {serial_val:.12e} vs pool {pool_val:.12e}"
+                )
+        finally:
+            pool.close()
+            pool.join()
+

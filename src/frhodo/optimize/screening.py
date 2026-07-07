@@ -26,7 +26,10 @@ from frhodo.optimize.cost.aggregation import coverage_weights
 from frhodo.optimize.cost.fit_fcn import _log_ratio
 from frhodo.optimize.shock_prep import shock_sigma_bar, trim_shocks
 from frhodo.simulation.shock.incident_shock_reactor import run_incident_shock
-from frhodo.simulation.shock.sensitivity import compute_sensitivity
+from frhodo.simulation.shock.sensitivity import (
+    compute_sensitivity,
+    sensitivity_observable,
+)
 from frhodo.simulation.shock.state import zero_d_mode_from_label
 from frhodo.simulation.shock.zero_d_reactor import run_zero_d
 
@@ -251,35 +254,6 @@ def influential_mask(slopes: np.ndarray,
 
 # Fit-observable main names -> sensitivity observables. Heat Release
 # Rate has no sensitivity backend and cannot be screened.
-_OBSERVABLE_MAP = {
-    "Temperature": ("T", False),
-    "Pressure": ("P", False),
-    "Density Gradient": ("drhodz_tot", False),
-    "Mole Fraction": ("X", True),
-    "Mass Fraction": ("Y", True),
-    "Concentration": ("conc", True),
-}
-
-
-def _sensitivity_observable(shock, gas):
-    main = shock.observable["main"]
-    if main not in _OBSERVABLE_MAP:
-        raise ValueError(
-            f"screening does not support observable {main!r}; "
-            f"supported: {sorted(_OBSERVABLE_MAP)}"
-        )
-    name, needs_species = _OBSERVABLE_MAP[main]
-    if not needs_species:
-        return name, None
-    sub = shock.observable["sub"]
-    if isinstance(sub, str):
-        species_idx = gas.species_index(sub)
-    else:
-        species_idx = int(sub)
-
-    return name, species_idx
-
-
 def _run_start_sim(mech, reactor_state, shock):
     """One reactor solve at the current mechanism; ``None`` when the
     trajectory is too short to interpolate."""
@@ -384,7 +358,7 @@ def screen_campaign(mech, shocks2run, reactor_state, cost_settings, *,
     shock_nums = []
     for shock in shocks2run:
         num = int(getattr(shock, "num", 0) or 0)
-        observable, species_idx = _sensitivity_observable(shock, mech.gas)
+        observable, species_idx = sensitivity_observable(shock, mech.gas)
         cache_key = None
         cached = None
         if sim_cache is not None:

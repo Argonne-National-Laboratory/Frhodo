@@ -131,6 +131,10 @@ class GUI_settings:
                     widget["initial_pop_multiplier"],
                     opt.initial_population_multiplier[opt_type],
                 )
+                _set_box(
+                    widget["multistart_count"],
+                    opt.multistart_count[opt_type],
+                )
             else:
                 _set_box(parent.local_opt_enable_box, opt.enabled[opt_type])
                 _set_box(parent.local_opt_choice_box, opt.algorithm[opt_type])
@@ -227,6 +231,9 @@ class GUI_settings:
                 opt.initial_population_multiplier[opt_type] = widget[
                     "initial_pop_multiplier"
                 ].value()
+                opt.multistart_count[opt_type] = int(widget[
+                    "multistart_count"
+                ].value())
             else:
                 opt.enabled[opt_type] = parent.local_opt_enable_box.isChecked()
                 opt.algorithm[opt_type] = parent.local_opt_choice_box.currentText()

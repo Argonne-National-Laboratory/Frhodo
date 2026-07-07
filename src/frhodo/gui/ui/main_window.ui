@@ -2579,6 +2579,11 @@ The 0d reactors simulate zone 5 (reflected shock) as a homogeneous ideal state a
                             </property>
                             <item>
                              <property name="text">
+                              <string>Smurf (Sensitivity Multistart Rate Fitting)</string>
+                             </property>
+                            </item>
+                            <item>
+                             <property name="text">
                               <string>RBFOpt</string>
                              </property>
                             </item>
@@ -2696,14 +2701,24 @@ The 0d reactors simulate zone 5 (reflected shock) as a homogeneous ideal state a
                              </sizepolicy>
                             </property>
                             <property name="currentIndex">
-                             <number>0</number>
+                             <number>1</number>
                             </property>
+                            <item>
+                             <property name="text">
+                              <string>Subplex (field basis)</string>
+                             </property>
+                            </item>
                             <item>
                              <property name="text">
                               <string>Subplex</string>
                              </property>
                             </item>
                             <item>
+                             <property name="text">
+                              <string>Subplex (whitened)</string>
+                             </property>
+                            </item>
+<item>
                              <property name="text">
                               <string>COBYLA</string>
                              </property>
