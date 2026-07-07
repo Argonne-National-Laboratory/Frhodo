@@ -101,6 +101,9 @@ class ChemicalMechanism:
         self._lock = threading.RLock()
         self._recast_originals: dict[int, ct.Reaction] = {}
         self.recast_log_rms: dict[int, float] = {}
+        # Monotone stamp for any coefficient or structural change; cache
+        # keys derived from the mechanism state hang off it.
+        self.coeffs_version = 0
 
     @contextlib.contextmanager
     def exclusive(self):
@@ -720,6 +723,7 @@ class ChemicalMechanism:
 
             if rxnChanged:
                 self.gas.modify_reaction(rxnIdx, rxn)
+                self.coeffs_version += 1
 
     def _recast_heldout_log_rms(self, rxnIdx, T_fit, P_fit, X, coef_x0):
         """Rate-space log-RMS of the fitted Troe vs the original reaction
@@ -1000,6 +1004,8 @@ class ChemicalMechanism:
                         self.coeffs[rxnIdx][-1][coefName] = self.reset_mech[rxnIdx][
                             "rxnCoeffs"
                         ][-1][coefName]
+                    else:
+                        raise ValueError(f"unknown Plog limit {limit_type!r}")
 
             elif "Falloff Reaction" == self.reset_mech[rxnIdx]["rxnType"]:
                 self.coeffs[rxnIdx]["falloff_type"] = self.reset_mech[rxnIdx][
@@ -1009,6 +1015,11 @@ class ChemicalMechanism:
                     self.coeffs[rxnIdx][limit_type][coefName] = self.reset_mech[rxnIdx][
                         "rxnCoeffs"
                     ][limit_type][coefName]
+            else:
+                raise ValueError(
+                    "cannot reset named coefficients of a "
+                    f"{self.reset_mech[rxnIdx]['rxnType']!r} reaction"
+                )
 
         self.modify_reactions(self.coeffs)
 

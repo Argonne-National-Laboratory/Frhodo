@@ -5,7 +5,7 @@ algorithm dispatch. Logging, progress, and abort are callbacks.
 """
 import multiprocessing as mp
 import traceback
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable
 
 import numpy as np
@@ -14,6 +14,12 @@ from frhodo.common.scale import Scale
 from frhodo.common.units import Bisymlog
 from frhodo.experiment.uncertainty import correlation_length, sigma_bar
 from frhodo.optimize._worker_context import MechBuildPayload
+from frhodo.optimize.screening import (
+    influential_mask,
+    screen_campaign,
+    uniqueness_weights,
+)
+from frhodo.optimize.shock_prep import trim_shocks
 from frhodo.optimize.algorithms import Optimize
 from frhodo.optimize.cost.fit_fcn import CostFunction, initialize_parallel_worker
 from frhodo.optimize.cost.settings import CostSettings
@@ -42,6 +48,9 @@ class OptimizeRunInputs:
     multiprocessing: bool = True
     max_processors: int = 1
     random_t_uncertainty: bool = True
+    # Frozen per-shock balance weights (uniqueness mode); None lets the
+    # cost function apply the configured mode itself.
+    experiment_weights: Any = None
 
 
 @dataclass
@@ -63,77 +72,69 @@ class OptimizeRunCallbacks:
     mech: Any = None  # ChemicalMechanism — read for struct_version
 
 
-def _trim_shocks(shocks2run: list, cost_settings: "CostSettings") -> None:
-    """Pre-mask each shock to the points where the weight profile is non-zero.
+def _apply_uniqueness_weighting(inputs: OptimizeRunInputs, log):
+    """Freeze the information-uniqueness balance factor at the start point.
 
-    Mutates each ``shock`` in place — populates ``weights_trim``,
-    ``exp_data_trim``, ``bisymlog``, and ``sigma_bar`` (the per-shock
-    noise scale standardizing its losses). Skipping zero-weight rows up
-    front saves work inside every cost evaluation.
+    Screens the campaign once (two solves per shock), drops experiments
+    whose simulation responds to no reaction (mutating ``shocks2run`` in
+    place), and returns the uniqueness factor for the kept experiments;
+    the cost function multiplies live coverage weights into it (the
+    hybrid balance). Both the factor and the mask are built from
+    capability footprints — residual-free, so contaminated data cannot
+    masquerade as unique information. Returns ``None`` on screening
+    failure — the cost function then falls back to plain geometric
+    coverage, logged.
     """
-    for shock in shocks2run:
-        weights = shock.normalized_weights
-        exp_bounds = np.nonzero(weights)[0]
-        shock.weights_trim = weights[exp_bounds]
-        shock.exp_data_trim = shock.exp_data[exp_bounds, :]
+    try:
+        result = screen_campaign(
+            inputs.mech, inputs.shocks2run, inputs.reactor_state,
+            inputs.cost_settings,
+        )
+    except Exception as e:
+        log(
+            "Uniqueness weighting unavailable "
+            f"({e}); falling back to coverage weighting"
+        )
 
-        if cost_settings.scale == "Bisymlog":
-            bisymlog = Bisymlog(
-                C=None, scaling_factor=cost_settings.bisymlog_scaling_factor,
-            )
-            bisymlog.set_C_heuristically(shock.exp_data_trim[:, 1])
-            shock.bisymlog = bisymlog
+        return None
+
+    footprints = np.asarray(result.footprints)
+    by_num = {num: row for num, row in zip(result.shock_nums, footprints)}
+    ordered = []
+    kept_shocks = []
+    dropped = []
+    for shock in inputs.shocks2run:
+        num = int(getattr(shock, "num", 0) or 0)
+        if num in by_num:
+            ordered.append(by_num[num])
+            kept_shocks.append(shock)
         else:
-            shock.bisymlog = None
+            dropped.append(num)
+    G = np.asarray(ordered)
 
-        shock.sigma_bar = _shock_sigma_bar(shock, cost_settings.scale)
-        # Standardizing scale; calibrate_error_floor raises it to the
-        # total expected error sqrt(sigma_bar^2 + E^2) before the run.
-        shock.sigma_total = shock.sigma_bar
-        shock.corr_length = _shock_corr_length(shock, cost_settings.scale)
-
-
-def _shock_sigma_bar(shock, scale_mode: str) -> float:
-    """σ̄ for one shock in the residual scale; 1.0 when unestimable.
-
-    Bisymlog uses the shock's own calibrated transform so the noise
-    scale and the residuals share identical units. Log-family scales
-    use σ̄ = 1.0.
-    """
-    obs = shock.exp_data_trim[:, 1]
-    if scale_mode == "Linear":
-        z = np.asarray(obs, dtype=float)
-    elif scale_mode == "Bisymlog":
-        z = shock.bisymlog.transform(obs)
-    else:
-        return 1.0
-
-    value = sigma_bar(z, scale=Scale("Linear"), window_weights=shock.weights_trim)
-    if not np.isfinite(value) or value <= 0:
-        return 1.0
-
-    return float(value)
-
-
-def _shock_corr_length(shock, scale_mode: str) -> float:
-    """Residual correlation length in samples; 1.0 when unestimable.
-
-    Feeds the loss-scale floor's effective dof so correlated noise does
-    not shrink the floor below the loss statistic's true sampling scale.
-    """
-    obs = shock.exp_data_trim[:, 1]
-    if scale_mode == "Linear":
-        z = np.asarray(obs, dtype=float)
-    elif scale_mode == "Bisymlog":
-        z = shock.bisymlog.transform(obs)
-    else:
-        return 1.0
-
-    value = correlation_length(
-        z, scale=Scale("Linear"), window_weights=shock.weights_trim,
+    keep = influential_mask(G)
+    excluded = [int(getattr(s, "num", 0) or 0)
+                for s, k in zip(kept_shocks, keep) if not k]
+    if excluded or dropped:
+        log(
+            f"Excluding {len(excluded) + len(dropped)} experiment(s) with "
+            f"no optimizable signal: {sorted(excluded + dropped)}"
+        )
+    inputs.shocks2run[:] = [s for s, k in zip(kept_shocks, keep) if k]
+    weights = uniqueness_weights(G[keep])
+    notable = [
+        f"shock {int(getattr(s, 'num', 0) or 0)} ({w:.1f}x)"
+        for s, w in zip(inputs.shocks2run, weights) if w > 2.0
+    ]
+    upweights = ""
+    if notable:
+        upweights = f"; unique-information upweights: {', '.join(notable)}"
+    log(
+        "Experiment balance: uniqueness weights frozen at the start "
+        f"point ({len(inputs.shocks2run)} experiments){upweights}"
     )
 
-    return float(max(value, 1.0))
+    return weights
 
 
 def optimize_residual(
@@ -178,7 +179,13 @@ def optimize_residual(
     else:
         pool = None
 
-    _trim_shocks(inputs.shocks2run, inputs.cost_settings)
+    trim_shocks(inputs.shocks2run, inputs.cost_settings)
+
+    if (inputs.cost_settings.experiment_weighting == "uniqueness"
+            and inputs.experiment_weights is None):
+        balance = _apply_uniqueness_weighting(inputs, log)
+        if balance is not None:
+            inputs = replace(inputs, experiment_weights=balance)
 
     fit_fun = CostFunction(
         inputs,

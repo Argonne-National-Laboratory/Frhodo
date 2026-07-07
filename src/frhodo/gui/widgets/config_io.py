@@ -111,7 +111,15 @@ class GUI_settings:
         _set_box(parent.obj_fcn_scale_box, opt.objective_function_scale)
         _set_box(parent.loss_alpha_box, str(opt.loss_function_alpha))
         _set_box(parent.loss_c_box, opt.loss_function_c)
-        _set_box(parent.coverage_weighting_box, opt.coverage_weighting)
+        _set_box(parent.prior_lambda_box, opt.prior_lambda)
+        _set_box(parent.experiment_balance_box,
+                 opt.experiment_weighting != "none")
+        # The checkbox only toggles balance on/off; the mode itself
+        # ("uniqueness" default, "coverage" via config file) rides here.
+        if opt.experiment_weighting != "none":
+            parent.experiment_balance_mode = opt.experiment_weighting
+        else:
+            parent.experiment_balance_mode = "uniqueness"
         _set_box(parent.multiprocessing_box, opt.multiprocessing)
 
         for opt_type in ("global", "local"):
@@ -203,7 +211,13 @@ class GUI_settings:
         except (TypeError, ValueError):
             opt.loss_function_alpha = loss_alpha_text
         opt.loss_function_c = parent.loss_c_box.value()
-        opt.coverage_weighting = parent.coverage_weighting_box.isChecked()
+        opt.prior_lambda = parent.prior_lambda_box.value()
+        if parent.experiment_balance_box.isChecked():
+            opt.experiment_weighting = getattr(
+                parent, "experiment_balance_mode", "uniqueness",
+            )
+        else:
+            opt.experiment_weighting = "none"
         opt.multiprocessing = parent.multiprocessing_box.isChecked()
 
         for opt_type in ("global", "local"):

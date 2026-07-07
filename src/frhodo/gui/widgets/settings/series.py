@@ -101,6 +101,9 @@ class series:
 
         self.shock.append(shock)
         self.change_shock()
+        tree = getattr(parent, "tree", None)
+        if tree is not None:
+            tree._mark_screening_stale()
 
     def change_series(self):
         self.change_shock()

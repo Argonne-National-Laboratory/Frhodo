@@ -10,7 +10,13 @@ import pytest
 from qtpy import QtCore
 
 from frhodo.gui.plots.optimization_plot import VIEW_LABELS
+from frhodo.gui.screening_runner import (
+    format_screening_summary,
+    gather_screening_shocks,
+)
 from frhodo.gui.views.events import ViewContext
+from frhodo.optimize.screening import ScreeningResult
+from frhodo.simulation.mechanism.mech_fcns import ChemicalMechanism
 
 
 
@@ -29,8 +35,6 @@ class TestMainWindowBoot:
             )
 
     def test_mechanism_object_initialized(self, main_window):
-        from frhodo.simulation.mechanism.mech_fcns import ChemicalMechanism
-
         assert isinstance(main_window.mech, ChemicalMechanism)
 
     def test_settings_path_added_to_path_dict(self, main_window, isolated_path):
@@ -91,6 +95,7 @@ class TestShockPathsDiscovery:
         (exp_dir / "set_a" / "deep" / "Shock99.exp").write_text("")
 
         main_window.path["exp_main"] = exp_dir
+
         return main_window
 
     def test_returns_one_row_per_shock(self, main_with_synthetic_exp_dir):
@@ -557,6 +562,120 @@ class TestViewZoomPersistence:
         assert not state.get("user_x") and not state.get("user_y"), (
             "switching alone must not freeze the view's limits"
         )
+
+
+class TestScreeningSort:
+    """Mech-tree sort dropdown + screening-result plumbing."""
+
+    def _fake_result(self, n):
+        leverage = [float(n - i) for i in range(n)]
+        leverage[2] = float(n + 5)  # rxn 2 leads
+        result = ScreeningResult(
+            rxn_indices=list(range(n)),
+            importance=[1.0] * n,
+            importance_max=[1.0] * n,
+            leverage=leverage,
+            suggested=[False] * n,
+            spectral_gap_rank=None,
+            loss_start=1.0,
+            singular_values=[1.0],
+            effective_rank=1.0,
+            skipped_shocks=[],
+            shock_nums=[1],
+            slopes=[[1.0] * n],
+            footprints=[[1.0] * n],
+        )
+
+        return result
+
+    def test_dropdown_defaults_and_options(self, main_window):
+        box = main_window.mech_tree_sort_box
+        labels = [box.itemText(i) for i in range(box.count())]
+        assert labels == ["Reaction #", "Leverage", "Importance"]
+        assert box.currentText() == "Reaction #"
+
+    def test_score_sort_reorders_and_number_restores(
+        self, main_with_loaded_mech,
+    ):
+        main = main_with_loaded_mech
+        tree = main.tree
+        n = main.mech.gas.n_reactions
+        main.screening_result = self._fake_result(n)
+
+        main.mech_tree_sort_box.setCurrentText("Leverage")
+        top = tree.proxy_model.index(0, 0)
+        item = tree.model.itemFromIndex(tree.proxy_model.mapToSource(top))
+        assert item.info["rxnNum"] == 2, (
+            "highest-leverage reaction must lead the sorted tree"
+        )
+
+        main.mech_tree_sort_box.setCurrentText("Reaction #")
+        top = tree.proxy_model.index(0, 0)
+        item = tree.model.itemFromIndex(tree.proxy_model.mapToSource(top))
+        assert item.info["rxnNum"] == 0
+
+    def test_score_sort_without_result_schedules_then_reverts(
+        self, main_with_loaded_mech,
+    ):
+        """Selecting a score sort with no result keeps the choice and
+        schedules a background run; with no experiment data the launch
+        reverts the combo."""
+        main = main_with_loaded_mech
+        main.screening_result = None
+        main.mech_tree_sort_box.setCurrentText("Leverage")
+        assert main.mech_tree_sort_box.currentText() == "Leverage"
+        assert main.tree._screen_timer.isActive()
+
+        main.tree._screen_timer.stop()
+        main.tree._launch_screening()
+        assert main.mech_tree_sort_box.currentText() == "Reaction #", (
+            "no-data launch must revert the score sort"
+        )
+
+    def test_all_zero_score_sort_option_greys_out(
+        self, main_with_loaded_mech,
+    ):
+        main = main_with_loaded_mech
+        n = main.mech.gas.n_reactions
+        result = self._fake_result(n)
+        zeroed = result.model_copy(update={"leverage": [0.0] * n})
+        main.tree._sync_sort_options(zeroed)
+        box = main.mech_tree_sort_box
+        assert not box.model().item(box.findText("Leverage")).isEnabled()
+        assert box.model().item(box.findText("Importance")).isEnabled()
+
+        main.tree._sync_sort_options(result)
+        assert box.model().item(box.findText("Leverage")).isEnabled()
+
+    def test_stale_mark_debounces_a_background_run(
+        self, main_with_loaded_mech,
+    ):
+        main = main_with_loaded_mech
+        main.tree._screen_timer.stop()
+        main.tree._screening_dirty = False
+        main.tree._mark_screening_stale()
+        assert main.tree._screening_dirty
+        assert main.tree._screen_timer.isActive()
+        main.tree._screen_timer.stop()
+
+
+class TestScreeningRunnerHelpers:
+    def test_gather_falls_back_to_display_shock(self, main_with_loaded_mech):
+        main = main_with_loaded_mech
+        shocks = gather_screening_shocks(main)
+        if main.display_shock.exp_data.size == 0:
+            assert shocks == []
+        else:
+            assert shocks == [main.display_shock]
+
+    def test_screening_summary_is_one_line(self, main_with_loaded_mech):
+        main = main_with_loaded_mech
+        n = main.mech.gas.n_reactions
+        result = TestScreeningSort()._fake_result(n)
+        textout = format_screening_summary(result)
+        assert "\n" not in textout, "the summary must be a single line"
+        assert "effective rank 1.0" in textout
+        assert "no clear kink" in textout
 
 
 class TestOptimizationViewSwitching:

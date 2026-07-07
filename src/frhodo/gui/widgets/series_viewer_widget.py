@@ -395,6 +395,10 @@ class DataSetsTable(QTableWidget):
                     self.shock[row].include = bool
                     silentSetChecked(self.include_box[row], bool)
 
+        tree = getattr(self.parent, "tree", None)
+        if tree is not None:
+            tree._mark_screening_stale()
+
     def keyPressEvent(self, event):
         key = {
             "change_shock": {"up": QtCore.Qt.Key_Up, "down": QtCore.Qt.Key_Down},

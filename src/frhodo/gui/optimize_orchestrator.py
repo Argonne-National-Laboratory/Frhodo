@@ -323,7 +323,7 @@ class Multithread_Optimize:
             bisymlog_scaling_factor=p.plot.signal.bisymlog.scaling_factor,
             loss_alpha=opt_settings.get("obj_fcn", "alpha"),
             loss_c=opt_settings.get("obj_fcn", "c"),
-            coverage_weighting=opt_settings.get("obj_fcn", "coverage_weighting"),
+            experiment_weighting=opt_settings.get("obj_fcn", "experiment_weighting"),
         )
 
         worker_inputs = WorkerInputs(

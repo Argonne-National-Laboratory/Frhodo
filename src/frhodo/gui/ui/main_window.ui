@@ -2952,12 +2952,12 @@ The 0d reactors simulate zone 5 (reflected shock) as a homogeneous ideal state a
                         </spacer>
                        </item>
                        <item row="2" column="0" colspan="3">
-                        <widget class="QCheckBox" name="coverage_weighting_box">
+                        <widget class="QCheckBox" name="experiment_balance_box">
                          <property name="toolTip">
-                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Weight experiments by inverse density of campaign conditions (1000/T, log P)&lt;/p&gt;&lt;p&gt;so dense condition clusters do not outvote sparse regions&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Balance experiment votes so redundant experiments do not outvote unique ones:&lt;/p&gt;&lt;p&gt;by campaign-condition density (1000/T, log P)&lt;/p&gt;&lt;p&gt;and by information uniqueness from sensitivity screening, frozen at run start&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                          </property>
                          <property name="text">
-                          <string>Coverage Weighting</string>
+                          <string>Balance Experiments</string>
                          </property>
                          <property name="checked">
                           <bool>true</bool>
@@ -3070,6 +3070,32 @@ The 0d reactors simulate zone 5 (reflected shock) as a homogeneous ideal state a
                  <number>0</number>
                 </property>
                 <item row="0" column="0">
+                 <widget class="QComboBox" name="mech_tree_sort_box">
+                  <property name="toolTip">
+                   <string>Sort reactions by number or by screening scores.
+Screening runs in the background from the selected experiments.
+
+Leverage: how much the reaction can fix the current misfit
+Importance: how much the reaction can move the trace</string>
+                  </property>
+                  <item>
+                   <property name="text">
+                    <string>Reaction #</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Leverage</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Importance</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item row="0" column="1">
                  <widget class="QLineEdit" name="mech_tree_filter_box">
                   <property name="text">
                    <string/>
@@ -3079,7 +3105,7 @@ The 0d reactors simulate zone 5 (reflected shock) as a homogeneous ideal state a
                   </property>
                  </widget>
                 </item>
-                <item row="1" column="0">
+                <item row="1" column="0" colspan="2">
                  <widget class="QTreeView" name="mech_tree">
                   <attribute name="headerHighlightSections">
                    <bool>true</bool>

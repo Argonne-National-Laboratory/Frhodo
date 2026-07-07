@@ -69,7 +69,7 @@ class OptimizationSettings(BaseModel):
     objective_function_scale: Literal["Linear", "Log", "AbsoluteLog", "Bisymlog"] = "Bisymlog"
     loss_function_alpha: str | float = "Adaptive"
     loss_function_c: float = 1.0
-    coverage_weighting: bool = True
+    experiment_weighting: Literal["none", "coverage", "uniqueness"] = "uniqueness"
     multiprocessing: bool = True
     enabled: dict[str, bool] = Field(
         default_factory=lambda: {"global": True, "local": True}

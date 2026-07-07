@@ -30,6 +30,7 @@ from qtpy.QtWidgets import (
 
 from frhodo.common.units import PRESSURE_UNITS, pa_per_unit
 from frhodo.gui.state import LoadState, RunControlState
+from frhodo.gui import screening_runner
 from frhodo.gui.widgets import misc_widget
 from frhodo.simulation.mechanism import ChemicalMechanism
 from frhodo.simulation.mechanism.coef_helpers import arrhenius_coefNames
@@ -177,12 +178,23 @@ def _rxn_type_tags(rxn_type: str, rate_class: str) -> frozenset:
             tags.add(sub)
     elif rxn_type == "Chebyshev Reaction":
         tags.update({"chebyshev", "pressure-sensitive"})
+    else:
+        pass  # open set: unlisted reaction types get no category tags
 
     return frozenset(tags)
 
 
 _TYPE_TAG_ROLE = QtCore.Qt.UserRole + 1
+_SCREEN_SORT_ROLE = QtCore.Qt.UserRole + 2
 _TYPE_TOKEN_RE = re.compile(r"^type:(\S+)$", re.IGNORECASE)
+
+# Mech-tree sort selector label -> ScreeningResult attribute
+# (None sorts by reaction number).
+TREE_SORT_KEYS = {
+    "Reaction #": None,
+    "Leverage": "leverage",
+    "Importance": "importance",
+}
 
 
 def silentSetValue(obj, value):
@@ -325,6 +337,156 @@ class Tree(QtCore.QObject):
             lambda sender: self._tabExpanded(sender, False)
         )
 
+        # Screening: background ranking runs + score-based tree sorting.
+        # Any campaign change marks the result stale and restarts the
+        # debounce; the run launches once the burst settles.
+        parent.screening_result = None
+        self._screening_active = False
+        self._screening_dirty = True
+        # Per-shock solve results survive re-screens; keyed on the mech
+        # version, so coefficient changes invalidate naturally.
+        self._screening_sim_cache = {}
+        self._screen_timer = QtCore.QTimer(self)
+        self._screen_timer.setSingleShot(True)
+        self._screen_timer.timeout.connect(self._launch_screening)
+        parent.mech_tree_sort_box.currentTextChanged.connect(
+            self._sort_changed
+        )
+
+    def sort_reactions(self, key: str | None, scores=None) -> None:
+        """Order the reaction tree by number (``key=None``) or by a
+        per-reaction score array (descending)."""
+        for row in range(self.model.rowCount()):
+            item = self.model.item(row, 0)
+            if not hasattr(item, "info"):
+                continue
+            rxn_num = item.info["rxnNum"]
+            if key is None:
+                value = float(rxn_num)
+            else:
+                value = float(scores[rxn_num])
+            item.setData(value, _SCREEN_SORT_ROLE)
+        self.proxy_model.setSortRole(_SCREEN_SORT_ROLE)
+        if key is None:
+            self.proxy_model.sort(0, QtCore.Qt.AscendingOrder)
+        else:
+            self.proxy_model.sort(0, QtCore.Qt.DescendingOrder)
+
+    def _sort_changed(self, label: str) -> None:
+        parent = self.parent()
+        key = TREE_SORT_KEYS.get(label)
+        if key is None:
+            self.sort_reactions(None)
+
+            return
+        result = parent.screening_result
+        if result is not None:
+            self._apply_score_sort(key, result)
+        if result is None or self._screening_dirty:
+            if result is None:
+                parent.log.append(
+                    "Screening the selected experiments — the tree will "
+                    "sort when it completes",
+                    alert=False,
+                )
+            self._screen_timer.start(50)
+
+    def _sync_sort_options(self, result) -> None:
+        """Grey out score sorts whose scores are currently all zero
+        (materiality until rate uncertainties exist)."""
+        parent = self.parent()
+        box = parent.mech_tree_sort_box
+        for label, key in TREE_SORT_KEYS.items():
+            if key is None:
+                continue
+            idx = box.findText(label)
+            if idx < 0:
+                continue
+            if result is None:
+                enabled = True
+            else:
+                enabled = bool(any(getattr(result, key)))
+            box.model().item(idx).setEnabled(enabled)
+
+    def _apply_score_sort(self, key: str, result) -> None:
+        parent = self.parent()
+        scores = getattr(result, key)
+        if not any(scores):
+            parent.log.append(
+                f"{key} is zero for every reaction — set rate "
+                "uncertainties so reactions can move",
+                alert=True,
+            )
+        self.sort_reactions(key, scores)
+
+    def _mark_screening_stale(self) -> None:
+        """Campaign inputs changed (experiment selection, uncertainties);
+        rerun screening once the change burst settles."""
+        self._screening_dirty = True
+        self._screen_timer.start(1500)
+
+    def _launch_screening(self) -> None:
+        parent = self.parent()
+        if self._screening_active:
+            self._screen_timer.start(1500)
+
+            return
+        if parent.run_control.optimize_running or not parent.mech.isLoaded:
+            return
+
+        shocks = screening_runner.gather_screening_shocks(parent)
+        score_sort = (
+            TREE_SORT_KEYS.get(parent.mech_tree_sort_box.currentText())
+            is not None
+        )
+        if not shocks:
+            if score_sort:
+                parent.log.append(
+                    "No experiments with data available to screen",
+                    alert=True,
+                )
+                box = parent.mech_tree_sort_box
+                box.blockSignals(True)
+                box.setCurrentText("Reaction #")
+                box.blockSignals(False)
+                self.sort_reactions(None)
+
+            return
+
+        self._screening_active = True
+        self._screening_dirty = False
+        runnable = screening_runner.ScreeningRunnable(
+            parent.mech, shocks, parent.reactor_state,
+            screening_runner.cost_settings_from_gui(parent),
+            sim_cache=self._screening_sim_cache,
+        )
+        runnable.signals.done.connect(
+            self._on_screening_done, QtCore.Qt.QueuedConnection,
+        )
+        runnable.signals.error.connect(
+            self._on_screening_error, QtCore.Qt.QueuedConnection,
+        )
+        parent.threadpool.start(runnable)
+
+    def _on_screening_done(self, result) -> None:
+        parent = self.parent()
+        self._screening_active = False
+        parent.screening_result = result
+        self._sync_sort_options(result)
+        parent.log.append(
+            screening_runner.format_screening_summary(result), alert=False,
+        )
+        if self._screening_dirty:
+            self._screen_timer.start(1500)
+        key = TREE_SORT_KEYS.get(parent.mech_tree_sort_box.currentText())
+        if key is not None:
+            self._apply_score_sort(key, result)
+
+    def _on_screening_error(self, tb: str) -> None:
+        parent = self.parent()
+        self._screening_active = False
+        parent.log.append(f"Screening failed:\n{tb}", alert=True)
+
     def item_clicked(self, event):
         ix = self.proxy_model.mapToSource(event)
         item = self.model.itemFromIndex(ix)
@@ -358,6 +520,13 @@ class Tree(QtCore.QObject):
         self.mech_tree_data = self._set_mech_tree_data(self.mech_tree_type, mech)
         self._set_mech_tree(self.mech_tree_data)
         self._apply_initial_foreground()
+        parent.screening_result = None
+        box = parent.mech_tree_sort_box
+        box.blockSignals(True)
+        box.setCurrentText("Reaction #")
+        box.blockSignals(False)
+        self._sync_sort_options(None)
+        self._mark_screening_stale()
 
     def _apply_initial_foreground(self):
         """Color each row at tree-build time so the user sees optimizable
@@ -1502,6 +1671,13 @@ class QSortFilterProxyModel(QtCore.QSortFilterProxyModel):
         return bool(self._type_filter & tags)
 
     def lessThan(self, left, right):
+        role = self.sortRole()
+        if role != QtCore.Qt.DisplayRole:
+            left_score = self.sourceModel().data(left, role)
+            right_score = self.sourceModel().data(right, role)
+            if left_score is not None and right_score is not None:
+                return left_score < right_score
+
         rxnNum = lambda text: int(text[2:].split(":")[0])
         leftData = self.sourceModel().data(left)
         rightData = self.sourceModel().data(right)
@@ -1798,6 +1974,8 @@ class Uncertainty(QWidget):
             self.valBox.setMinimum(0)
             if update:
                 self.valBox.setValue(uncVal - 1)
+        else:
+            pass  # % <-> +- transitions need no value rebase
 
         if event in ["F", "%"]:
             self.valBox.setDecimals(2)

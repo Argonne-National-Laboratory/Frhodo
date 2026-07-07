@@ -254,6 +254,33 @@ class TestOptimizeResidualTypedRequest:
             "start must not re-ship after the first emit"
         )
 
+    def test_uniqueness_weighting_freezes_and_runs(self, loaded_cycloheptane):
+        """experiment_weighting='uniqueness' screens once at the start,
+        freezes information weights, and the run completes."""
+        request = OptimizationRequest(
+            shocks=[_synthetic_shock()],
+            optimizable=OptimizableSpec(rates=[
+                OptimizableRate(
+                    rxn_idx=_first_arrhenius_idx(loaded_cycloheptane),
+                    rate=RateUncertainty(factor=2.0),
+                ),
+            ]),
+            reactor_state=_reactor_state(),
+            cost=CostSettings(
+                scale="Linear", loss_alpha=2.0, loss_c=1.0,
+                experiment_weighting="uniqueness",
+            ),
+            algorithm=_local_only(2),
+            observable=ObservableSettings(),
+        )
+        logs: list[str] = []
+        cb = OptimizationCallbacks(log=logs.append)
+        result = optimize_residual(loaded_cycloheptane, request, callbacks=cb)
+        assert result.success, f"uniqueness run failed: {result.message}"
+        assert any("uniqueness weights frozen" in m for m in logs), (
+            f"freeze log line missing; logs: {logs[:5]}"
+        )
+
     def test_on_start_fires_with_start_info(self, loaded_cycloheptane):
         request = _build_request(loaded_cycloheptane)
         starts: list[StartInfo] = []

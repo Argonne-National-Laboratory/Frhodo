@@ -765,6 +765,7 @@ class CostFunction:
             ])
         else:
             self._cov_features = None
+        self._exp_balance = inputs.experiment_weights
         self._mloc_diag = None
         self._model_error_floor = 0.0
         self._start_loss_raw = None
@@ -1104,11 +1105,19 @@ class CostFunction:
         losses_raw = losses_std * sigma_totals
 
         cov = np.ones(n)
-        if (
-            self.cost_settings.coverage_weighting
+        mode = self.cost_settings.experiment_weighting
+        if self._exp_balance is not None and self._exp_balance.size == n:
+            # Hybrid balance: frozen uniqueness factor × live coverage.
+            cov = self._exp_balance
+            if self._cov_features is not None and n >= 4:
+                cov = cov * coverage_weights(self._cov_features, user_w)
+        elif (
+            mode in ("coverage", "uniqueness")
             and self._cov_features is not None
             and n >= 4
         ):
+            # "uniqueness" reaching here means the start-point screening
+            # failed; geometric coverage is the promised fallback.
             cov = coverage_weights(self._cov_features, user_w)
 
         obj_fcn = self._legacy_residual_aggregate(losses_raw, user_w * cov)

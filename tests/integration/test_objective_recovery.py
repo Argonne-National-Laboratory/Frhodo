@@ -26,6 +26,8 @@ Scenario matrix (each runs in Linear and Bisymlog scales):
   S8 structured contamination     — wobble + bursty shocks flagged
   S9 correlated-noise campaign    — endpoint loss parity; no mass-flag
 """
+import copy
+
 import numpy as np
 import pytest
 from scipy.optimize import minimize, minimize_scalar
@@ -39,12 +41,18 @@ from frhodo.optimize.cost.aggregation import (
     model_error_floor,
     solve_m_location,
 )
+from frhodo.optimize.screening import influential_mask, uniqueness_weights
 
 
 
 R_GAS = 8.314  # J/mol/K
 TRUTH = np.array([12.0, 0.0, 95_000.0])  # ln A, n, Ea
 START = TRUTH + np.array([0.8, 0.15, 12_000.0])
+X_SCALE = np.array([1.0, 0.2, 10_000.0])
+# Two-channel truth: k2 ~10x faster than k1 at 1500 K with a steeper Ea,
+# so the channels stay separable inside a temperature cluster.
+TRUTH2 = np.concatenate([TRUTH, [17.1, 0.0, 130_000.0]])
+START2 = TRUTH2 + np.tile([0.8, 0.15, 12_000.0], 2)
 SEEDS = [0, 1, 2, 3, 4]
 
 
@@ -61,8 +69,21 @@ def fake_trace(theta, T, t, amplitude=1.0):
     return trace.squeeze()
 
 
+def fake_trace2(theta, T, t, split, amplitude=1.0):
+    """Two-channel pseudo-observable: the mixture analog. ``split`` is the
+    channel-1 fraction, so shocks at identical (T, P) can still probe
+    different kinetics."""
+    k1 = k_arrhenius(theta[:3], T)
+    k2 = k_arrhenius(theta[3:], T)
+    trace = amplitude * (split * np.exp(-k1 * t) + (1.0 - split) * np.exp(-k2 * t))
+
+    return trace
+
+
 class Campaign:
     """A synthetic shock campaign with per-shock conditions and noisy data."""
+
+    truth = TRUTH
 
     def __init__(self, temperatures, pressures, rng, noise=0.01,
                  amplitudes=None, n_t=160, scale_mode="Bisymlog"):
@@ -76,8 +97,7 @@ class Campaign:
         self.noise = np.full(n, noise, dtype=float)
         self.scale_mode = scale_mode
         clean = np.column_stack([
-            fake_trace(TRUTH, T_s, self.t, a)
-            for T_s, a in zip(self.T, self.amplitudes)
+            self.sim_trace(self.truth, j) for j in range(n)
         ])
         self.obs = clean + rng.standard_normal(clean.shape) * (
             self.noise * self.amplitudes
@@ -86,8 +106,31 @@ class Campaign:
         self.features = np.column_stack([1000.0 / self.T, np.log10(self.P)])
         self._finalize()
 
+    def sim_trace(self, theta, j):
+        trace = fake_trace(theta, self.T[j], self.t, self.amplitudes[j])
+
+        return trace
+
+    def subset(self, mask):
+        """Campaign restricted to the masked shocks; the trace grid is shared."""
+        mask = np.asarray(mask)
+        sub = copy.copy(self)
+        sub.T = self.T[mask]
+        sub.P = self.P[mask]
+        sub.amplitudes = self.amplitudes[mask]
+        sub.noise = self.noise[mask]
+        sub.obs = self.obs[:, mask]
+        sub.extra_resid = self.extra_resid[:, mask]
+        sub.features = self.features[mask]
+        sub.scales = [s for s, m in zip(self.scales, mask) if m]
+        sub.sigma_bars = self.sigma_bars[mask]
+        sub.corr_lengths = self.corr_lengths[mask]
+        sub.sigma_totals = self.sigma_totals[mask]
+
+        return sub
+
     def _finalize(self):
-        """Per-shock Scale calibration, σ̄, and τ̂, mirroring _trim_shocks."""
+        """Per-shock Scale calibration, σ̄, and τ̂, mirroring trim_shocks."""
         self.scales = []
         self.sigma_bars = np.empty(self.T.size)
         self.corr_lengths = np.empty(self.T.size)
@@ -119,7 +162,7 @@ class Campaign:
         """Standardized per-shock losses through the real reduction chain."""
         losses = np.empty(self.T.size)
         for j in range(self.T.size):
-            sim = fake_trace(theta, self.T[j], self.t, self.amplitudes[j])
+            sim = self.sim_trace(theta, j)
             scale = self.scales[j]
             resid = scale.forward(self.obs[:, j]) - scale.forward(sim)
             resid = resid + self.extra_resid[:, j]
@@ -128,10 +171,33 @@ class Campaign:
                 losses[j] = np.inf
                 continue
             wsse = float(np.sum(resid**2))
-            eff_dof = max(float(resid.size) - 3.0, 1.0)
+            eff_dof = max(float(resid.size) - float(self.truth.size), 1.0)
             losses[j] = np.sqrt(wsse / eff_dof)
 
         return losses
+
+
+class MixtureCampaign(Campaign):
+    """Two-channel campaign: per-shock ``splits`` play the role of mixture
+    composition, decoupling information content from (T, P) position."""
+
+    truth = TRUTH2
+
+    def __init__(self, temperatures, pressures, splits, rng, **kwargs):
+        self.splits = np.asarray(splits, dtype=float)
+        super().__init__(temperatures, pressures, rng, **kwargs)
+
+    def sim_trace(self, theta, j):
+        trace = fake_trace2(theta, self.T[j], self.t, self.splits[j],
+                            self.amplitudes[j])
+
+        return trace
+
+    def subset(self, mask):
+        sub = super().subset(mask)
+        sub.splits = self.splits[np.asarray(mask)]
+
+        return sub
 
 
 def loss_c_floor(campaign):
@@ -171,16 +237,39 @@ def legacy_aggregate(losses, weights, loss_c=1.0):
     return at(float(res.x))
 
 
-def production_objective(losses_std, campaign, coverage=True):
+def campaign_footprints(campaign, theta, steps):
+    """Central-FD capability footprints: each shock's standardized
+    sensitivity magnitude per parameter — the harness analog of the
+    per-shock importance rows. No residual enters, so contaminated data
+    cannot masquerade as unique information."""
+    theta = np.asarray(theta, dtype=float)
+    footprints = np.empty((campaign.T.size, theta.size))
+    for i, step in enumerate(steps):
+        hi = theta.copy()
+        hi[i] += step
+        lo = theta.copy()
+        lo[i] -= step
+        for j in range(campaign.T.size):
+            scale = campaign.scales[j]
+            dz = scale.forward(campaign.sim_trace(hi, j)) - scale.forward(campaign.sim_trace(lo, j))
+            footprints[j, i] = np.mean(np.abs(dz)) / (2.0 * step * campaign.sigma_totals[j])
+
+    return footprints
+
+
+def production_objective(losses_std, campaign, coverage=True, balance=None):
     """The product Residual objective: legacy aggregation on raw
-    (unstandardized) losses under user × coverage weights."""
+    (unstandardized) losses under user × balance weights. ``balance``
+    overrides the geometric coverage weights (the uniqueness arm)."""
     if not np.all(np.isfinite(losses_std)):
         return np.inf
     raw = losses_std * campaign.sigma_totals
     n = raw.size
     user_w = np.ones(n)
     weights = user_w
-    if coverage and n >= 4:
+    if balance is not None:
+        weights = user_w * balance
+    elif coverage and n >= 4:
         weights = user_w * coverage_weights(campaign.features, user_w)
 
     return legacy_aggregate(raw, weights)
@@ -197,6 +286,69 @@ def legacy_objective(losses_raw):
     return legacy_aggregate(losses, np.ones(losses.size))
 
 
+def recover_theta(campaign, objective, start, x_scale, maxiter=(2000, 1000)):
+    """Local recovery of theta from a perturbed start.
+
+    The uniqueness arm is the hybrid balance: coverage (condition-space
+    redundancy) × uniqueness (information-space redundancy), with
+    capability footprints at the start point, non-influential shocks
+    excluded, and the uniqueness factor frozen for the whole run — all
+    before the error floor is calibrated.
+    """
+    balance = None
+    if objective == "uniqueness":
+        footprints = campaign_footprints(campaign, start, x_scale * 1e-3)
+        keep = influential_mask(footprints)
+        campaign = campaign.subset(keep)
+        balance = uniqueness_weights(footprints[keep])
+        if balance.size >= 4:
+            balance = balance * coverage_weights(
+                campaign.features, np.ones(balance.size),
+            )
+    campaign.calibrate_error_floor(start)
+
+    def fun(u):
+        theta = u * x_scale
+        losses = campaign.shock_losses(theta)
+        if objective == "legacy":
+            value = legacy_objective(losses * campaign.sigma_totals)
+        elif objective in ("production", "uniqueness"):
+            value = production_objective(losses, campaign, balance=balance)
+        else:
+            raise ValueError(f"unknown objective {objective!r}")
+
+        return value
+
+    # Two stages with the floor re-anchored at the stage boundary,
+    # mirroring the production global -> local handoff. The second
+    # stage is a polish under the corrected floor: a tight simplex at
+    # the incumbent, not a fresh exploration.
+    stage1 = minimize(
+        fun, start / x_scale, method="Nelder-Mead",
+        options={"xatol": 1e-5, "fatol": 1e-10, "maxiter": maxiter[0]},
+    )
+    campaign.calibrate_error_floor(stage1.x * x_scale)
+    steps = np.maximum(np.abs(stage1.x) * 1e-3, 1e-4)
+    simplex = np.vstack([stage1.x, stage1.x + np.diag(steps)])
+    res = minimize(
+        fun, stage1.x, method="Nelder-Mead",
+        options={"xatol": 1e-5, "fatol": 1e-10, "maxiter": maxiter[1],
+                 "initial_simplex": simplex},
+    )
+    theta_hat = res.x * x_scale
+
+    return theta_hat
+
+
+def ln_k_error(theta_hat, theta_true, T_grid):
+    """Worst ``|Δln k(T)|`` of one Arrhenius triple over the window."""
+    ln_k_err = np.abs(
+        np.log(k_arrhenius(theta_hat, T_grid)) - np.log(k_arrhenius(theta_true, T_grid))
+    )
+
+    return float(np.max(ln_k_err))
+
+
 def recover(campaign, objective):
     """Local recovery from the perturbed start, scored in rate space.
 
@@ -204,40 +356,36 @@ def recover(campaign, objective):
     scored as the worst ``|Δln k(T)|`` over the campaign's temperature
     window — the quantity a mechanism actually needs recovered.
     """
-    x_scale = np.array([1.0, 0.2, 10_000.0])
-    campaign.calibrate_error_floor(START)
-
-    def fun(u):
-        theta = u * x_scale
-        losses = campaign.shock_losses(theta)
-        if objective == "production":
-            return production_objective(losses, campaign)
-
-        return legacy_objective(losses * campaign.sigma_totals)
-
-    # Two stages with the floor re-anchored at the stage boundary,
-    # mirroring the production global -> local handoff. The second
-    # stage is a polish under the corrected floor: a tight simplex at
-    # the incumbent, not a fresh exploration.
-    stage1 = minimize(
-        fun, START / x_scale, method="Nelder-Mead",
-        options={"xatol": 1e-5, "fatol": 1e-10, "maxiter": 2000},
-    )
-    campaign.calibrate_error_floor(stage1.x * x_scale)
-    steps = np.maximum(np.abs(stage1.x) * 1e-3, 1e-4)
-    simplex = np.vstack([stage1.x, stage1.x + np.diag(steps)])
-    res = minimize(
-        fun, stage1.x, method="Nelder-Mead",
-        options={"xatol": 1e-5, "fatol": 1e-10, "maxiter": 1000,
-                 "initial_simplex": simplex},
-    )
-    theta_hat = res.x * x_scale
+    theta_hat = recover_theta(campaign, objective, START, X_SCALE)
     T_grid = np.linspace(campaign.T.min(), campaign.T.max(), 25)
-    ln_k_err = np.abs(
-        np.log(k_arrhenius(theta_hat, T_grid)) - np.log(k_arrhenius(TRUTH, T_grid))
-    )
+    error = ln_k_error(theta_hat, TRUTH, T_grid)
 
-    return float(np.max(ln_k_err))
+    return error
+
+
+def recover_mixture(campaign, objective):
+    """Two-channel recovery, scored per channel over the campaign window."""
+    x_scale = np.tile(X_SCALE, 2)
+    theta_hat = recover_theta(campaign, objective, START2, x_scale,
+                              maxiter=(4000, 2000))
+    T_grid = np.linspace(campaign.T.min(), campaign.T.max(), 25)
+    err1 = ln_k_error(theta_hat[:3], TRUTH2[:3], T_grid)
+    err2 = ln_k_error(theta_hat[3:], TRUTH2[3:], T_grid)
+
+    return err1, err2
+
+
+def mixture_campaign(rng, scale_mode="Bisymlog"):
+    """Same-(T, P) cluster dominated by channel 1, one lone channel-2
+    probe inside the cluster, two spread anchors. Geometric coverage
+    discounts the probe as a cluster member; uniqueness must not."""
+    T = np.concatenate([1500.0 + rng.uniform(-50.0, 50.0, 8),
+                        [1500.0, 1300.0, 2000.0]])
+    splits = np.concatenate([np.full(8, 0.95), [0.2, 0.95, 0.95]])
+    campaign = MixtureCampaign(T, np.full(11, 1.5e4), splits, rng,
+                               scale_mode=scale_mode)
+
+    return campaign
 
 
 def median_errors(make_campaign, scale_mode):
@@ -511,4 +659,61 @@ class TestScenarioMatrix:
         assert np.all(mloc.irls_weights[[2, 7]] < 0.6), (
             f"S8 {scale_mode}: contaminated shocks must be discounted, "
             f"weights {np.round(mloc.irls_weights[[2, 7]], 3)}"
+        )
+
+
+@pytest.mark.slow
+class TestUniquenessWeighting:
+    """Permanent subset of the pre-registered uniqueness validation
+    (development/revamp_pt_2/uniqueness_validation.md): exclusion of
+    information-dead shocks, and the mixture-separator smoke case."""
+
+    def test_dead_shocks_excluded_and_recovery_unchanged(self):
+        # Cold shocks whose traces do not respond to theta relative to
+        # their noise: information-dead, though the traces themselves
+        # are full-amplitude.
+        T = np.concatenate([spread_T(), [780.0, 800.0, 820.0]])
+        campaign = Campaign(T, np.full(15, 1.5e4), np.random.default_rng(0))
+        footprints = campaign_footprints(campaign, START, X_SCALE * 1e-3)
+        keep = influential_mask(footprints)
+        assert list(keep) == [True] * 12 + [False] * 3, (
+            f"exclusion must drop exactly the cold shocks, kept {list(keep)}"
+        )
+
+        theta_padded = recover_theta(campaign, "uniqueness", START, X_SCALE)
+        theta_clean = recover_theta(campaign.subset(keep), "uniqueness",
+                                    START, X_SCALE)
+        assert np.allclose(theta_padded, theta_clean, atol=1e-6), (
+            f"dead shocks must not move the optimum: with {theta_padded}, "
+            f"without {theta_clean}"
+        )
+
+    def test_mixture_probe_not_worse_under_uniqueness(self):
+        _, err2_cov = recover_mixture(
+            mixture_campaign(np.random.default_rng(0)), "production",
+        )
+        _, err2_uni = recover_mixture(
+            mixture_campaign(np.random.default_rng(0)), "uniqueness",
+        )
+        assert err2_uni <= err2_cov + 0.05, (
+            f"uniqueness weighting must not degrade the lone-probe channel: "
+            f"k2 error {err2_uni:.4f} vs coverage {err2_cov:.4f}"
+        )
+
+    def test_contaminated_shock_not_upweighted(self):
+        # Wholesale corruption on a cluster shock in the mixture
+        # campaign: directions are non-degenerate here, so a
+        # residual-carrying factor could mistake corruption for
+        # uniqueness. Capability footprints must not.
+        campaign = mixture_campaign(np.random.default_rng(0))
+        campaign.obs[:, 2] = 0.55 * campaign.obs[:, 2] + 0.2
+        campaign._finalize()
+        footprints = campaign_footprints(
+            campaign, START2, np.tile(X_SCALE, 2) * 1e-3,
+        )
+        w = uniqueness_weights(footprints)
+        siblings = float(np.median(w[[0, 1, 3, 4, 5, 6, 7]]))
+        assert 0.5 * siblings <= w[2] <= 1.5 * siblings, (
+            f"corrupted shock factor {w[2]:.3f} outside "
+            f"[0.5, 1.5] x sibling median {siblings:.3f}"
         )

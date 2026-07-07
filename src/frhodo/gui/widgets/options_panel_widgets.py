@@ -1294,6 +1294,7 @@ class Optimization(QtCore.QObject):
         self.settings = {"obj_fcn": {}, "global": {}, "local": {}}
 
         parent.loss_c_box.valueChanged.connect(self.update_obj_fcn_settings)
+        parent.prior_lambda_box.valueChanged.connect(self.update_obj_fcn_settings)
         for box in [
             parent.loss_alpha_box,
             parent.obj_fcn_scale_box,
@@ -1301,7 +1302,7 @@ class Optimization(QtCore.QObject):
             parent.local_opt_choice_box,
         ]:
             box.currentTextChanged.connect(self.update_obj_fcn_settings)
-        parent.coverage_weighting_box.stateChanged.connect(self.update_obj_fcn_settings)
+        parent.experiment_balance_box.stateChanged.connect(self.update_obj_fcn_settings)
 
         self.update_obj_fcn_settings()  # initialize settings
 
@@ -1427,7 +1428,13 @@ class Optimization(QtCore.QObject):
         settings["c"] = (
             1 / parent.loss_c_box.value()
         )  # this makes increasing values decrease outlier influence
-        settings["coverage_weighting"] = parent.coverage_weighting_box.isChecked()
+        settings["prior_lambda"] = parent.prior_lambda_box.value()
+        if parent.experiment_balance_box.isChecked():
+            settings["experiment_weighting"] = getattr(
+                parent, "experiment_balance_mode", "uniqueness",
+            )
+        else:
+            settings["experiment_weighting"] = "none"
 
         if event is None:
             stackWidget = parent.weight_unc_parameters_stacked_widget
@@ -1456,7 +1463,7 @@ class Optimization(QtCore.QObject):
 
                 return
 
-            elif var_type == "algorithm":
+            if var_type == "algorithm":
                 if opt_type == "global":
                     if box.currentText() == "MLSL (Multi-Level Single-Linkage)":
                         self.widgets["local"]["run"].setEnabled(False)

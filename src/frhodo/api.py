@@ -955,7 +955,7 @@ def _to_internal_shock(shock: "ExperimentShock", request: "OptimizationRequest",
     per-sample weights / uncertainties).
 
     Samples outside ``weight_profile.cutoff_*`` get weight 0 so the
-    downstream ``_trim_shocks`` drops them; samples inside carry the
+    downstream ``trim_shocks`` drops them; samples inside carry the
     ``WeightProfile`` envelope scaled by ``shock.scalar_weight``.
     """
     if isinstance(shock.initial, PreShockState):
