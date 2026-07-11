@@ -7,6 +7,7 @@
 
 import os
 import sys
+import threading
 import platform
 import multiprocessing
 import pathlib
@@ -48,7 +49,8 @@ from frhodo.gui.state import (
 )
 from frhodo.gui.widgets.options_panel_widgets import apply_auto_fit_time_offset
 from frhodo.optimize.parameters import OptimizableSetBuilder
-from frhodo.optimize.pool import PersistentWorkerPool
+from frhodo.optimize.pool import PersistentWorkerPool, default_worker_count
+from frhodo.optimize._worker_context import MechBuildPayload
 from frhodo.gui.widgets import (
     config_io,
     error_window,
@@ -342,6 +344,12 @@ class Main(QMainWindow):
         self.log.append(loader.messages, alert=False)
         self.load_state.mech_loaded = True
 
+        # Pre-spawn the worker pool while the user sets up the run:
+        # mp.Pool() returns immediately and worker initializers import
+        # the stack in the background, so the first optimization's pool
+        # wait shrinks to whatever hasn't finished by then.
+        self._prespawn_worker_pool()
+
         # Initialize tables and trees
         self.tree.handle_reload(prior_snapshot)
 
@@ -356,6 +364,39 @@ class Main(QMainWindow):
             ].emit(observable)
         elif tabText == "Sim Explorer":
             self.sim_explorer.update_all_main_parameter()
+
+    def _prespawn_worker_pool(self):
+        if not hasattr(self, "worker_pool") or not self.mech.isLoaded:
+            return
+        if not self.multiprocessing_box.isChecked():
+            return
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            # Tests instantiate the app and load mechanisms constantly;
+            # spawning a real worker pool per test is pure overhead.
+            return
+        payload = MechBuildPayload(
+            reset_mech=self.mech.reset_mech,
+            thermo_coeffs=self.mech.thermo_coeffs,
+            coeffs=self.mech.coeffs,
+            coeffs_bnds=self.mech.coeffs_bnds,
+            rate_bnds=self.mech.rate_bnds,
+        )
+        # Match the orchestrator's formula so a later optimize-time
+        # acquire never needs a growth respawn.
+        workers = default_worker_count()
+
+        def spawn():
+            try:
+                self.worker_pool.acquire(workers=workers, payload=payload)
+            except Exception:
+                # Pre-spawning is opportunistic; the optimize path
+                # spawns normally if this failed.
+                pass
+
+        # Process creation is far too slow for the GUI thread; the pool
+        # manager's lock serializes against an optimize-time acquire.
+        threading.Thread(target=spawn, daemon=True,
+                         name="pool-prespawn").start()
 
     def load_session(self, event=None):
         if not getattr(self, "user_settings", None):

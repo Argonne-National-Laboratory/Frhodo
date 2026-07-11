@@ -83,6 +83,33 @@ def pool_worker_mech():
     return _pool_worker_ctx.mech
 
 
+def _pool_worker_probe(args):
+    """Read one coefficient off this worker's mechanism — a staleness
+    probe for the persistent pool's in-place re-init."""
+    rxn_idx, coeffs_key, coef_name = args
+    entry = _pool_worker_ctx.mech.coeffs[rxn_idx]
+    if coeffs_key is None:
+        value = entry[0][coef_name]
+    else:
+        value = entry[coeffs_key][coef_name]
+
+    return float(value)
+
+
+def _pool_reinit_worker(args):
+    """Rebuild this worker's mechanism in place from a new payload.
+
+    The barrier forces one task per worker: each claimant blocks until
+    all workers have claimed one, so no worker can service two re-init
+    tasks and be left holding a stale mechanism.
+    """
+    payload, barrier, timeout_s = args
+    initialize_parallel_worker(payload)
+    barrier.wait(timeout=timeout_s)
+
+    return True
+
+
 def _pool_fit_coeffs(args):
     return fit_coeffs(*args, _pool_worker_ctx.mech)
 

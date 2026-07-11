@@ -101,7 +101,12 @@ def regularized_shifts(conditions, t_star, t_unc, *, l1_ratios=_L1_RATIOS):
     # model to its intercept, one shared shift for every shock.
     model = make_pipeline(
         StandardScaler(),
-        ElasticNetCV(l1_ratio=list(l1_ratios), cv=cv, max_iter=10_000),
+        # tol=1e-3: shift predictions are microsecond-scale and
+        # band-clamped; demanding tighter CV-path convergence only
+        # trips ConvergenceWarnings on folds that are already accurate
+        # far beyond the model's use.
+        ElasticNetCV(l1_ratio=list(l1_ratios), cv=cv, max_iter=10_000,
+                     tol=1e-3),
     )
     # Fit the target in microseconds: second-scale shifts push
     # sklearn's variance-scaled duality-gap tolerance below float

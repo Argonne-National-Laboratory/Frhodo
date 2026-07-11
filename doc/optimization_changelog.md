@@ -52,6 +52,32 @@ budget-contract test. The coarse linearization sweep is pool-parallel
 (sim + sensitivity per shock dispatched to workers), removing the
 stage's dominant serial cost on multi-core hosts (~8x coarse wall).
 
+### Screening solves farmed across the worker pool
+The campaign screening's per-shock trajectory + sensitivity solves run
+across the persistent worker pool when one is up: the optimizer's
+uniqueness-weighting pass uses the just-acquired run pool (its workers
+already hold the run's mechanism), and the background GUI ranking runs
+reuse a running fleet — they never launch one on their own. The first
+task stages alone so a cold fleet compiles the numba kernel cache with
+a single writer. This cuts the weighting prep stage from ~15 s serial
+to roughly its 1/workers share, including on runs whose start
+mechanism changed (where the sensitivity cache cannot help because the
+solves are genuinely new).
+
+### Optimization prep: persistent workers + measured pool sizing
+The worker pool persists across optimization runs: reuse is decided by
+payload content (the Plog->Troe recast rebuilds the Cantera Solution
+every run, so object identity respawned all workers per run), changed
+mechanisms re-initialize live workers in place instead of respawning,
+the staged numba warmup runs once per pool generation, and the pool
+pre-spawns in the background at mechanism load. Pool size follows a
+throughput benchmark (physical cores + 1/3, else 2/3 of logical):
+on the 12-core benchmark host 16 workers evaluate ~7% faster than the
+former logical+2 = 26 while spawning ~40% fewer processes. Prep logs a
+per-stage timing line (pool/trim/weighting/warmup/floor). Steady-state
+prep dropped from ~2 minutes to ~10-20s; the launch-time import storm
+is paid once per app session, hidden behind setup time.
+
 ### Triage presets + resettable algorithm selectors
 Two opt-in triage presets for ranking candidate setups cheaply (not
 for producing mechanisms): "Smurf (quick, low fidelity)" — the

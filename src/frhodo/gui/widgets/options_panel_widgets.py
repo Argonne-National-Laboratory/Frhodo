@@ -1394,7 +1394,7 @@ class Optimization(QtCore.QObject):
             if hasattr(box, "subordinates"):
                 box.subordinates = [
                     w for w in self.widgets[opt_type].values()
-                    if hasattr(w, "_reset")
+                    if w is not box and hasattr(w, "_reset")
                 ]
 
         for opt_type, boxes in self.widgets.items():

@@ -4,7 +4,7 @@ Owns input validation, per-iteration HoF + plot cadence, and run
 finalization. Drives the Qt :class:`Worker` off the GUI thread and
 receives engine events through :class:`frhodo.api.OptimizationCallbacks`.
 """
-import multiprocessing as mp
+from frhodo.optimize.pool import default_worker_count
 import pathlib
 import traceback
 from timeit import default_timer as timer
@@ -300,8 +300,7 @@ class Multithread_Optimize:
         parent.run_control.optimize_running = True
 
         if parent.run_control.multiprocessing:
-            cpu_count = mp.cpu_count() + 2
-            max_processors = int(min(len(shocks2run), cpu_count))
+            max_processors = default_worker_count(len(shocks2run))
         else:
             max_processors = 1
 

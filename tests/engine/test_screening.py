@@ -13,7 +13,11 @@ from frhodo.api import (
     _to_internal_shock,
 )
 from frhodo.optimize import screening
+from frhodo.optimize._worker_context import MechBuildPayload, WorkerContext
+from frhodo.optimize.cost import fit_fcn
 from frhodo.optimize.cost.settings import CostSettings
+from frhodo.optimize.pool import PersistentWorkerPool
+from frhodo.optimize.sensitivity_cache import SensitivityCache
 from frhodo.optimize.screening import (
     ASSUMED_MOVABILITY,
     SUGGEST_LOSS_FRACTION,
@@ -249,11 +253,11 @@ class TestScreenCampaign:
         assert 1.0 <= result.effective_rank <= 2.0
         assert result.ranking()[0] == int(np.argmax(lev))
 
-    def test_sim_cache_skips_solves_and_invalidates_on_version(
+    def test_sim_cache_skips_solves_and_invalidates_on_coeff_change(
         self, loaded_cycloheptane, monkeypatch,
     ):
         """A re-screen with the cache runs zero solves and reproduces the
-        result exactly; bumping the mechanism version re-solves."""
+        result exactly; a real coefficient change re-solves."""
         mech = loaded_cycloheptane
         calls = {"sim": 0, "sens": 0}
         real_sim = screening._run_start_sim
@@ -272,7 +276,7 @@ class TestScreenCampaign:
         monkeypatch.setattr(screening, "_run_start_sim", counting_sim)
         monkeypatch.setattr(screening, "compute_sensitivity", counting_sens)
 
-        cache = {}
+        cache = SensitivityCache()
         first = screen_campaign(
             mech, self._campaign(mech), self._reactor(), self._cost(),
             sim_cache=cache,
@@ -290,15 +294,106 @@ class TestScreenCampaign:
         np.testing.assert_array_equal(second.leverage, first.leverage)
         np.testing.assert_array_equal(second.footprints, first.footprints)
 
-        mech.coeffs_version += 1
-        screen_campaign(
-            mech, self._campaign(mech), self._reactor(), self._cost(),
-            sim_cache=cache,
+        idx = next(
+            i for i, r in enumerate(mech.gas.reactions())
+            if type(r.rate) is ct.ArrheniusRate
         )
+        original = mech.coeffs[idx][0]["pre_exponential_factor"]
+        mech.coeffs[idx][0]["pre_exponential_factor"] = original * 1.5
+        try:
+            mech.modify_reactions(mech.coeffs, rxnIdxs=idx)
+            screen_campaign(
+                mech, self._campaign(mech), self._reactor(), self._cost(),
+                sim_cache=cache,
+            )
+        finally:
+            mech.coeffs[idx][0]["pre_exponential_factor"] = original
+            mech.modify_reactions(mech.coeffs, rxnIdxs=idx)
         assert calls == {"sim": 4, "sens": 4}, (
-            f"a version bump must invalidate the cache, got {calls}"
+            f"a coefficient change must invalidate the cache, got {calls}"
         )
-        assert len(cache) == 2, "stale-version entries must be evicted"
+        assert len(cache) == 2, "stale-fingerprint entries must be pruned"
+
+    def test_worker_pool_prefetch_matches_serial(
+        self, loaded_cycloheptane, monkeypatch,
+    ):
+        """Pooled screening reproduces the serial result exactly, stages
+        the first task alone, and fills the cache."""
+        mech = loaded_cycloheptane
+        serial = screen_campaign(
+            mech, self._campaign(mech), self._reactor(), self._cost(),
+            sim_cache=SensitivityCache(),
+        )
+
+        class SerialMapPool:
+            map_calls = 0
+
+            def map(self, func, iterable, chunksize=1):
+                SerialMapPool.map_calls += 1
+
+                return [func(args) for args in iterable]
+
+        monkeypatch.setattr(
+            fit_fcn, "_pool_worker_ctx", WorkerContext(mech=mech),
+        )
+        cache = SensitivityCache()
+        pooled = screen_campaign(
+            mech, self._campaign(mech), self._reactor(), self._cost(),
+            sim_cache=cache, worker_pool=SerialMapPool(),
+        )
+
+        assert SerialMapPool.map_calls == 2, (
+            "the first task must stage alone before the fan-out"
+        )
+        np.testing.assert_array_equal(pooled.leverage, serial.leverage)
+        np.testing.assert_array_equal(pooled.footprints, serial.footprints)
+        assert len(cache) == 2, "pool results must land in the cache"
+
+    def test_worker_pool_failures_skip_shocks(self, loaded_cycloheptane):
+        """Shocks the pool can't solve are skipped like the serial path;
+        a campaign with none left raises."""
+        mech = loaded_cycloheptane
+
+        class FailingPool:
+            def map(self, func, iterable, chunksize=1):
+                return [None for _ in iterable]
+
+        with pytest.raises(ValueError, match="no usable shocks"):
+            screen_campaign(
+                mech, self._campaign(mech), self._reactor(), self._cost(),
+                sim_cache=SensitivityCache(), worker_pool=FailingPool(),
+            )
+
+    def test_worker_pool_end_to_end(self, loaded_cycloheptane):
+        """Real spawned workers rebuild the mechanism from the payload
+        and reproduce the serial screening."""
+        mech = loaded_cycloheptane
+        serial = screen_campaign(
+            mech, self._campaign(mech), self._reactor(), self._cost(),
+            sim_cache=SensitivityCache(),
+        )
+        payload = MechBuildPayload(
+            reset_mech=mech.reset_mech,
+            thermo_coeffs=mech.thermo_coeffs,
+            coeffs=mech.coeffs,
+            coeffs_bnds=mech.coeffs_bnds,
+            rate_bnds=mech.rate_bnds,
+        )
+        worker_pool = PersistentWorkerPool()
+        try:
+            pool = worker_pool.acquire(workers=2, payload=payload)
+            pooled = screen_campaign(
+                mech, self._campaign(mech), self._reactor(), self._cost(),
+                sim_cache=SensitivityCache(), worker_pool=pool,
+            )
+        finally:
+            worker_pool.close()
+
+        np.testing.assert_allclose(
+            pooled.leverage, serial.leverage, rtol=1e-9,
+            err_msg="worker-solved screening must match serial",
+        )
+        assert pooled.skipped_shocks == serial.skipped_shocks == []
 
 
 class TestCoeffsVersion:

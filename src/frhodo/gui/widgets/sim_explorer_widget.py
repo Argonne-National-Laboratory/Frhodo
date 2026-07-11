@@ -17,6 +17,12 @@ from frhodo.gui.widgets import (
     series_viewer_widget,
     thermo_widget,
 )
+from frhodo.optimize.sensitivity_cache import (
+    grid_fingerprint,
+    mech_fingerprint,
+    shared_cache,
+    sim_cache_key,
+)
 from frhodo.simulation.shock.reactor_output import (
     VARIANTS_BY_DISPLAY,
     base_sim_name_for_display,
@@ -53,12 +59,6 @@ class SIM_Explorer_Widgets(QtCore.QObject):
         self.max_history = 9
         self.widget = []
         self.updating_boxes = False
-
-        # Cache keyed by (gas_id, sim_id, observable, species_idx) →
-        # (t_arr, sens_arr). gas_id and sim_id invalidate on mech reload
-        # or rerun; observable / species_idx separate variants so
-        # switching dropdowns doesn't recompute already-cached cases.
-        self._sensitivity_cache: dict[tuple, tuple[np.ndarray, np.ndarray]] = {}
 
         for axis in ["x", "y", "y2"]:
             self.create_choices(axis=axis)
@@ -541,17 +541,20 @@ class SIM_Explorer_Widgets(QtCore.QObject):
         else:
             species_idx = None
 
-        gas = self.parent.mech.gas
-        cache_key = (id(gas), id(SIM), observable, species_idx)
-        cached = self._sensitivity_cache.get(cache_key)
-        if cached is not None:
-            return cached
-
         shock = self.parent.display_shock
         if hasattr(SIM, "t_lab"):
             t_grid = SIM.t_lab(units="SI")
         else:
             t_grid = None
+
+        cache_key = sim_cache_key(
+            "sens", mech_fingerprint(self.parent.mech),
+            self.parent.reactor_state, shock, observable, species_idx,
+            "auto", grid_fp=grid_fingerprint(t_grid),
+        )
+        cached = shared_cache.get(cache_key)
+        if cached is not None:
+            return cached
 
         t, sens = compute_sensitivity(
             self.parent.mech,
@@ -563,6 +566,6 @@ class SIM_Explorer_Widgets(QtCore.QObject):
             method="auto",
             n_workers=max(1, mp.cpu_count() // 2),
         )
-        self._sensitivity_cache[cache_key] = (t, sens)
+        shared_cache.put(cache_key, (t, sens))
 
         return t, sens

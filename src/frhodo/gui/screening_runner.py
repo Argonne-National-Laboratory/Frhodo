@@ -10,6 +10,7 @@ import traceback
 import numpy as np
 from qtpy.QtCore import QObject, QRunnable, Signal
 
+from frhodo.optimize._worker_context import MechBuildPayload
 from frhodo.optimize.cost.settings import CostSettings
 from frhodo.optimize.screening import SUGGEST_LOSS_FRACTION, screen_campaign
 
@@ -24,25 +25,51 @@ class ScreeningRunnable(QRunnable):
     """Runs the screening solves off the GUI thread.
 
     Holds ``mech.exclusive()`` for the duration so concurrent GUI
-    simulations don't race the screening reactor solves.
+    simulations don't race the screening reactor solves. When the
+    persistent worker pool is already running, the per-shock solves are
+    farmed across it (acquiring re-initializes the workers to the
+    current mechanism if the user edited coefficients since spawn); a
+    pool that isn't up yet stays down — screening never triggers the
+    worker-fleet launch on its own.
     """
 
     def __init__(self, mech, shocks, reactor_state, cost_settings,
-                 sim_cache=None):
+                 worker_pool=None, workers=0):
         super().__init__()
         self.signals = ScreeningSignals()
         self._mech = mech
         self._shocks = shocks
         self._reactor_state = reactor_state
         self._cost_settings = cost_settings
-        self._sim_cache = sim_cache
+        self._worker_pool = worker_pool
+        self._workers = workers
+
+    def _acquire_pool(self):
+        if (self._worker_pool is None or self._workers < 2
+                or not self._worker_pool.running):
+            return None
+        payload = MechBuildPayload(
+            reset_mech=self._mech.reset_mech,
+            thermo_coeffs=self._mech.thermo_coeffs,
+            coeffs=self._mech.coeffs,
+            coeffs_bnds=self._mech.coeffs_bnds,
+            rate_bnds=self._mech.rate_bnds,
+        )
+        try:
+            pool = self._worker_pool.acquire(
+                workers=self._workers, payload=payload,
+            )
+        except Exception:
+            return None
+
+        return pool
 
     def run(self):
         try:
             with self._mech.exclusive():
                 result = screen_campaign(
                     self._mech, self._shocks, self._reactor_state,
-                    self._cost_settings, sim_cache=self._sim_cache,
+                    self._cost_settings, worker_pool=self._acquire_pool(),
                 )
         except Exception:
             self.signals.error.emit(traceback.format_exc())

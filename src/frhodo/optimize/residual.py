@@ -5,6 +5,7 @@ algorithm dispatch. Logging, progress, and abort are callbacks.
 """
 import multiprocessing as mp
 import traceback
+from timeit import default_timer as timer
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable
 
@@ -75,23 +76,24 @@ class OptimizeRunCallbacks:
     mech: Any = None  # ChemicalMechanism — read for struct_version
 
 
-def _apply_uniqueness_weighting(inputs: OptimizeRunInputs, log):
+def _apply_uniqueness_weighting(inputs: OptimizeRunInputs, log, pool=None):
     """Freeze the information-uniqueness balance factor at the start point.
 
-    Screens the campaign once (two solves per shock), drops experiments
-    whose simulation responds to no reaction (mutating ``shocks2run`` in
-    place), and returns the uniqueness factor for the kept experiments;
-    the cost function multiplies live coverage weights into it (the
-    hybrid balance). Both the factor and the mask are built from
-    capability footprints — residual-free, so contaminated data cannot
-    masquerade as unique information. Returns ``None`` on screening
-    failure — the cost function then falls back to plain geometric
-    coverage, logged.
+    Screens the campaign once (two solves per shock, farmed across
+    ``pool`` when one is up — its workers already hold the run's
+    mechanism), drops experiments whose simulation responds to no
+    reaction (mutating ``shocks2run`` in place), and returns the
+    uniqueness factor for the kept experiments; the cost function
+    multiplies live coverage weights into it (the hybrid balance). Both
+    the factor and the mask are built from capability footprints —
+    residual-free, so contaminated data cannot masquerade as unique
+    information. Returns ``None`` on screening failure — the cost
+    function then falls back to plain geometric coverage, logged.
     """
     try:
         result = screen_campaign(
             inputs.mech, inputs.shocks2run, inputs.reactor_state,
-            inputs.cost_settings,
+            inputs.cost_settings, worker_pool=pool,
         )
     except Exception as e:
         log(
@@ -149,16 +151,24 @@ def _prepare_fit_fun(inputs: OptimizeRunInputs, cb: OptimizeRunCallbacks):
     """
     log = cb.log_callback or (lambda msg: None)
     progress = cb.progress_callback or (lambda update: None)
+    stage_wall = {}
+    t_stage = timer()
+
+    def _mark(stage):
+        nonlocal t_stage
+        stage_wall[stage] = timer() - t_stage
+        t_stage = timer()
 
     pool_is_persistent = False
+    workers_are_warm = False
     if inputs.multiprocessing and cb.mech_payload is not None:
-        if cb.worker_pool is not None and cb.mech is not None:
+        if cb.worker_pool is not None:
             pool = cb.worker_pool.acquire(
                 workers=inputs.max_processors,
-                mech=cb.mech,
                 payload=cb.mech_payload,
             )
             pool_is_persistent = True
+            workers_are_warm = cb.worker_pool.warmed
         else:
             pool = mp.Pool(
                 processes=inputs.max_processors,
@@ -167,14 +177,17 @@ def _prepare_fit_fun(inputs: OptimizeRunInputs, cb: OptimizeRunCallbacks):
             )
     else:
         pool = None
+    _mark("pool")
 
     trim_shocks(inputs.shocks2run, inputs.cost_settings)
+    _mark("trim")
 
     if (inputs.cost_settings.experiment_weighting == "uniqueness"
             and inputs.experiment_weights is None):
-        balance = _apply_uniqueness_weighting(inputs, log)
+        balance = _apply_uniqueness_weighting(inputs, log, pool=pool)
         if balance is not None:
             inputs = replace(inputs, experiment_weights=balance)
+    _mark("weighting")
 
     fit_fun = CostFunction(
         inputs,
@@ -184,9 +197,25 @@ def _prepare_fit_fun(inputs: OptimizeRunInputs, cb: OptimizeRunCallbacks):
         progress_callback=progress,
     )
 
-    if pool is not None:
+    if pool is not None and not workers_are_warm:
         fit_fun.warmup_workers(inputs.max_processors, inputs.initial_scalers)
+        if pool_is_persistent:
+            cb.worker_pool.warmed = True
+    _mark("warmup")
     fit_fun.calibrate_error_floor(inputs.initial_scalers)
+    _mark("floor")
+
+    if pool_is_persistent:
+        pool_note = cb.worker_pool.last_acquire_action
+    else:
+        pool_note = "spawned"
+    log(
+        f"prep: pool {stage_wall['pool']:.1f}s ({pool_note}) | "
+        f"trim {stage_wall['trim']:.1f}s | "
+        f"weighting {stage_wall['weighting']:.1f}s | "
+        f"warmup {stage_wall['warmup']:.1f}s | "
+        f"floor {stage_wall['floor']:.1f}s"
+    )
 
     return fit_fun, inputs, pool, pool_is_persistent
 

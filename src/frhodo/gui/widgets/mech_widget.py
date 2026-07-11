@@ -32,6 +32,7 @@ from frhodo.common.units import PRESSURE_UNITS, pa_per_unit
 from frhodo.gui.state import LoadState, RunControlState
 from frhodo.gui import screening_runner
 from frhodo.gui.widgets import misc_widget
+from frhodo.optimize.pool import default_worker_count
 from frhodo.simulation.mechanism import ChemicalMechanism
 from frhodo.simulation.mechanism.coef_helpers import arrhenius_coefNames
 from frhodo.simulation.mechanism.mech_fcns import _FALLOFF_FAMILY
@@ -343,9 +344,6 @@ class Tree(QtCore.QObject):
         parent.screening_result = None
         self._screening_active = False
         self._screening_dirty = True
-        # Per-shock solve results survive re-screens; keyed on the mech
-        # version, so coefficient changes invalidate naturally.
-        self._screening_sim_cache = {}
         self._screen_timer = QtCore.QTimer(self)
         self._screen_timer.setSingleShot(True)
         self._screen_timer.timeout.connect(self._launch_screening)
@@ -455,10 +453,14 @@ class Tree(QtCore.QObject):
 
         self._screening_active = True
         self._screening_dirty = False
+        workers = 0
+        if parent.multiprocessing_box.isChecked():
+            override = parent.user_settings.config.optimization.worker_count
+            workers = override or default_worker_count(len(shocks))
         runnable = screening_runner.ScreeningRunnable(
             parent.mech, shocks, parent.reactor_state,
             screening_runner.cost_settings_from_gui(parent),
-            sim_cache=self._screening_sim_cache,
+            worker_pool=parent.worker_pool, workers=workers,
         )
         runnable.signals.done.connect(
             self._on_screening_done, QtCore.Qt.QueuedConnection,

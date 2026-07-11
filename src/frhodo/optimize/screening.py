@@ -23,7 +23,13 @@ from pydantic import BaseModel, ConfigDict
 from scipy.interpolate import CubicSpline
 
 from frhodo.optimize.cost.aggregation import coverage_weights
-from frhodo.optimize.cost.fit_fcn import _log_ratio
+from frhodo.optimize.cost.fit_fcn import _log_ratio, pool_worker_mech
+from frhodo.optimize.sensitivity_cache import (
+    SensitivityCache,
+    mech_fingerprint,
+    shared_cache,
+    sim_cache_key,
+)
 from frhodo.optimize.shock_prep import shock_sigma_bar, trim_shocks
 from frhodo.simulation.shock.incident_shock_reactor import run_incident_shock
 from frhodo.simulation.shock.sensitivity import (
@@ -317,36 +323,101 @@ def _scaled_residual(obs_exp, obs_sim, scale, bisymlog, sigma):
     return resid, mask, chain
 
 
-def _sim_cache_key(mech, reactor_state, shock, observable, species_idx,
-                   method) -> tuple:
-    """Everything the trajectory + sensitivity solves depend on."""
-    mix = getattr(shock, "thermo_mix", None) or {}
-    key = (
-        int(getattr(shock, "num", 0) or 0),
-        int(getattr(mech, "coeffs_version", 0)),
-        float(shock.T_reactor), float(shock.P_reactor),
-        tuple(sorted((str(k), float(v)) for k, v in dict(mix).items())),
-        repr(reactor_state), observable, species_idx, method,
-    )
+def _pool_screen_shock(args):
+    """Worker-side trajectory + sensitivity solve for one shock at the
+    campaign start point (this worker's payload coefficients). Returns
+    ``None`` when the shock can't be solved — the campaign skips it,
+    matching the serial path."""
+    shock, reactor_state, observable, species_idx, method = args
+    mech = pool_worker_mech()
+    try:
+        mech.modify_reactions(mech.coeffs)
+        sim = _run_start_sim(mech, reactor_state, shock)
+        if sim is None:
+            return None
+        t_sim, obs_sim = sim
+        t_sens, S = compute_sensitivity(
+            mech, reactor_state, shock,
+            observable=observable, species_idx=species_idx, method=method,
+        )
+    except Exception:
+        return None
 
-    return key
+    return t_sim, obs_sim, t_sens, S
+
+
+def _prefetch_solves(pool, mech, mech_fp, shocks2run, reactor_state,
+                     method, sim_cache) -> set:
+    """Solve cache-missing shocks across the worker pool, filling
+    ``sim_cache``. Returns the shock numbers that failed to solve.
+
+    The first task runs alone so a cold worker fleet compiles the
+    on-disk numba kernel cache with a single writer before the rest
+    fan out (the same staging the fit warmup uses).
+    """
+    tasks = []
+    keys = []
+    nums = []
+    for shock in shocks2run:
+        observable, species_idx = sensitivity_observable(shock, mech.gas)
+        key = sim_cache_key(
+            "screen", mech_fp, reactor_state, shock, observable,
+            species_idx, method,
+        )
+        if sim_cache.get(key) is not None:
+            continue
+        tasks.append((shock, reactor_state, observable, species_idx, method))
+        keys.append(key)
+        nums.append(int(getattr(shock, "num", 0) or 0))
+
+    if not tasks:
+        return set()
+
+    results = pool.map(_pool_screen_shock, tasks[:1], chunksize=1)
+    results += pool.map(_pool_screen_shock, tasks[1:], chunksize=1)
+
+    failed = set()
+    for num, key, result in zip(nums, keys, results):
+        if result is None:
+            failed.add(num)
+        else:
+            sim_cache.put(key, tuple(result))
+
+    return failed
 
 
 def screen_campaign(mech, shocks2run, reactor_state, cost_settings, *,
                     method="auto", n_workers=1,
                     suggest_fraction=SUGGEST_LOSS_FRACTION,
-                    sim_cache: dict | None = None) -> ScreeningResult:
+                    sim_cache: SensitivityCache | None = None,
+                    worker_pool=None) -> ScreeningResult:
     """Screen every reaction against the campaign at the start mechanism.
 
     Two solves per shock (one trajectory, one sensitivity), outside the
     optimization loop. ``shocks2run`` must carry ``exp_data`` and
     ``normalized_weights``; trimming and noise scales are prepared here
-    exactly as the optimizer does. ``sim_cache`` holds per-shock solve
-    results keyed on the mechanism version and shock conditions, so a
-    re-screen after include-toggles only solves new shocks; entries
-    keyed to other mechanism versions are evicted on insert.
+    exactly as the optimizer does. Solve results go through the shared
+    :class:`SensitivityCache` (keyed on the mechanism-coefficient
+    fingerprint and shock conditions) unless ``sim_cache`` supplies an
+    isolated store, so a re-screen at an unchanged mechanism skips both
+    solves per shock; stale-fingerprint entries are pruned up front.
+    ``worker_pool`` is an already-acquired process pool whose workers
+    hold this mechanism's coefficients: cache-missing shocks are solved
+    across its workers, one task per shock.
     """
     trim_shocks(shocks2run, cost_settings)
+
+    if sim_cache is None:
+        sim_cache = shared_cache
+    mech_fp = mech_fingerprint(mech)
+    sim_cache.prune_stale(mech_fp)
+
+    pool_failed = set()
+    if worker_pool is not None:
+        pool_failed = _prefetch_solves(
+            worker_pool, mech, mech_fp, shocks2run, reactor_state,
+            method, sim_cache,
+        )
 
     importance_rows = []
     slope_rows = []
@@ -358,14 +429,15 @@ def screen_campaign(mech, shocks2run, reactor_state, cost_settings, *,
     shock_nums = []
     for shock in shocks2run:
         num = int(getattr(shock, "num", 0) or 0)
+        if num in pool_failed:
+            skipped.append(num)
+            continue
         observable, species_idx = sensitivity_observable(shock, mech.gas)
-        cache_key = None
-        cached = None
-        if sim_cache is not None:
-            cache_key = _sim_cache_key(
-                mech, reactor_state, shock, observable, species_idx, method,
-            )
-            cached = sim_cache.get(cache_key)
+        cache_key = sim_cache_key(
+            "screen", mech_fp, reactor_state, shock, observable,
+            species_idx, method,
+        )
+        cached = sim_cache.get(cache_key)
 
         if cached is not None:
             t_sim, obs_sim, t_sens, S = cached
@@ -404,12 +476,7 @@ def screen_campaign(mech, shocks2run, reactor_state, cost_settings, *,
                 observable=observable, species_idx=species_idx,
                 method=method, n_workers=n_workers,
             )
-            if sim_cache is not None:
-                version = cache_key[1]
-                stale = [k for k in sim_cache if k[1] != version]
-                for k in stale:
-                    del sim_cache[k]
-                sim_cache[cache_key] = (t_sim, obs_sim, t_sens, S)
+            sim_cache.put(cache_key, (t_sim, obs_sim, t_sens, S))
 
         t_eval = t_win[mask] - shift
         S_exp = np.column_stack([

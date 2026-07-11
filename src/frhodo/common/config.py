@@ -104,6 +104,11 @@ class OptimizationSettings(BaseModel):
     multistart_count: dict[str, int] = Field(
         default_factory=lambda: {"global": 16}
     )
+    sensitivity_cache_mb: PositiveInt = Field(
+        default=250,
+        description="Byte cap [MB] on the shared in-memory cache of "
+                    "start-mechanism solves and sensitivities",
+    )
     weight_function: WeightFunction = Field(default_factory=WeightFunction)
 
 

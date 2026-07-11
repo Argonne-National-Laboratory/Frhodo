@@ -16,6 +16,7 @@ from qtpy import QtWidgets
 from frhodo.common.errors import SchemaVersionError
 from frhodo.common.config import FrhodoConfig
 from frhodo.optimize.algorithm_settings import MAX_ITERATION_STOP
+from frhodo.optimize.sensitivity_cache import shared_cache
 
 
 
@@ -73,6 +74,8 @@ class GUI_settings:
                         f"count limit; clamped to {MAX_ITERATION_STOP}",
                         alert=True,
                     )
+
+        shared_cache.set_max_bytes(opt.sensitivity_cache_mb * 2**20)
 
         self.apply_config_to_boxes()
 
