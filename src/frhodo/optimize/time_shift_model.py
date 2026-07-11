@@ -103,15 +103,20 @@ def regularized_shifts(conditions, t_star, t_unc, *, l1_ratios=_L1_RATIOS):
         StandardScaler(),
         ElasticNetCV(l1_ratio=list(l1_ratios), cv=cv, max_iter=10_000),
     )
-    model.fit(X, t_star)
+    # Fit the target in microseconds: second-scale shifts push
+    # sklearn's variance-scaled duality-gap tolerance below float
+    # precision, tripping spurious ConvergenceWarnings on fits that are
+    # converged to machine precision.
+    t_scale = 1e-6
+    model.fit(X, t_star / t_scale)
     enet = model.named_steps["elasticnetcv"]
 
-    shifts = np.clip(model.predict(X), -t_unc, t_unc)
+    shifts = np.clip(model.predict(X) * t_scale, -t_unc, t_unc)
     info = {
         "model": model,
         "feature_names": names,
-        "coefficients": enet.coef_,
-        "intercept": float(enet.intercept_),
+        "coefficients": enet.coef_ * t_scale,
+        "intercept": float(enet.intercept_) * t_scale,
         "penalty": float(enet.alpha_),
         "l1_ratio": float(enet.l1_ratio_),
     }

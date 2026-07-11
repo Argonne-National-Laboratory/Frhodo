@@ -2564,7 +2564,7 @@ The 0d reactors simulate zone 5 (reflected shock) as a homogeneous ideal state a
                            <number>6</number>
                           </property>
                           <item row="0" column="1">
-                           <widget class="QComboBox" name="global_opt_choice_box">
+                           <widget class="ResettableComboBox" name="global_opt_choice_box">
                             <property name="sizePolicy">
                              <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
                               <horstretch>0</horstretch>
@@ -2580,6 +2580,11 @@ The 0d reactors simulate zone 5 (reflected shock) as a homogeneous ideal state a
                             <item>
                              <property name="text">
                               <string>Smurf (Sensitivity Multistart Rate Fitting)</string>
+                             </property>
+                            </item>
+<item>
+                             <property name="text">
+                              <string>Smurf (quick, low fidelity)</string>
                              </property>
                             </item>
                             <item>
@@ -2693,7 +2698,7 @@ The 0d reactors simulate zone 5 (reflected shock) as a homogeneous ideal state a
                            <number>0</number>
                           </property>
                           <item row="0" column="1">
-                           <widget class="QComboBox" name="local_opt_choice_box">
+                           <widget class="ResettableComboBox" name="local_opt_choice_box">
                             <property name="sizePolicy">
                              <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
                               <horstretch>0</horstretch>
@@ -2706,6 +2711,11 @@ The 0d reactors simulate zone 5 (reflected shock) as a homogeneous ideal state a
                             <item>
                              <property name="text">
                               <string>Subplex (field basis)</string>
+                             </property>
+                            </item>
+<item>
+                             <property name="text">
+                              <string>Subplex (quick, field basis, multi-fidelity)</string>
                              </property>
                             </item>
                             <item>
@@ -4242,4 +4252,11 @@ p, li { white-space: pre-wrap; }
  </widget>
  <resources/>
  <connections/>
+ <customwidgets>
+  <customwidget>
+   <class>ResettableComboBox</class>
+   <extends>QComboBox</extends>
+   <header>frhodo.gui.widgets.misc_widget</header>
+  </customwidget>
+ </customwidgets>
 </ui>

@@ -310,6 +310,10 @@ def smurf_coarse(obj_fcn, fit, x0, bnds, options, log=None):
                 counter["nfev"] += 1
                 if f_trial < f_cur:
                     s, f_cur, accepted = trial, f_trial, True
+                    # Measured local step scale at acceptance; the quick
+                    # local seeds its initial step from it.
+                    fit._smurf_step_scale = float(
+                        np.median(np.abs(damp * step)))
                     break
             if not accepted:
                 break

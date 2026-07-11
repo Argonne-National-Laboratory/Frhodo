@@ -167,7 +167,7 @@ class TestOptimizeResidualTypedRequest:
         assert result.success, f"optimize_residual failed: {result.message}"
         assert np.isfinite(result.fval), f"fval was {result.fval}"
 
-    @pytest.mark.parametrize("local_algo", ["BOBYQA", "BOBYQA (whitened)", "Subplex (field basis)"])
+    @pytest.mark.parametrize("local_algo", ["BOBYQA", "BOBYQA (whitened)", "Subplex (field basis)", "Subplex (quick, field basis, multi-fidelity)"])
     def test_model_based_local_algorithm_runs(self, loaded_cycloheptane,
                                               local_algo):
         base = _build_request(loaded_cycloheptane)
@@ -502,6 +502,22 @@ class TestSmurfGlobalStage:
         with_current = [u for u in global_updates
                         if u.get("sim_traces", {}).get("current")]
         assert with_current, "no Smurf update carried current sim traces"
+
+    def test_smurf_lowfi_reports_full_fidelity_final(
+        self, loaded_cycloheptane,
+    ):
+        """The low-fidelity Smurf re-scores its final point at the
+        run's configured tolerance; the reported fval must be finite
+        and the reactor state restored."""
+        request = _smurf_request(loaded_cycloheptane)
+        algorithm = request.algorithm.model_copy(update={
+            "global_stage": request.algorithm.global_stage.model_copy(
+                update={"algorithm": "Smurf (quick, low fidelity)"}),
+        })
+        request = request.model_copy(update={"algorithm": algorithm})
+        result = optimize_residual(loaded_cycloheptane, request)
+        assert result.success, f"smurf_lowfi failed: {result.message}"
+        assert np.isfinite(result.fval)
 
     def test_smurf_respects_eval_budget(self, loaded_cycloheptane):
         budget = 10

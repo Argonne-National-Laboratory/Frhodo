@@ -52,6 +52,24 @@ budget-contract test. The coarse linearization sweep is pool-parallel
 (sim + sensitivity per shock dispatched to workers), removing the
 stage's dominant serial cost on multi-core hosts (~8x coarse wall).
 
+### Triage presets + resettable algorithm selectors
+Two opt-in triage presets for ranking candidate setups cheaply (not
+for producing mechanisms): "Smurf (quick, low fidelity)" — the
+identical Smurf global with all simulations at loosened tolerance
+(<=1e-5/1e-8) and the final point re-scored once at the configured
+fidelity; and "Subplex (quick, field basis, multi-fidelity)" — the
+field-basis local under a fixed-budget cheap-to-full fidelity ladder.
+Across 14 validation measurements the ladder landed within ~5% of the
+full pipeline's final (median +3%, worst +13%, better on 4 of 14) at
+about half the pipeline wall; pairing both presets cheapens the other
+half. The registered-gate history behind these numbers (including two
+deletions under mis-specified gates) is in
+development/revamp_pt_2/b9_filter_plan.md. The algorithm dropdowns are
+a promoted ResettableComboBox with right-click/Ctrl+R Reset to
+Default, and switching algorithms migrates settings boxes that still
+hold the previous algorithm's defaults to the new algorithm's defaults
+(customized values are never touched).
+
 ### Per-algorithm settings resets + population-multiplier fixes
 Each optimization settings box's reset value (right-click Reset /
 Ctrl+R) now follows the selected algorithm's recommended configuration
@@ -160,15 +178,10 @@ overlay on the signal plot; live Home/autoscale behavior on nav.
   cross-configuration measurement artifact).
 
 ## Pending / not yet in prod
-- Quick-filter triage mode (fixed-budget fidelity ladder): built and
-  DELETED per its registered rule — the wall gate (<=0.25x) is
-  arithmetically unreachable while both modes share the coarse stage
-  (measured 0.52x), and the rank gates went unmeasured because scoring
-  saved mechanisms on a common anchor is currently impossible (the
-  evaluate path anchors at the loaded mechanism; s-reconstruction is
-  refit-invalid). Coarse-only triage (~0.1x wall) already exists by
-  disabling the local stage. A refit-free common-anchor mechanism
-  scorer is the recorded prerequisite for future comparison tooling.
+- A refit-free common-anchor mechanism scorer remains the recorded
+  prerequisite for cross-mechanism comparison tooling (the evaluate
+  path anchors at the loaded mechanism; s-reconstruction is
+  refit-invalid).
 
 - Multi-fidelity ladder local stage (ODE-tolerance + D-optimal-subset
   escalation): built, failed its registered validation twice (large

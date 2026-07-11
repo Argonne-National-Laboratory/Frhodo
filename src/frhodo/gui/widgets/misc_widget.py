@@ -52,6 +52,41 @@ class FloatValidator(QtGui.QValidator):
         return fixed
 
 
+class ResettableComboBox(QtWidgets.QComboBox):
+    """Combo box with a right-click "Reset to Defaults" action.
+
+    The action resets every widget registered in ``subordinates`` (the
+    stage's settings boxes) to its own reset value — the defaults of
+    the currently selected entry, since the per-algorithm reset values
+    track the selection. The selection itself is not changed. Declared
+    in ``.ui`` files via widget promotion.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.subordinates = []
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._popup_menu)
+        QShortcut(
+            QtGui.QKeySequence("Ctrl+R"),
+            self,
+            activated=self._reset,
+            context=QtCore.Qt.WidgetShortcut,
+        )
+
+    def _popup_menu(self, _pos):
+        popup_menu = QMenu(self)
+        action = popup_menu.addAction(
+            "Reset to Defaults", self._reset, "Ctrl+R")
+        action.setEnabled(bool(self.subordinates))
+        popup_menu.exec_(QtGui.QCursor.pos())
+
+    def _reset(self):
+        for widget in self.subordinates:
+            if hasattr(widget, "_reset"):
+                widget._reset()
+
+
 class ScientificDoubleSpinBox(QtWidgets.QDoubleSpinBox):
     resetValueChanged = QtCore.Signal(float)
 

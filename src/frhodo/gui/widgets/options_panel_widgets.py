@@ -7,6 +7,7 @@ Each controller wraps one section of the left-side options panel and
 syncs its Qt widgets with the project state held on the main window.
 """
 import logging
+import math
 import os
 import pathlib
 import sys
@@ -1270,10 +1271,12 @@ optAlgorithm = {
     "GWO (Grey Wolf Optimizer)": "pygmo_GWO",
     "RBFOpt": "RBFOpt",
     "Smurf (Sensitivity Multistart Rate Fitting)": "smurf",
+    "Smurf (quick, low fidelity)": "smurf_lowfi",
     "Nelder-Mead Simplex": nlopt.LN_NELDERMEAD,
     "Subplex": nlopt.LN_SBPLX,
     "Subplex (whitened)": "whitened_sbplx",
     "Subplex (field basis)": "field_sbplx",
+    "Subplex (quick, field basis, multi-fidelity)": "quick_filter",
     "COBYLA": nlopt.LN_COBYLA,
     "BOBYQA": nlopt.LN_BOBYQA,
     "IPOPT (Interior Point Optimizer)": "pygmo_IPOPT",
@@ -1295,6 +1298,9 @@ populationAlgorithms = [
 GLOBAL_RESETS = {
     "smurf": {"stop_criteria_val": 400, "initial_step": 0.5,
               "xtol_rel": 1e-3, "ftol_rel": 5e-2, "multistart_count": 16},
+    "smurf_lowfi": {"stop_criteria_val": 200, "initial_step": 0.5,
+                    "xtol_rel": 1e-3, "ftol_rel": 5e-2,
+                    "multistart_count": 8},
     "RBFOpt": {"stop_criteria_val": 600, "initial_step": 0.5,
                "xtol_rel": 1e-3, "ftol_rel": 5e-2},
     nlopt.GN_DIRECT: {"stop_criteria_val": 2500, "initial_step": 0.5},
@@ -1309,6 +1315,8 @@ GLOBAL_RESETS = {
 LOCAL_RESETS = {
     "field_sbplx": {"stop_criteria_val": 1500, "initial_step": 0.1,
                     "xtol_rel": 1e-4, "ftol_rel": 1e-3},
+    "quick_filter": {"stop_criteria_val": 400, "initial_step": 0.1,
+                     "xtol_rel": 1e-3, "ftol_rel": 1e-3},
     "whitened_sbplx": {"stop_criteria_val": 1500, "initial_step": 0.1,
                        "xtol_rel": 1e-4, "ftol_rel": 1e-3},
     nlopt.LN_SBPLX: {"stop_criteria_val": 2500, "initial_step": 1e-2,
@@ -1377,6 +1385,17 @@ class Optimization(QtCore.QObject):
 
         self._create_spinboxes()
         self.labels["global"].append(self.multistart_label)
+
+        # Right-click "Reset to Defaults" on an algorithm selector
+        # resets the stage's settings boxes to the selected algorithm's
+        # defaults (the per-algorithm reset values track the selection).
+        for opt_type, box in (("global", parent.global_opt_choice_box),
+                              ("local", parent.local_opt_choice_box)):
+            if hasattr(box, "subordinates"):
+                box.subordinates = [
+                    w for w in self.widgets[opt_type].values()
+                    if hasattr(w, "_reset")
+                ]
 
         for opt_type, boxes in self.widgets.items():
             for var_type, box in boxes.items():
@@ -1564,12 +1583,13 @@ class Optimization(QtCore.QObject):
         Smurf is the global algorithm; the multiplier only applies to
         population algorithms and stays disabled otherwise. Also points
         every stage box's reset value at the selected algorithm's
-        recommended settings."""
+        recommended settings, and migrates box VALUES that still sit at
+        the previous algorithm's defaults (customized values stay)."""
         parent = self.parent()
         algorithm = self.settings["global"]["algorithm"]
         pop_box = self.widgets["global"]["initial_pop_multiplier"]
         count_box = self.widgets["global"]["multistart_count"]
-        is_smurf = algorithm == "smurf"
+        is_smurf = algorithm in ("smurf", "smurf_lowfi")
         parent.global_text_4.setVisible(not is_smurf)
         pop_box.setVisible(not is_smurf)
         self.multistart_label.setVisible(is_smurf)
@@ -1579,13 +1599,30 @@ class Optimization(QtCore.QObject):
             parent.global_text_4.setEnabled(enabled)
             pop_box.setEnabled(enabled)
 
+        if not hasattr(self, "_prev_algorithm"):
+            self._prev_algorithm = {}
         for opt_type, table in (("global", GLOBAL_RESETS),
                                 ("local", LOCAL_RESETS)):
-            resets = table.get(self.settings[opt_type]["algorithm"], {})
+            algorithm = self.settings[opt_type]["algorithm"]
+            previous = self._prev_algorithm.get(opt_type)
+            resets = table.get(algorithm, {})
+            old_resets = table.get(previous, {})
+            changed = previous is not None and previous != algorithm
             for var_type, value in resets.items():
                 box = self.widgets[opt_type].get(var_type)
-                if hasattr(box, "_set_reset_value"):
-                    box._set_reset_value(value)
+                if not hasattr(box, "_set_reset_value"):
+                    continue
+                if (changed and var_type in old_resets
+                        and math.isclose(box.value(), old_resets[var_type],
+                                         rel_tol=1e-9)):
+                    # Still at the previous algorithm's default: follow
+                    # the new algorithm's default.
+                    box.blockSignals(True)
+                    box.setValue(value)
+                    box.blockSignals(False)
+                    self.settings[opt_type][var_type] = box.value()
+                box._set_reset_value(value)
+            self._prev_algorithm[opt_type] = algorithm
 
     def save_settings(self, event=None):
         if event is None:
