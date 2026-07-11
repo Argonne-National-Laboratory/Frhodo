@@ -299,10 +299,11 @@ class Multithread_Optimize:
             parent.time_uncertainty.auto_fit = True
         parent.run_control.optimize_running = True
 
-        if parent.run_control.multiprocessing:
-            max_processors = default_worker_count(len(shocks2run))
-        else:
+        if not parent.run_control.multiprocessing:
             max_processors = 1
+        else:
+            override = parent.user_settings.config.optimization.worker_count
+            max_processors = override or default_worker_count(len(shocks2run))
 
         self.HoF = []
 

@@ -64,6 +64,21 @@ to roughly its 1/workers share, including on runs whose start
 mechanism changed (where the sensitivity cache cannot help because the
 solves are genuinely new).
 
+### Shared sensitivity cache + program settings window
+Start-mechanism solves and sensitivities now flow through one shared,
+byte-capped LRU cache (250 MB default) keyed on a content fingerprint
+of the mechanism coefficients plus shock conditions, reactor state, and
+observable. Consumers: the background screening/ranking runs, the
+optimizer's uniqueness-weighting pass, and the Sim Explorer sensitivity
+views — a solve computed by any one is a hit for the others, so the
+weighting stage of an optimization launched after background screening
+costs ~0s instead of 10-15s, and Sim Explorer sensitivity views survive
+re-runs at unchanged conditions. Optimizer inner sweeps stay uncached
+(each perturbed mechanism is visited once). File > Settings (formerly a
+no-op) opens a program-settings dialog: cache cap with live usage and a
+clear button, worker-process count (auto or fixed), pool pre-spawn
+toggle, and the working-directory location.
+
 ### Optimization prep: persistent workers + measured pool sizing
 The worker pool persists across optimization runs: reuse is decided by
 payload content (the Plog->Troe recast rebuilds the Cantera Solution
@@ -195,6 +210,9 @@ Added optimization-outcome plots and a start/best/current simulation
 overlay on the signal plot; live Home/autoscale behavior on nav.
 
 ## Bug fixes (prod)
+- Objective-trace zoom freezes only the zoomed axis: a y-only
+  zoom keeps the x axis auto-extending as evaluations stream in;
+  Home returns to the live autoscale, Back returns from the zoom.
 - Deep-copy coefficients on mechanism reset so writes cannot corrupt
   the pristine snapshot (fixed a reset-aliasing product bug).
 - Keep optimization-view Home live and re-autoscale on nav restores;

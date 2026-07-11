@@ -109,6 +109,16 @@ class OptimizationSettings(BaseModel):
         description="Byte cap [MB] on the shared in-memory cache of "
                     "start-mechanism solves and sensitivities",
     )
+    worker_count: PositiveInt | None = Field(
+        default=None,
+        description="Fixed worker-process count; None sizes the pool "
+                    "from the CPU",
+    )
+    pool_prespawn: bool = Field(
+        default=True,
+        description="Spawn the worker pool in the background when a "
+                    "mechanism loads",
+    )
     weight_function: WeightFunction = Field(default_factory=WeightFunction)
 
 

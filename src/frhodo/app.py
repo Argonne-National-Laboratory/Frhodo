@@ -56,6 +56,7 @@ from frhodo.gui.widgets import (
     error_window,
     help_menu,
     options_panel_widgets,
+    program_settings,
     save_widget,
     settings,
     sim_explorer_widget,
@@ -168,6 +169,8 @@ class Main(QMainWindow):
         self.save_sim_button.clicked.connect(self.save_sim.execute)
         self.action_Save.triggered.connect(self.save_sim.execute)
         self.action_Open.triggered.connect(self.load_session)
+
+        self.action_Settings.triggered.connect(self._open_program_settings)
 
         if _startup_failed:
             sys.exit()
@@ -365,10 +368,21 @@ class Main(QMainWindow):
         elif tabText == "Sim Explorer":
             self.sim_explorer.update_all_main_parameter()
 
+    def _open_program_settings(self, event=None):
+        if not getattr(self, "user_settings", None):
+            return
+
+        program_settings.ProgramSettingsDialog(self).execute()
+
     def _prespawn_worker_pool(self):
         if not hasattr(self, "worker_pool") or not self.mech.isLoaded:
             return
         if not self.multiprocessing_box.isChecked():
+            return
+        if not getattr(self, "user_settings", None):
+            return
+        opt_cfg = self.user_settings.config.optimization
+        if not opt_cfg.pool_prespawn:
             return
         if "PYTEST_CURRENT_TEST" in os.environ:
             # Tests instantiate the app and load mechanisms constantly;
@@ -381,9 +395,9 @@ class Main(QMainWindow):
             coeffs_bnds=self.mech.coeffs_bnds,
             rate_bnds=self.mech.rate_bnds,
         )
-        # Match the orchestrator's formula so a later optimize-time
+        # Match the orchestrator's sizing so a later optimize-time
         # acquire never needs a growth respawn.
-        workers = default_worker_count()
+        workers = opt_cfg.worker_count or default_worker_count()
 
         def spawn():
             try:
