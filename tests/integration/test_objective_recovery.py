@@ -664,9 +664,9 @@ class TestScenarioMatrix:
 
 @pytest.mark.slow
 class TestUniquenessWeighting:
-    """Permanent subset of the pre-registered uniqueness validation
-    (development/revamp_pt_2/uniqueness_validation.md): exclusion of
-    information-dead shocks, and the mixture-separator smoke case."""
+    """Permanent subset of the pre-registered uniqueness validation:
+    exclusion of information-dead shocks, and the mixture-separator
+    smoke case."""
 
     def test_dead_shocks_excluded_and_recovery_unchanged(self):
         # Cold shocks whose traces do not respond to theta relative to

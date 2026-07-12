@@ -2,9 +2,9 @@
 
 Running history of shipped changes to the optimizer, cost objective,
 sensitivity infrastructure, and optimization GUI. Newest first. Each
-entry: what changed, why, and how it was validated. Experimental work
-not yet in prod is tracked under `development/revamp_pt_2/` and noted at
-the end.
+entry: what changed, why, and how it was validated. Work that was
+validated and rejected is summarized at the end; the full development
+arc is in `revamp_history.md`.
 
 ## 2026-07 — Sensitivity ladder & local optimizer
 
@@ -104,8 +104,8 @@ Across 14 validation measurements the ladder landed within ~5% of the
 full pipeline's final (median +3%, worst +13%, better on 4 of 14) at
 about half the pipeline wall; pairing both presets cheapens the other
 half. The registered-gate history behind these numbers (including two
-deletions under mis-specified gates) is in
-development/revamp_pt_2/b9_filter_plan.md. The algorithm dropdowns are
+deletions under mis-specified gates) is summarized in
+`revamp_history.md`. The algorithm dropdowns are
 a promoted ResettableComboBox with right-click/Ctrl+R Reset to
 Default, and switching algorithms migrates settings boxes that still
 hold the previous algorithm's defaults to the new algorithm's defaults
@@ -221,7 +221,7 @@ overlay on the signal plot; live Home/autoscale behavior on nav.
   test (an earlier ~5.6% discrepancy did not reproduce and was a
   cross-configuration measurement artifact).
 
-## Pending / not yet in prod
+## Rejected or pending (not in prod)
 - A refit-free common-anchor mechanism scorer remains the recorded
   prerequisite for cross-mechanism comparison tooling (the evaluate
   path anchors at the loaded mechanism; s-reconstruction is
@@ -232,8 +232,7 @@ overlay on the signal plot; live Home/autoscale behavior on nav.
   wall savings but 3-8% accuracy loss; the noise-floor stall detector
   is structurally premature on this objective — the step-scale
   roughness it gates on is exactly the noise Subplex descends
-  through), and DELETED per the pre-registered rule. Detail in
-  `development/revamp_pt_2/multifidelity_plan.md`.
+  through), and DELETED per the pre-registered rule.
 
 - Direct transformed-Troe local optimization (bypassing the per-eval
   refit): investigated and REJECTED under pre-registered gates. The
@@ -247,7 +246,7 @@ overlay on the signal plot; live Home/autoscale behavior on nav.
   Kept findings: the noise measurement, and that production optima
   carry Troe parameters far outside physicality guardrails (A_fc=-5,
   T=1e+/-30) — campaign-level guardrail enforcement is a roadmap
-  candidate. Detail in `development/revamp_pt_2/b8_plan.md`.
+  candidate.
 
 - Racing (first-k global-stage pruning): DELETED per the registered
   delete-on-fail rule (per-eval Troe-refit walltime floor made the
@@ -269,4 +268,4 @@ overlay on the signal plot; live Home/autoscale behavior on nav.
   ill-conditioned near the optimum (roundtrip 0.0202->0.0795) — the
   refit-degenerate directions the field subspace excludes are why
   model-based DFO fails here and why the field wins. Detail in
-  `development/revamp_pt_2/smurf_plan.md`.
+  `revamp_history.md`.
