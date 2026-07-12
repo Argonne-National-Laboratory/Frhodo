@@ -144,6 +144,21 @@ class Multithread_Optimize:
         self.parent.run_control.optimize_running = False
         self._restore_auto_fit()
 
+    def _log_recast_report(self, recast_ran: bool) -> None:
+        """Per-reaction Troe-fit quality lines, only for a recast that
+        ran this run — the report persists on the mech, so logging it
+        unconditionally would replay stale lines on every later run."""
+        parent = self.parent
+        if not recast_ran or not parent.mech.recast_log_rms:
+            return
+
+        for rxnIdx in sorted(parent.mech.recast_log_rms):
+            log_rms = parent.mech.recast_log_rms[rxnIdx]
+            parent.log.append(
+                f"R{rxnIdx + 1} recast to Troe: fit log-RMS = {log_rms:.4f}",
+                alert=False,
+            )
+
     def _after_recast(self, rxns_changed: bool, mech_rebuilt: bool) -> None:
         """GUI-thread continuation after the background recast finishes.
 
@@ -169,13 +184,7 @@ class Multithread_Optimize:
         if rxns_changed:
             self._initialize_opt(parent.mech)
 
-        if parent.mech.recast_log_rms:
-            for rxnIdx in sorted(parent.mech.recast_log_rms):
-                log_rms = parent.mech.recast_log_rms[rxnIdx]
-                parent.log.append(
-                    f"R{rxnIdx + 1} recast to Troe: fit log-RMS = {log_rms:.4f}",
-                    alert=False,
-                )
+        self._log_recast_report(rxns_changed)
 
         max_processors = self._max_processors_pending
         self._iter_width = self._compute_iter_width()

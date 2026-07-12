@@ -11,6 +11,7 @@ from frhodo.gui.optimize_orchestrator import Multithread_Optimize
 from frhodo.gui.state import RunControlState, TimeUncertaintyState
 
 
+
 class _StubParent:
     """Minimum surface for ``Multithread_Optimize.__init__``."""
 
@@ -63,3 +64,35 @@ class TestAutoFitSaveRestore:
         adapter._restore_auto_fit()
 
         assert parent.time_uncertainty.auto_fit is True
+
+
+class TestRecastReport:
+    """The Troe-fit report persists on the mech; only a run whose
+    recast actually ran may log it."""
+
+    def _adapter(self, rms):
+        parent = _StubParent()
+        adapter = Multithread_Optimize(parent)
+        parent.mech = MagicMock()
+        parent.mech.recast_log_rms = rms
+        parent.log = MagicMock()
+
+        return adapter, parent
+
+    def test_report_not_replayed_without_a_recast(self):
+        adapter, parent = self._adapter({2: 0.0012})
+
+        adapter._log_recast_report(recast_ran=False)
+
+        parent.log.append.assert_not_called()
+
+    def test_report_logged_when_recast_ran(self):
+        adapter, parent = self._adapter({2: 0.0012, 0: 0.5})
+
+        adapter._log_recast_report(recast_ran=True)
+
+        lines = [c.args[0] for c in parent.log.append.call_args_list]
+        assert lines == [
+            "R1 recast to Troe: fit log-RMS = 0.5000",
+            "R3 recast to Troe: fit log-RMS = 0.0012",
+        ]
