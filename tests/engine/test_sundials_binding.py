@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 from scipy.integrate import solve_ivp
 
+from frhodo.simulation.numerics import sundials
 from frhodo.simulation.numerics.sundials import (
     CVodeIntegrator,
     DenseLinearSolver,
@@ -20,9 +21,110 @@ from frhodo.simulation.numerics.sundials import (
 )
 
 
+
 @pytest.fixture
 def ctx() -> SundialsContext:
     return SundialsContext()
+
+
+
+class TestCondaSundialsDiscovery:
+    """Locating conda-forge's separately-packaged SUNDIALS libraries.
+
+    conda-forge Cantera links a standalone ``sundials`` package whose
+    libraries live in the environment (``Library/bin`` on Windows,
+    ``lib`` elsewhere) rather than bundled beside the Cantera extension,
+    and split across more objects than the wheel — the dense linear
+    solver is its own library.
+    """
+
+    def _make_env(self, tmp_path, platform, filenames):
+        if platform == "win32":
+            subdir = "Library/bin"
+        else:
+            subdir = "lib"
+        lib_dir = tmp_path / subdir
+        lib_dir.mkdir(parents=True)
+        for name in filenames:
+            (lib_dir / name).write_bytes(b"")
+
+        return lib_dir
+
+    def test_finds_core_libs_in_dependency_order(self, tmp_path, monkeypatch):
+        self._make_env(tmp_path, "linux", [
+            "libsundials_cvodes.so.7",
+            "libsundials_core.so.7",
+            "libsundials_nvecserial.so.7",
+        ])
+        monkeypatch.setattr(sundials.sys, "platform", "linux")
+        monkeypatch.setenv("CONDA_PREFIX", str(tmp_path))
+
+        found = [p.name for p in sundials._find_sundials_conda_libs()]
+
+        assert found == [
+            "libsundials_nvecserial.so.7",
+            "libsundials_core.so.7",
+            "libsundials_cvodes.so.7",
+        ], "core libraries must lead, in dependency order"
+
+    def test_appends_extra_sundials_objects_like_the_dense_solver(
+        self, tmp_path, monkeypatch,
+    ):
+        self._make_env(tmp_path, "win32", [
+            "sundials_nvecserial.dll",
+            "sundials_core.dll",
+            "sundials_cvodes.dll",
+            "sundials_sunlinsoldense.dll",
+        ])
+        monkeypatch.setattr(sundials.sys, "platform", "win32")
+        monkeypatch.setenv("CONDA_PREFIX", str(tmp_path))
+
+        found = [p.name for p in sundials._find_sundials_conda_libs()]
+
+        assert found[:3] == [
+            "sundials_nvecserial.dll",
+            "sundials_core.dll",
+            "sundials_cvodes.dll",
+        ]
+        assert "sundials_sunlinsoldense.dll" in found[3:], (
+            "the separately-packaged dense solver must be loaded too"
+        )
+        assert len(found) == len(set(found)), "no library listed twice"
+
+    def test_windows_probes_library_bin(self, tmp_path, monkeypatch):
+        self._make_env(tmp_path, "win32", ["sundials_cvodes.dll"])
+        monkeypatch.setattr(sundials.sys, "platform", "win32")
+        monkeypatch.setenv("CONDA_PREFIX", str(tmp_path))
+
+        assert sundials._conda_sundials_dir() == tmp_path / "Library" / "bin"
+
+    def test_empty_when_no_sundials_dir(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(sundials.sys, "platform", "linux")
+        monkeypatch.setenv("CONDA_PREFIX", str(tmp_path))
+
+        assert sundials._conda_sundials_dir() is None
+        assert sundials._find_sundials_conda_libs() == []
+
+    def test_no_false_positive_from_unrelated_libs(self, tmp_path, monkeypatch):
+        self._make_env(tmp_path, "linux", ["libopenblas.so", "libpython3.so"])
+        monkeypatch.setattr(sundials.sys, "platform", "linux")
+        monkeypatch.setenv("CONDA_PREFIX", str(tmp_path))
+
+        assert sundials._find_sundials_conda_libs() == []
+
+    def test_falls_back_to_sys_prefix_when_unactivated(
+        self, tmp_path, monkeypatch,
+    ):
+        """A shortcut can launch the env's python without activation, so
+        CONDA_PREFIX is unset but sys.prefix points at the env root."""
+        self._make_env(tmp_path, "linux", ["libsundials_cvodes.so"])
+        monkeypatch.setattr(sundials.sys, "platform", "linux")
+        monkeypatch.delenv("CONDA_PREFIX", raising=False)
+        monkeypatch.setattr(sundials.sys, "prefix", str(tmp_path))
+
+        found = [p.name for p in sundials._find_sundials_conda_libs()]
+
+        assert found == ["libsundials_cvodes.so"]
 
 
 class TestNVector:

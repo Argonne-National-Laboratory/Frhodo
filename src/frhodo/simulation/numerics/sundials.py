@@ -10,9 +10,17 @@ land in different places per platform:
   them as a set of separate shared libraries.
 * macOS (.dylib): treated like Linux until verified otherwise.
 
-This module loads the right set per platform and exposes a uniform
-view via :class:`_CompositeLib`. Callers see one lib-like object;
-symbol lookup probes each underlying library in turn.
+The two Cantera *distributions* also differ. The pip wheel bundles
+SUNDIALS beside the extension (the layouts above). conda-forge instead
+links a standalone ``sundials`` package whose libraries live in the
+environment — ``Library/bin`` on Windows, ``lib`` elsewhere — and split
+across more objects than the wheel (the dense linear solver is its own
+library). When no wheel-bundled SUNDIALS is found beside the extension,
+the loader falls back to the conda environment's libraries.
+
+This module loads the right set per platform and distribution and
+exposes a uniform view via :class:`_CompositeLib`. Callers see one
+lib-like object; symbol lookup probes each underlying library in turn.
 
 The dense linear solver also differs: Linux exposes
 ``SUNLinSol_LapackDense``; Windows exposes ``SUNLinSol_Dense``. Either
@@ -48,6 +56,7 @@ import pathlib
 import sys
 from typing import Callable
 
+import cantera
 import numpy as np
 
 
@@ -272,8 +281,6 @@ def _find_cantera_extension() -> pathlib.Path:
     Raises:
         SundialsBindingError: If zero or multiple extensions are found.
     """
-    import cantera
-
     cantera_pkg = pathlib.Path(cantera.__file__).parent
     candidates = [
         p for pat in _CANTERA_EXT_GLOBS for p in cantera_pkg.glob(pat)
@@ -292,6 +299,24 @@ def _find_cantera_extension() -> pathlib.Path:
     return candidates[0]
 
 
+def _first_lib_match(directory: pathlib.Path, stem: str) -> pathlib.Path | None:
+    """First shared library in ``directory`` matching a SUNDIALS stem.
+
+    Tries ``stem`` (Windows: ``sundials_cvodes-HASH.dll``) and
+    ``libstem`` (macOS/Linux: ``libsundials_cvodes.7.4.0.dylib``).
+    """
+    matches: list[pathlib.Path] = []
+    for prefix in (stem, f"lib{stem}"):
+        for ext in (".so", ".dylib", ".dll"):
+            matches.extend(
+                p for p in directory.glob(f"{prefix}*{ext}*") if p.is_file()
+            )
+    if not matches:
+        return None
+
+    return sorted(matches)[0]
+
+
 def _find_sundials_sibling_libs(cantera_ext: pathlib.Path) -> list[pathlib.Path]:
     """Return any sibling SUNDIALS shared libraries shipped with Cantera.
 
@@ -306,16 +331,9 @@ def _find_sundials_sibling_libs(cantera_ext: pathlib.Path) -> list[pathlib.Path]
             continue
         results: list[pathlib.Path] = []
         for stem in _SUNDIALS_BUNDLED_STEMS:
-            # Try ``stem`` (Windows: sundials_cvodes-HASH.dll) and
-            # ``libstem`` (macOS/Linux: libsundials_cvodes.7.4.0.dylib).
-            matches: list[pathlib.Path] = []
-            for prefix in (stem, f"lib{stem}"):
-                for ext in (".so", ".dylib", ".dll"):
-                    matches.extend(
-                        p for p in d.glob(f"{prefix}*{ext}*") if p.is_file()
-                    )
-            if matches:
-                results.append(sorted(matches)[0])
+            lib = _first_lib_match(d, stem)
+            if lib is not None:
+                results.append(lib)
         if results:
 
             return results
@@ -323,24 +341,82 @@ def _find_sundials_sibling_libs(cantera_ext: pathlib.Path) -> list[pathlib.Path]
     return []
 
 
+def _conda_sundials_dir() -> pathlib.Path | None:
+    """Directory holding a conda environment's SUNDIALS shared libraries.
+
+    ``CONDA_PREFIX`` when the env is activated, else ``sys.prefix`` (the
+    env root when the interpreter is a conda env's, e.g. launched
+    unactivated from a shortcut). ``Library/bin`` on Windows, ``lib``
+    elsewhere. ``None`` when the directory does not exist — harmless on
+    a pip/venv install, where it is absent or holds no SUNDIALS objects.
+    """
+    prefix = os.environ.get("CONDA_PREFIX") or sys.prefix
+    if not prefix:
+        return None
+    root = pathlib.Path(prefix)
+    if sys.platform == "win32":
+        d = root / "Library" / "bin"
+    else:
+        d = root / "lib"
+    if not d.is_dir():
+        return None
+
+    return d
+
+
+def _find_sundials_conda_libs() -> list[pathlib.Path]:
+    """SUNDIALS shared libraries from a conda-forge Cantera install.
+
+    conda-forge builds Cantera against a separate ``sundials`` package
+    whose libraries live in the environment (not bundled beside the
+    Cantera extension), and splits SUNDIALS across more objects than the
+    wheel — the dense linear solver is its own library. Every
+    ``sundials_*`` object in the directory is returned, the core
+    dependencies (nvecserial, core, cvodes) first so ``RTLD_GLOBAL``
+    loads resolve, and the composite view probes each in turn.
+    """
+    d = _conda_sundials_dir()
+    if d is None:
+        return []
+    ordered: list[pathlib.Path] = []
+    seen: set[pathlib.Path] = set()
+    for stem in _SUNDIALS_BUNDLED_STEMS:
+        lib = _first_lib_match(d, stem)
+        if lib is not None and lib not in seen:
+            ordered.append(lib)
+            seen.add(lib)
+    for prefix in ("sundials_", "libsundials_"):
+        for ext in (".so", ".dylib", ".dll"):
+            for p in sorted(d.glob(f"{prefix}*{ext}*")):
+                if p.is_file() and p not in seen:
+                    ordered.append(p)
+                    seen.add(p)
+
+    return ordered
+
+
 def _load_sundials() -> _CompositeLib:
     ext_path = _find_cantera_extension()
     loaded: list[ctypes.CDLL] = []
 
-    sibling_libs = _find_sundials_sibling_libs(ext_path)
+    sundials_libs = _find_sundials_sibling_libs(ext_path)
+    if not sundials_libs:
+        # conda-forge Cantera doesn't bundle SUNDIALS beside its
+        # extension; fall back to the conda environment's libraries.
+        sundials_libs = _find_sundials_conda_libs()
 
     # Windows needs the DLL search path set before any loads with deps
-    if sibling_libs and sys.platform == "win32":
-        os.add_dll_directory(str(sibling_libs[0].parent))
+    if sundials_libs and sys.platform == "win32":
+        os.add_dll_directory(str(sundials_libs[0].parent))
 
-    # Load sibling libs first (in dep order) so the Cantera extension
-    # can resolve its imports against already-loaded SUNDIALS symbols.
+    # Load SUNDIALS first (in dep order) so the Cantera extension can
+    # resolve its imports against already-loaded SUNDIALS symbols.
     if sys.platform == "win32":
         mode = 0
     else:
         mode = ctypes.RTLD_GLOBAL
 
-    for p in sibling_libs:
+    for p in sundials_libs:
         loaded.append(ctypes.CDLL(str(p), mode=mode))
     loaded.append(ctypes.CDLL(str(ext_path), mode=mode))
 
@@ -351,7 +427,7 @@ def _load_sundials() -> _CompositeLib:
         raise SundialsBindingError(
             f"Cantera install at {ext_path.parent} is missing required "
             f"SUNDIALS symbols: {missing}. "
-            f"Sibling libs searched: {sibling_libs!r}. "
+            f"SUNDIALS libs loaded: {sundials_libs!r}. "
             f"Run development/verify_cantera_sundials.py for diagnostics."
         )
     if not any(s in lib for s in _DENSE_LINEAR_SOLVERS):
