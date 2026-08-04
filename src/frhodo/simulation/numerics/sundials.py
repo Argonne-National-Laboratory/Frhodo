@@ -395,32 +395,44 @@ def _find_sundials_conda_libs() -> list[pathlib.Path]:
     return ordered
 
 
-def _load_sundials() -> _CompositeLib:
-    ext_path = _find_cantera_extension()
-    loaded: list[ctypes.CDLL] = []
-
-    sundials_libs = _find_sundials_sibling_libs(ext_path)
-    if not sundials_libs:
-        # conda-forge Cantera doesn't bundle SUNDIALS beside its
-        # extension; fall back to the conda environment's libraries.
-        sundials_libs = _find_sundials_conda_libs()
-
-    # Windows needs the DLL search path set before any loads with deps
+def _load_libs(sundials_libs: list[pathlib.Path],
+               ext_path: pathlib.Path) -> _CompositeLib:
+    """Load the given SUNDIALS libraries (dep order) then the Cantera
+    extension, and return the composite symbol view."""
     if sundials_libs and sys.platform == "win32":
+        # Windows needs the DLL search path set before any loads with deps
         os.add_dll_directory(str(sundials_libs[0].parent))
-
-    # Load SUNDIALS first (in dep order) so the Cantera extension can
-    # resolve its imports against already-loaded SUNDIALS symbols.
     if sys.platform == "win32":
         mode = 0
     else:
         mode = ctypes.RTLD_GLOBAL
 
+    loaded: list[ctypes.CDLL] = []
     for p in sundials_libs:
         loaded.append(ctypes.CDLL(str(p), mode=mode))
     loaded.append(ctypes.CDLL(str(ext_path), mode=mode))
 
-    lib = _CompositeLib(loaded)
+    return _CompositeLib(loaded)
+
+
+def _load_sundials() -> _CompositeLib:
+    ext_path = _find_cantera_extension()
+
+    # Wheel installs bundle SUNDIALS beside the extension; on Linux/macOS
+    # the extension re-exports the symbols and the sibling set is empty.
+    sundials_libs = _find_sundials_sibling_libs(ext_path)
+    lib = _load_libs(sundials_libs, ext_path)
+
+    if [s for s in _REQUIRED_SYMBOLS if s not in lib]:
+        # The extension neither bundles SUNDIALS beside it nor re-exports
+        # the symbols (conda-forge on Windows). Only then reach for the
+        # conda environment's libraries — searching earlier would load a
+        # second SUNDIALS on top of one the extension already provides,
+        # which binds but crashes at solve time.
+        conda_libs = _find_sundials_conda_libs()
+        if conda_libs:
+            lib = _load_libs(conda_libs, ext_path)
+            sundials_libs = conda_libs
 
     missing = [s for s in _REQUIRED_SYMBOLS if s not in lib]
     if missing:

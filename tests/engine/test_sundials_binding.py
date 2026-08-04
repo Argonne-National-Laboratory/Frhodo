@@ -127,6 +127,76 @@ class TestCondaSundialsDiscovery:
         assert found == ["libsundials_cvodes.so"]
 
 
+class TestCondaFallbackGating:
+    """The conda search must run only when the Cantera extension does
+    not already provide the SUNDIALS symbols. Searching whenever the
+    sibling set is empty loads a second SUNDIALS on top of one the
+    extension re-exports (Linux/macOS) — it binds but segfaults at
+    solve time.
+    """
+
+    def test_conda_search_skipped_when_extension_self_provides(
+        self, monkeypatch,
+    ):
+        calls = {"conda": 0}
+
+        def spy_conda():
+            calls["conda"] += 1
+
+            return []
+
+        # Extension provides every required symbol on the first load.
+        monkeypatch.setattr(
+            sundials, "_find_sundials_sibling_libs", lambda ext: [],
+        )
+        monkeypatch.setattr(sundials, "_find_sundials_conda_libs", spy_conda)
+        monkeypatch.setattr(
+            sundials, "_find_cantera_extension", lambda: sundials.pathlib.Path("x"),
+        )
+
+        class FullLib:
+            def __contains__(self, name):
+                return True
+
+        monkeypatch.setattr(sundials, "_load_libs", lambda libs, ext: FullLib())
+        monkeypatch.setattr(sundials, "_bind_signatures", lambda lib: None)
+
+        sundials._load_sundials()
+
+        assert calls["conda"] == 0, (
+            "conda search must not run when the extension self-provides"
+        )
+
+    def test_conda_search_runs_when_symbols_missing(self, monkeypatch):
+        calls = {"conda": 0}
+
+        def spy_conda():
+            calls["conda"] += 1
+
+            return []
+
+        monkeypatch.setattr(
+            sundials, "_find_sundials_sibling_libs", lambda ext: [],
+        )
+        monkeypatch.setattr(sundials, "_find_sundials_conda_libs", spy_conda)
+        monkeypatch.setattr(
+            sundials, "_find_cantera_extension", lambda: sundials.pathlib.Path("x"),
+        )
+
+        class EmptyLib:
+            def __contains__(self, name):
+                return False
+
+        monkeypatch.setattr(sundials, "_load_libs", lambda libs, ext: EmptyLib())
+
+        with pytest.raises(sundials.SundialsBindingError):
+            sundials._load_sundials()
+
+        assert calls["conda"] == 1, (
+            "conda search must run when required symbols are missing"
+        )
+
+
 class TestNVector:
     def test_view_aliases_buffer(self, ctx: SundialsContext) -> None:
         v = NVector(4, ctx)
