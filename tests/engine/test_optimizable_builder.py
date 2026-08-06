@@ -5,12 +5,14 @@ coefficients are marked optimizable. Mech-tree widgets toggle entries
 here; the orchestrator calls ``build(mech)`` to get an immutable
 ``OptimizableSet`` for the optimizer.
 """
+import cantera as ct
 import pytest
 
 from frhodo.optimize.parameters import (
     OptimizableSet,
     OptimizableSetBuilder,
 )
+
 
 
 @pytest.fixture
@@ -28,7 +30,6 @@ def mech_with_one_arrhenius_rxn(loaded_cycloheptane):
 def arrh_idx(loaded_cycloheptane):
     """Index of the first ArrheniusRate rxn in Cycloheptane (rxn 0/1/7
     are PlogRate; rxn 2 is the first Arrhenius)."""
-    import cantera as ct
     for i, rxn in enumerate(loaded_cycloheptane.gas.reactions()):
         if type(rxn.rate) is ct.ArrheniusRate:
             return i
@@ -38,7 +39,6 @@ def arrh_idx(loaded_cycloheptane):
 @pytest.fixture
 def plog_idx(loaded_cycloheptane):
     """Index of the first PlogRate rxn in Cycloheptane (rxn 0)."""
-    import cantera as ct
     for i, rxn in enumerate(loaded_cycloheptane.gas.reactions()):
         if type(rxn.rate) is ct.PlogRate:
             return i
@@ -59,7 +59,7 @@ class TestReactionToggle:
         assert builder.is_reaction_optimizable(5) is False
 
 
-class TestCoefficientToggle:
+class TestCoefficientBoundState:
     def test_default_no_coefficients_optimizable(self, builder):
         assert builder.is_coefficient_optimizable(0, "rate", "A") is False
 
@@ -79,20 +79,25 @@ class TestBuild:
         assert isinstance(result, OptimizableSet)
         assert result.is_empty()
 
-    def test_arrhenius_reaction_marked_but_no_coef_still_yields_empty_coefficients(
+    def test_arrhenius_rate_selection_alone_yields_all_three_coefficients(
         self, builder, mech_with_one_arrhenius_rxn, arrh_idx,
     ):
-        """Arrhenius rxns retain per-coefficient gating: marking the rxn
-        without any per-coef toggles yields an empty coefficients tuple."""
+        """The rate uncertainty is what selects a reaction: marking it
+        with no per-coefficient state fits the full A / n / Ea set."""
         builder.set_reaction_optimizable(arrh_idx, True)
         result = builder.build(mech_with_one_arrhenius_rxn)
-        assert arrh_idx in result.optimizable_reactions
-        assert len([c for c in result.coefficients if c.rxn_idx == arrh_idx]) == 0
 
-    def test_coef_marked_without_reaction_yields_no_entry(
+        arrh_coefs = [c for c in result.coefficients if c.rxn_idx == arrh_idx]
+        assert arrh_idx in result.optimizable_reactions
+        assert {c.coef_name for c in arrh_coefs} == {
+            "pre_exponential_factor", "temperature_exponent", "activation_energy",
+        }
+
+    def test_coef_bound_without_rate_selection_yields_no_entry(
         self, builder, mech_with_one_arrhenius_rxn, arrh_idx,
     ):
-        """Both gates must hold — reaction-level *and* coefficient-level."""
+        """Coefficient uncertainties bound a reaction, they never select
+        one: without the rate-level mark the set stays empty."""
         mech = mech_with_one_arrhenius_rxn
         bnds_key = next(iter(mech.coeffs_bnds[arrh_idx]))
         coef_name = next(iter(mech.coeffs_bnds[arrh_idx][bnds_key]))
@@ -100,11 +105,11 @@ class TestBuild:
         result = builder.build(mech)
         assert result.is_empty()
 
-    def test_arrhenius_both_gates_set_yields_one_coefficient(
+    def test_coef_bound_does_not_reduce_the_fitted_coefficients(
         self, builder, mech_with_one_arrhenius_rxn, arrh_idx,
     ):
-        """Arrhenius rxns: per-coefficient gating still applies, so
-        toggling one coef yields exactly one entry."""
+        """Bounding one coefficient narrows it; it does not drop the
+        others from the fit."""
         mech = mech_with_one_arrhenius_rxn
         bnds_key = next(iter(mech.coeffs_bnds[arrh_idx]))
         coef_name = next(iter(mech.coeffs_bnds[arrh_idx][bnds_key]))
@@ -112,11 +117,11 @@ class TestBuild:
         builder.set_coefficient_optimizable(arrh_idx, bnds_key, coef_name, True)
 
         result = builder.build(mech)
-        assert arrh_idx in result.optimizable_reactions
-        assert len(result.coefficients) == 1
-        coef = result.coefficients[0]
-        assert coef.rxn_idx == arrh_idx
-        assert coef.coef_name == coef_name
+        arrh_coefs = [c for c in result.coefficients if c.rxn_idx == arrh_idx]
+        assert len(arrh_coefs) == 3, (
+            f"bounding {coef_name!r} should leave all three Arrhenius "
+            f"coefficients in the fit, got {len(arrh_coefs)}"
+        )
 
     def test_pressure_dep_reaction_emits_all_rate_coefs_unconditionally(
         self, builder, mech_with_one_arrhenius_rxn, plog_idx,

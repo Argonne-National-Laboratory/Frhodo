@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 from scipy.integrate import solve_ivp
 
+from frhodo.simulation.numerics import sundials
 from frhodo.simulation.numerics.sundials import (
     CVodeIntegrator,
     DenseLinearSolver,
@@ -20,9 +21,152 @@ from frhodo.simulation.numerics.sundials import (
 )
 
 
+
 @pytest.fixture
 def ctx() -> SundialsContext:
     return SundialsContext()
+
+
+class TestWindowsCondaSundialsDiscovery:
+    """Locating conda-forge's SUNDIALS DLLs in a Windows environment's
+    ``Library/bin``. Restricted to Windows: on Linux/macOS the Cantera
+    extension re-exports SUNDIALS, so loading a second copy from the
+    environment binds but crashes the forward-sensitivity solve.
+    """
+
+    def _make_win_env(self, tmp_path, filenames):
+        lib_dir = tmp_path / "Library" / "bin"
+        lib_dir.mkdir(parents=True)
+        for name in filenames:
+            (lib_dir / name).write_bytes(b"")
+
+        return lib_dir
+
+    def test_empty_off_windows(self, tmp_path, monkeypatch):
+        self._make_win_env(tmp_path, ["sundials_cvodes.dll"])
+        monkeypatch.setattr(sundials.sys, "platform", "linux")
+        monkeypatch.setenv("CONDA_PREFIX", str(tmp_path))
+
+        assert sundials._conda_sundials_dir() is None
+        assert sundials._find_sundials_conda_libs() == []
+
+    def test_finds_core_dlls_in_dependency_order_on_windows(
+        self, tmp_path, monkeypatch,
+    ):
+        self._make_win_env(tmp_path, [
+            "sundials_cvodes.dll",
+            "sundials_core.dll",
+            "sundials_nvecserial.dll",
+        ])
+        monkeypatch.setattr(sundials.sys, "platform", "win32")
+        monkeypatch.setenv("CONDA_PREFIX", str(tmp_path))
+
+        found = [p.name for p in sundials._find_sundials_conda_libs()]
+
+        assert found == [
+            "sundials_nvecserial.dll",
+            "sundials_core.dll",
+            "sundials_cvodes.dll",
+        ]
+
+    def test_appends_separately_packaged_dense_solver(
+        self, tmp_path, monkeypatch,
+    ):
+        self._make_win_env(tmp_path, [
+            "sundials_nvecserial.dll",
+            "sundials_core.dll",
+            "sundials_cvodes.dll",
+            "sundials_sunlinsoldense.dll",
+        ])
+        monkeypatch.setattr(sundials.sys, "platform", "win32")
+        monkeypatch.setenv("CONDA_PREFIX", str(tmp_path))
+
+        found = [p.name for p in sundials._find_sundials_conda_libs()]
+
+        assert found[:3] == [
+            "sundials_nvecserial.dll",
+            "sundials_core.dll",
+            "sundials_cvodes.dll",
+        ]
+        assert "sundials_sunlinsoldense.dll" in found[3:]
+        assert len(found) == len(set(found))
+
+    def test_falls_back_to_sys_prefix_unactivated(self, tmp_path, monkeypatch):
+        self._make_win_env(tmp_path, ["sundials_cvodes.dll"])
+        monkeypatch.setattr(sundials.sys, "platform", "win32")
+        monkeypatch.delenv("CONDA_PREFIX", raising=False)
+        monkeypatch.setattr(sundials.sys, "prefix", str(tmp_path))
+
+        found = [p.name for p in sundials._find_sundials_conda_libs()]
+
+        assert found == ["sundials_cvodes.dll"]
+
+
+class TestCondaFallbackGating:
+    """The conda retry runs only when the extension lacks the SUNDIALS
+    symbols after the normal load — never when it self-provides."""
+
+    def test_conda_retry_skipped_when_extension_self_provides(
+        self, monkeypatch,
+    ):
+        calls = {"conda": 0}
+
+        def spy_conda():
+            calls["conda"] += 1
+
+            return []
+
+        monkeypatch.setattr(
+            sundials, "_find_sundials_sibling_libs", lambda ext: [],
+        )
+        monkeypatch.setattr(sundials, "_find_sundials_conda_libs", spy_conda)
+        monkeypatch.setattr(
+            sundials, "_find_cantera_extension",
+            lambda: sundials.pathlib.Path("x"),
+        )
+
+        class FullLib:
+            def __contains__(self, name):
+                return True
+
+        monkeypatch.setattr(sundials, "_load_lib_set", lambda libs, ext: FullLib())
+        monkeypatch.setattr(sundials, "_bind_signatures", lambda lib: None)
+
+        sundials._load_sundials()
+
+        assert calls["conda"] == 0, (
+            "conda retry must not run when the extension self-provides"
+        )
+
+    def test_conda_retry_runs_when_symbols_missing(self, monkeypatch):
+        calls = {"conda": 0}
+
+        def spy_conda():
+            calls["conda"] += 1
+
+            return []
+
+        monkeypatch.setattr(
+            sundials, "_find_sundials_sibling_libs", lambda ext: [],
+        )
+        monkeypatch.setattr(sundials, "_find_sundials_conda_libs", spy_conda)
+        monkeypatch.setattr(
+            sundials, "_find_cantera_extension",
+            lambda: sundials.pathlib.Path("x"),
+        )
+
+        class EmptyLib:
+            def __contains__(self, name):
+                return False
+
+        monkeypatch.setattr(sundials, "_load_lib_set", lambda libs, ext: EmptyLib())
+
+        with pytest.raises(sundials.SundialsBindingError):
+            sundials._load_sundials()
+
+        assert calls["conda"] == 1, (
+            "conda retry must run when required symbols are missing"
+        )
 
 
 class TestNVector:

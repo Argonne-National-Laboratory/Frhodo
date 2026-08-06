@@ -11,9 +11,6 @@ use (the GUI reaction tree). Python users typically construct
 """
 from __future__ import annotations
 
-from typing import Iterable
-
-import cantera as ct
 from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, model_validator
 
 from frhodo.optimize.parameters import (
@@ -21,17 +18,6 @@ from frhodo.optimize.parameters import (
     OptimizableSetBuilder,
 )
 
-
-
-_PRESSURE_DEP_RATE_TYPES = (
-    ct.FalloffRate,
-    ct.LindemannRate,
-    ct.TsangRate,
-    ct.TroeRate,
-    ct.SriRate,
-    ct.PlogRate,
-    ct.ChebyshevRate,
-)
 
 
 class CoefUncertainty(BaseModel):
@@ -94,22 +80,20 @@ class RateUncertainty(BaseModel):
 class OptimizableRate(BaseModel):
     """One reaction targeted for optimization.
 
-    ``rate`` provides a rate-level uncertainty (factor of 2 by default).
-    ``coefficients`` adds per-coefficient overrides. Coefficient bounds
-    take precedence per coefficient; the rate-level bound is enforced
-    at the (T, P) sample points the optimizer evaluates so the two are
-    intersected in practice.
+    ``rate`` provides the rate-level uncertainty (factor of 2 by
+    default) that selects the reaction and bounds it at the (T, P)
+    sample points the optimizer evaluates. The full parameter set of
+    the rate type is always fit: A / n / Ea for Arrhenius, and the
+    10-element Troe set for pressure-dependent rates, which are recast
+    to Troe.
 
-    ``optimize`` restricts the subset of coefficients to fit. ``None``
-    means "all standard for the rate type". Pressure-dependent rates
-    (Plog/Falloff/Lindemann/Sri/Troe) are recast to Troe and the full
-    10-element parameter set is always fit; passing ``optimize`` or
-    per-coefficient overrides for such reactions raises at build time.
+    ``coefficients`` narrows individual coefficients within that set. A
+    coefficient with no entry is bounded only by the sign-aware
+    defaults, leaving the rate-level bound as the binding constraint.
     """
     rxn_idx: int = Field(ge=0)
     rate: RateUncertainty | None = None
     coefficients: dict[str, CoefUncertainty] | None = None
-    optimize: list[str] | None = None
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -148,8 +132,6 @@ class OptimizableSpec(BaseModel):
         Validation performed here:
 
         - ``rxn_idx`` exists in the mechanism
-        - per-coefficient overrides and ``optimize`` subsets are not
-          allowed for pressure-dependent reactions
         - ``CoefUncertainty.bounds`` brackets the current coefficient
           value
         """
@@ -169,20 +151,11 @@ class OptimizableSpec(BaseModel):
                 )
             seen.add(entry.rxn_idx)
 
-            rxn = mech.gas.reaction(entry.rxn_idx)
-            is_pdep = isinstance(rxn.rate, _PRESSURE_DEP_RATE_TYPES)
-            if is_pdep and (entry.coefficients or entry.optimize):
-                raise ValueError(
-                    f"OptimizableRate(rxn_idx={entry.rxn_idx}): pressure-"
-                    f"dependent reactions are recast to Troe; per-coefficient "
-                    "overrides and 'optimize' subsets are not supported"
-                )
-
             rate_unc = entry.rate or self.default_rate
             self._apply_rate_uncertainty(mech, entry.rxn_idx, rate_unc)
 
             builder.set_reaction_optimizable(entry.rxn_idx, True)
-            self._toggle_coefficients(builder, mech, entry, rate_unc, is_pdep)
+            self._apply_coefficient_bounds(builder, mech, entry)
 
         return builder
 
@@ -192,47 +165,30 @@ class OptimizableSpec(BaseModel):
         mech.rate_bnds[rxn_idx]["value"] = rate_unc.factor
         mech.rate_bnds[rxn_idx]["type"] = "F"
 
-    def _toggle_coefficients(
+    def _apply_coefficient_bounds(
         self,
         builder: OptimizableSetBuilder,
         mech,
         entry: OptimizableRate,
-        rate_unc: RateUncertainty,
-        is_pdep: bool,
     ) -> None:
-        if is_pdep:
-            return
-
-        subset: Iterable[str] | None = entry.optimize
+        """Narrow the coefficients the entry names, leaving the rest at
+        their sign-aware defaults."""
         overrides = entry.coefficients or {}
+        if not overrides:
+            return
 
         for bnds_key, sub in mech.coeffs_bnds[entry.rxn_idx].items():
             for coef_name in sub:
-                if not isinstance(coef_name, str):
-                    continue
-                if subset is not None and coef_name not in subset:
+                if not isinstance(coef_name, str) or coef_name not in overrides:
                     continue
 
-                if coef_name in overrides:
-                    self._apply_coef_uncertainty(
-                        mech, entry.rxn_idx, bnds_key, coef_name,
-                        overrides[coef_name],
-                    )
-                else:
-                    self._apply_rate_factor_to_coef(
-                        mech, entry.rxn_idx, bnds_key, coef_name, rate_unc.factor,
-                    )
-
+                self._apply_coef_uncertainty(
+                    mech, entry.rxn_idx, bnds_key, coef_name,
+                    overrides[coef_name],
+                )
                 builder.set_coefficient_optimizable(
                     entry.rxn_idx, bnds_key, coef_name, True,
                 )
-
-    def _apply_rate_factor_to_coef(
-        self, mech, rxn_idx: int, bnds_key: str, coef_name: str, factor: float,
-    ) -> None:
-        d = mech.coeffs_bnds[rxn_idx][bnds_key][coef_name]
-        d["value"] = factor
-        d["type"] = "F"
 
     def _apply_coef_uncertainty(
         self, mech, rxn_idx: int, bnds_key: str, coef_name: str,
@@ -280,7 +236,6 @@ class OptimizableSpecBuilder:
         enabled: bool,
         rate: RateUncertainty | None = None,
         coefficients: dict[str, CoefUncertainty] | None = None,
-        optimize: list[str] | None = None,
     ) -> None:
         """Add or replace the entry for ``rxn_idx``.
 
@@ -294,7 +249,6 @@ class OptimizableSpecBuilder:
             rxn_idx=rxn_idx,
             rate=rate,
             coefficients=coefficients,
-            optimize=optimize,
         )
 
     def clear_rxn(self, rxn_idx: int) -> None:

@@ -6,7 +6,19 @@ import numpy as np
 from tabulate import tabulate
 import pathlib
 
-from frhodo.simulation.shock.reactor_output import base_sim_name_for_display, sub_types_for_display
+from frhodo.optimize.sensitivity_cache import (
+    grid_fingerprint,
+    mech_fingerprint,
+    shared_cache,
+    sim_cache_key,
+)
+from frhodo.simulation.shock.reactor_output import (
+    SENSITIVITY_VARIANTS,
+    SPECIES_SENSITIVITY_OBSERVABLES,
+    base_sim_name_for_display,
+    sub_types_for_display,
+)
+from frhodo.simulation.shock.sensitivity import compute_sensitivity
 
 
 
@@ -109,6 +121,10 @@ class Save:
                 self.save_indices.append(find_nearest(SIM.t_lab(units=units), t_save))
 
         for parameter in save_var["parameters"]:
+            if parameter in SENSITIVITY_VARIANTS:
+                self.sim_sensitivity(SIM, save_var, parameter, path_set, units="CGS")
+                continue
+
             sim_var_path = path_set(parameter)
             self.sim_parameter(SIM, save_var, parameter, sim_var_path, units="CGS")
             if (
@@ -165,6 +181,70 @@ class Save:
                     )
 
         self.write_table(path, self.make_table(header, data, sig_fig=3))
+
+    def sim_sensitivity(self, SIM, save_var, parameter, path_set, units="CGS"):
+        """Write ``d ln(observable) / d ln(k)`` for the selected reactions.
+
+        One file per species for the species-keyed observables (mass
+        fraction, mole fraction, concentration), one file otherwise.
+        Columns follow the reaction selection; rows follow the output
+        times. Results come from the cache the Sim Explorer fills, so an
+        observable already plotted costs nothing to write.
+        """
+        observable = SENSITIVITY_VARIANTS[parameter]
+        if observable in SPECIES_SENSITIVITY_OBSERVABLES:
+            targets = list(save_var["species"].items())
+        else:
+            targets = [(None, None)]
+
+        for species_idx, species_name in targets:
+            t, sens = self._sensitivity_array(SIM, observable, species_idx)
+            if t is None:
+                continue
+
+            if species_name is None:
+                name = parameter
+            else:
+                name = "{:s} - {:s}".format(parameter, species_name)
+
+            idx = [i for i in self.save_indices if i < len(t)]
+            header = ["time [s]"]
+            data = np.array(t)[idx] + save_var["output_time_offset"]
+            for rxn_idx in save_var["reactions"]:
+                header.append("R{:.0f}".format(rxn_idx + 1))
+                data = np.vstack((data, sens[idx, rxn_idx]))
+
+            self.write_table(path_set(name), self.make_table(header, data, sig_fig=3))
+
+    def _sensitivity_array(self, SIM, observable, species_idx):
+        """``(t, sens)`` for one observable, reusing the shared cache."""
+        parent = self.parent
+        if hasattr(SIM, "t_lab"):
+            t_grid = SIM.t_lab(units="SI")
+        else:
+            t_grid = None
+
+        cache_key = sim_cache_key(
+            "sens", mech_fingerprint(parent.mech), parent.reactor_state,
+            parent.display_shock, observable, species_idx, "auto",
+            grid_fp=grid_fingerprint(t_grid),
+        )
+        cached = shared_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        result = compute_sensitivity(
+            parent.mech,
+            reactor_state=parent.reactor_state,
+            shock=parent.display_shock,
+            observable=observable,
+            species_idx=species_idx,
+            time_grid=t_grid,
+            method="auto",
+        )
+        shared_cache.put(cache_key, result)
+
+        return result
 
     def sim_density_gradient(self, SIM, save_var, path, units="CGS"):
         name = "Density Gradient Time History"

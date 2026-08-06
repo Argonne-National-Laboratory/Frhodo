@@ -24,23 +24,13 @@ from frhodo.optimize.sensitivity_cache import (
     sim_cache_key,
 )
 from frhodo.simulation.shock.reactor_output import (
+    SENSITIVITY_VARIANTS,
+    SPECIES_SENSITIVITY_OBSERVABLES,
     VARIANTS_BY_DISPLAY,
     base_sim_name_for_display,
     sub_types_for_display,
 )
 from frhodo.simulation.shock.sensitivity import compute_sensitivity
-
-
-
-SENSITIVITY_VARIANTS: dict[str, str] = {
-    "Temperature Sensitivity Analysis": "T",
-    "Pressure Sensitivity Analysis": "P",
-    "Density Gradient Sensitivity Analysis": "drhodz_tot",
-    "Mass Fraction Sensitivity Analysis": "Y",
-    "Mole Fraction Sensitivity Analysis": "X",
-    "Concentration Sensitivity Analysis": "conc",
-}
-_SPECIES_SENSITIVITIES = {"Y", "X", "conc"}
 
 
 class SIM_Explorer_Widgets(QtCore.QObject):
@@ -536,7 +526,7 @@ class SIM_Explorer_Widgets(QtCore.QObject):
             return None
 
         observable = SENSITIVITY_VARIANTS[variant_label]
-        if observable in _SPECIES_SENSITIVITIES:
+        if observable in SPECIES_SENSITIVITY_OBSERVABLES:
             species_idx = self._sensitivity_species_idx()
         else:
             species_idx = None

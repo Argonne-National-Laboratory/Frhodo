@@ -85,8 +85,11 @@ class OptimizableSetBuilder:
     boxes; the orchestrator calls ``build(mech)`` at optimization start
     to get an immutable :class:`OptimizableSet`.
 
-    The (rxnIdx, bnds_key, coef_name) toggle state is the source of
-    truth for which coefficients are optimizable.
+    A reaction's rate uncertainty is what selects it. The
+    (rxnIdx, bnds_key, coef_name) coefficient state records which
+    coefficients the user gave an explicit bound, which narrows the
+    inner coefficient fit and survives a structural recast; it does not
+    take part in selection.
     """
 
     def __init__(self) -> None:
@@ -117,28 +120,18 @@ class OptimizableSetBuilder:
         """Resolve the toggle state against the current mech, producing
         an immutable :class:`OptimizableSet`.
 
-        Skips reactions not marked optimizable; emits one
-        ``OptimizableCoefficient`` per coefficient where both the
-        reaction-level and coefficient-level gates are set.
+        Skips reactions not marked optimizable; a selected reaction
+        emits every coefficient of its parameterization, so the fit has
+        the full degrees of freedom its rate type allows. Arrhenius
+        yields A / n / Ea; pressure-dependent rxns (Plog, Falloff,
+        Lindemann, Sri, Tsang, Troe) are recast as Troe by the
+        orchestrator and yield the low/high Arrhenius limbs plus Fcent
+        A/T3/T1/T2, aligning with the 10-element fit return
+        slot-for-slot.
 
-        Pressure-dependent rxns (Plog, Falloff, Lindemann, Sri, Tsang,
-        Troe) are recast as Troe by the orchestrator and the full Troe
-        parameterization (low/high Arrhenius limbs + Fcent A/T3/T1/T2)
-        is optimized.  For these rxn types the per-coefficient toggle
-        is bypassed and every coefficient is emitted, so coef_opt
-        aligns with the 10-element fit return slot-for-slot.  Arrhenius
-        rxns retain per-coefficient gating.
+        Per-coefficient uncertainties bound the coefficients within
+        this set rather than choosing its members.
         """
-        pressure_dep_types = (
-            ct.FalloffRate,
-            ct.LindemannRate,
-            ct.TsangRate,
-            ct.TroeRate,
-            ct.SriRate,
-            ct.PlogRate,
-            ct.ChebyshevRate,
-        )
-
         opt_rxns: list[int] = []
         coefs: list[OptimizableCoefficient] = []
 
@@ -147,14 +140,8 @@ class OptimizableSetBuilder:
                 continue
             opt_rxns.append(rxnIdx)
 
-            is_pressure_dep = isinstance(rxn.rate, pressure_dep_types)
-
             for bnds_key, sub_rxn in mech.coeffs_bnds[rxnIdx].items():
                 for coef_idx, (coef_name, _coef_dict) in enumerate(sub_rxn.items()):
-                    if not is_pressure_dep and not self.is_coefficient_optimizable(
-                        rxnIdx, bnds_key, coef_name,
-                    ):
-                        continue
                     coeffs_key, real_bnds_key = mech.get_coeffs_keys(
                         rxn, bnds_key, rxnIdx=rxnIdx,
                     )

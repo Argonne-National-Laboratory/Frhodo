@@ -131,19 +131,42 @@ class TestOptimizableSpecBuild:
         assert d["value"] == 5.0
         assert d["type"] == "F"
 
-    def test_optimize_subset_restricts_coefs(self, loaded_cycloheptane):
+    def test_coef_override_does_not_restrict_the_fitted_coefs(
+        self, loaded_cycloheptane,
+    ):
+        """A coefficient bound narrows one coefficient; the reaction is
+        still fit with its full Arrhenius parameterization."""
         arrh_idx = _first_arrhenius_idx(loaded_cycloheptane)
         spec = OptimizableSpec(rates=[
             OptimizableRate(
                 rxn_idx=arrh_idx, rate=RateUncertainty(),
-                optimize=["pre_exponential_factor"],
+                coefficients={
+                    "pre_exponential_factor": CoefUncertainty(factor=2.0),
+                },
             ),
         ])
         result = spec.build(loaded_cycloheptane)
         coef_names = {c.coef_name for c in result.coefficients}
-        assert coef_names == {"pre_exponential_factor"}
+        assert coef_names == {
+            "pre_exponential_factor", "temperature_exponent", "activation_energy",
+        }
 
-    def test_rejects_pdep_with_coef_override(self, loaded_cycloheptane):
+    def test_unbounded_coefs_keep_their_default_limits(self, loaded_cycloheptane):
+        """Coefficients the caller does not name are left unset, so the
+        rate-level bound is the binding constraint on them."""
+        arrh_idx = _first_arrhenius_idx(loaded_cycloheptane)
+        spec = OptimizableSpec(rates=[
+            OptimizableRate(rxn_idx=arrh_idx, rate=RateUncertainty(factor=3.0)),
+        ])
+        spec.build(loaded_cycloheptane)
+
+        d = loaded_cycloheptane.coeffs_bnds[arrh_idx]["rate"]["activation_energy"]
+        assert np.isnan(d["value"]), (
+            "an unnamed coefficient must stay unbounded rather than inherit "
+            "the rate factor"
+        )
+
+    def test_pdep_accepts_coef_override(self, loaded_cycloheptane):
         pdep_idx = next(
             (
                 i for i, r in enumerate(loaded_cycloheptane.gas.reactions())
@@ -157,14 +180,21 @@ class TestOptimizableSpecBuild:
         if pdep_idx is None:
             pytest.skip("test mech has no pressure-dependent reactions")
 
+        bnds_key = next(iter(loaded_cycloheptane.coeffs_bnds[pdep_idx]))
+        coef_name = next(
+            iter(loaded_cycloheptane.coeffs_bnds[pdep_idx][bnds_key])
+        )
         spec = OptimizableSpec(rates=[
             OptimizableRate(
                 rxn_idx=pdep_idx, rate=RateUncertainty(),
-                coefficients={"A_0": CoefUncertainty(factor=2.0)},
+                coefficients={coef_name: CoefUncertainty(factor=2.0)},
             ),
         ])
-        with pytest.raises(ValueError, match="recast to Troe"):
-            spec.build(loaded_cycloheptane)
+        spec.build(loaded_cycloheptane)
+
+        d = loaded_cycloheptane.coeffs_bnds[pdep_idx][bnds_key][coef_name]
+        assert d["value"] == 2.0
+        assert d["type"] == "F"
 
 
 class TestOptimizableSpecBuilder:
@@ -246,7 +276,6 @@ class TestOptimizableSetSlotIndex:
         spec = OptimizableSpec(rates=[
             OptimizableRate(
                 rxn_idx=arrh_idx, rate=RateUncertainty(),
-                optimize=["pre_exponential_factor", "activation_energy"],
             ),
         ])
         result = spec.build(loaded_cycloheptane)
@@ -259,7 +288,6 @@ class TestOptimizableSetSlotIndex:
         spec = OptimizableSpec(rates=[
             OptimizableRate(
                 rxn_idx=arrh_idx, rate=RateUncertainty(),
-                optimize=["pre_exponential_factor"],
             ),
         ])
         result = spec.build(loaded_cycloheptane)

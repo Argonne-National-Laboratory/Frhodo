@@ -278,19 +278,18 @@ spec = OptimizableSpec(rates=[
     # rate-level uncertainty: k ∈ (k0 / 2, k0 * 2)
     OptimizableRate(rxn_idx=2, rate=RateUncertainty(factor=2.0)),
 
-    # per-coefficient overrides; only A and Ea are fit
+    # A and Ea additionally narrowed; n is bounded by the rate alone
     OptimizableRate(
         rxn_idx=7,
+        rate=RateUncertainty(factor=2.0),
         coefficients={
             "pre_exponential_factor": CoefUncertainty(factor=2.0),
             "activation_energy":      CoefUncertainty(delta=kcal_per_mol(5.0)),
         },
-        optimize=["pre_exponential_factor", "activation_energy"],
     ),
 
     # pressure-dependent reactions are recast to Troe and the full
-    # 10-element parameter set is always fit; only the rate-level
-    # uncertainty applies
+    # 10-element parameter set is fit
     OptimizableRate(rxn_idx=21, rate=RateUncertainty(factor=10.0)),
 ])
 ```
@@ -308,12 +307,18 @@ Exactly one of `factor` / `delta` / `bounds`:
 Rate-level multiplicative uncertainty. Applies at every (T, P) sample
 point the optimizer evaluates.
 
+#### What selects a reaction
+
+The rate-level uncertainty is what puts a reaction into the fit, and
+every coefficient of its parameterization is then fit. Entries in
+`coefficients` narrow individual coefficients within that set; a
+coefficient with no entry keeps a wide sign-aware default, leaving the
+rate-level bound as the binding constraint on it.
+
 #### Pressure-dependent reactions
 
 Plog, Falloff, Lindemann, Sri, Tsang, and Troe reactions are recast to
-Troe before fitting. Passing `coefficients` overrides or `optimize`
-subsets for such reactions raises at `.build()` time — the recast
-demands all 10 Troe parameters be fit jointly.
+Troe before fitting, and all 10 Troe parameters are fit jointly.
 
 #### Mutable builder (for GUI tree state)
 
@@ -651,11 +656,11 @@ spec = OptimizableSpec(rates=[
     OptimizableRate(rxn_idx=2, rate=RateUncertainty(factor=2.0)),
     OptimizableRate(
         rxn_idx=7,
+        rate=RateUncertainty(factor=2.0),
         coefficients={
             "pre_exponential_factor": CoefUncertainty(factor=2.0),
             "activation_energy":      CoefUncertainty(delta=kcal_per_mol(5.0)),
         },
-        optimize=["pre_exponential_factor", "activation_energy"],
     ),
 ])
 

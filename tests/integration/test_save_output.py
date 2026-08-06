@@ -83,3 +83,80 @@ class TestWriteTable:
         assert recovered == ["BBB", "CCC"], (
             f"line_start=1 should skip first row; got {recovered}"
         )
+
+
+class TestSimSensitivity:
+    """``sim_sensitivity`` table layout, reaction columns, and file split."""
+
+    T = np.array([0.0, 1.0, 2.0])
+    SENS = np.array([
+        [0.1, 0.2, 0.3],
+        [0.4, 0.5, 0.6],
+        [0.7, 0.8, 0.9],
+    ])
+
+    @pytest.fixture
+    def writer(self, save_instance, monkeypatch):
+        monkeypatch.setattr(
+            save_instance, "_sensitivity_array",
+            lambda SIM, observable, species_idx: (self.T, self.SENS),
+        )
+        save_instance.save_indices = range(len(self.T))
+
+        return save_instance
+
+    @staticmethod
+    def _path_set(tmp_path):
+        return lambda name: tmp_path / "{:s}.txt".format(name)
+
+    def test_writes_one_column_per_selected_reaction(self, writer, tmp_path):
+        save_var = {
+            "species": {}, "reactions": {0: "A=B", 2: "C=D"},
+            "output_time_offset": 0.0,
+        }
+        writer.sim_sensitivity(
+            None, save_var, "Temperature Sensitivity Analysis",
+            self._path_set(tmp_path),
+        )
+
+        out = (tmp_path / "Temperature Sensitivity Analysis.txt").read_text()
+        header = out.splitlines()[0]
+        assert "R1" in header and "R3" in header, (
+            f"header should carry the selected reactions R1 and R3; got {header!r}"
+        )
+        assert "R2" not in header, (
+            f"unselected reaction R2 must not be written; got {header!r}"
+        )
+
+    def test_species_observable_writes_one_file_per_species(self, writer, tmp_path):
+        save_var = {
+            "species": {0: "H2", 1: "O2"}, "reactions": {0: "A=B"},
+            "output_time_offset": 0.0,
+        }
+        writer.sim_sensitivity(
+            None, save_var, "Mole Fraction Sensitivity Analysis",
+            self._path_set(tmp_path),
+        )
+
+        written = sorted(p.name for p in tmp_path.glob("*.txt"))
+        assert written == [
+            "Mole Fraction Sensitivity Analysis - H2.txt",
+            "Mole Fraction Sensitivity Analysis - O2.txt",
+        ], f"expected one file per selected species; got {written}"
+
+    def test_time_column_carries_the_output_offset(self, writer, tmp_path):
+        save_var = {
+            "species": {}, "reactions": {0: "A=B"},
+            "output_time_offset": 5.0,
+        }
+        writer.sim_sensitivity(
+            None, save_var, "Pressure Sensitivity Analysis",
+            self._path_set(tmp_path),
+        )
+
+        out = (tmp_path / "Pressure Sensitivity Analysis.txt").read_text()
+        first_data = out.splitlines()[2]
+        assert "5.000e+00" in first_data, (
+            f"t=0 with a 5 s offset should be written as 5.000e+00; "
+            f"got line {first_data!r}"
+        )
