@@ -402,7 +402,8 @@ def _load_sundials() -> _CompositeLib:
     sundials_libs = _find_sundials_sibling_libs(ext_path)
     lib = _load_lib_set(sundials_libs, ext_path)
 
-    if [s for s in _REQUIRED_SYMBOLS if s not in lib]:
+    missing = [s for s in _REQUIRED_SYMBOLS if s not in lib]
+    if missing:
         # conda-forge on Windows ships SUNDIALS in the environment, not
         # beside the extension, and the extension does not re-export it.
         # Retry with the environment's libraries — Windows only, so this
@@ -411,8 +412,8 @@ def _load_sundials() -> _CompositeLib:
         if conda_libs:
             lib = _load_lib_set(conda_libs, ext_path)
             sundials_libs = conda_libs
+            missing = [s for s in _REQUIRED_SYMBOLS if s not in lib]
 
-    missing = [s for s in _REQUIRED_SYMBOLS if s not in lib]
     if missing:
         raise SundialsBindingError(
             f"Cantera install at {ext_path.parent} is missing required "
@@ -692,12 +693,17 @@ class NVector:
 
     Holding the view past this object's lifetime is undefined behavior;
     SUNDIALS owns the underlying memory.
+
+    The creating context is retained so it cannot be freed first: the
+    vector carries a ``sunctx`` pointer that ``N_VDestroy_Serial``
+    dereferences.
     """
 
     def __init__(self, length: int, ctx: SundialsContext) -> None:
         ptr = _lib.N_VNew_Serial(c_sunindextype(int(length)), ctx.handle)
         if not ptr:
             raise SundialsError(-20, "N_VNew_Serial")
+        self._ctx = ctx
         self._ptr = c_N_Vector(ptr)
         self._length = int(length)
         self._view = _nvector_view(self._ptr, self._length)
@@ -732,6 +738,9 @@ class DenseMatrix:
 
     ``view()`` returns a row-major numpy view of the column-major
     buffer; writes through the view are visible to SUNDIALS.
+
+    The creating context is retained so it cannot be freed first:
+    ``SUNMatDestroy`` dereferences the matrix's ``sunctx`` pointer.
     """
 
     def __init__(self, rows: int, cols: int, ctx: SundialsContext) -> None:
@@ -740,6 +749,7 @@ class DenseMatrix:
         )
         if not ptr:
             raise SundialsError(-20, "SUNDenseMatrix")
+        self._ctx = ctx
         self._ptr = c_SUNMatrix(ptr)
         self._rows = int(rows)
         self._cols = int(cols)
@@ -785,6 +795,10 @@ class DenseLinearSolver:
     falls back to ``SUNLinSol_Dense`` (Windows Cantera). Either is a
     correct direct dense solver; the LAPACK-backed variant is typically
     faster but Cantera's Windows build does not ship it.
+
+    The creating context, template vector, and matrix are retained: the
+    solver holds pointers to all three and ``SUNLinSolFree`` dereferences
+    the context.
     """
 
     def __init__(
@@ -794,6 +808,9 @@ class DenseLinearSolver:
         ptr = ctor(template.handle, mat.handle, ctx.handle)
         if not ptr:
             raise SundialsError(-20, name)
+        self._ctx = ctx
+        self._template = template
+        self._mat = mat
         self._ptr = c_SUNLinearSolver(ptr)
 
     @property
