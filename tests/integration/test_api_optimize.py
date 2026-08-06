@@ -370,7 +370,7 @@ class TestOptimizeResidualTypedRequest:
         )
         result = optimize_residual(loaded_cycloheptane, request)
         assert not result.success
-        assert "empty" in result.message.lower()
+        assert "no reactions" in result.message.lower()
 
     def test_no_qt_dependency(self, loaded_cycloheptane):
         request = _build_request(loaded_cycloheptane, max_iters=1)

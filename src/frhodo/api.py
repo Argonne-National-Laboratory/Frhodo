@@ -663,9 +663,7 @@ def evaluate_residual(
     cb = callbacks or OptimizationCallbacks()
     translated = _translate_request(mech, request, cb.log)
     if translated is None:
-        raise ValueError(
-            "OptimizableSpec is empty (no reactions or coefficients selected)"
-        )
+        raise ValueError("OptimizableSpec selects no reactions")
     inputs, _optimizable_set, _display = translated
 
     if inputs.multiprocessing:
@@ -788,7 +786,7 @@ def optimize_residual(
     if translated is None:
         empty_result = OptimizationResult(
             success=False,
-            message="OptimizableSpec is empty (no reactions or coefficients selected)",
+            message="OptimizableSpec selects no reactions",
             optimizable_used=request.optimizable.build(mech),
         )
 

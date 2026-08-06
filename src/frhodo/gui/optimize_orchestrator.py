@@ -244,7 +244,10 @@ class Multithread_Optimize:
 
             return None
         if self.parent.optimizables.build(parent.mech).is_empty():
-            parent.log.append("No reactions or coefficients set to be optimized\n")
+            parent.log.append(
+                "No reactions set to be optimized. Set a k uncertainty on at "
+                "least one reaction in the mechanism tree.\n"
+            )
 
             return None
 

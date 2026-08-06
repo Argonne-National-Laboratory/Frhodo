@@ -210,6 +210,15 @@ Added optimization-outcome plots and a start/best/current simulation
 overlay on the signal plot; live Home/autoscale behavior on nav.
 
 ## Bug fixes (prod)
+- Rate uncertainty alone selects a reaction. Selection previously
+  required a per-coefficient uncertainty as well, so setting only the
+  k uncertainty on Arrhenius reactions produced an empty problem and a
+  rejection at run start. Coefficient uncertainties now narrow the
+  coefficients of a selected reaction rather than choosing which are
+  fit, and a selected reaction always fits its full parameterization.
+- Retain the SUNDIALS context in the vectors, matrices, and linear
+  solvers created from it, so destruction order cannot free the
+  context before the objects that dereference it.
 - Objective-trace zoom freezes only the zoomed axis: a y-only
   zoom keeps the x axis auto-extending as evaluations stream in;
   Home returns to the live autoscale, Back returns from the zoom.
