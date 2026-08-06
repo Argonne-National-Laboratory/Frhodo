@@ -234,6 +234,19 @@ BY_DISPLAY_OBSERVABLE: dict[str, str] = {
     v.display: v.sim_name for v in REACTOR_VARS if v.observable_default
 }
 
+# Display label → observable for the per-reaction sensitivity of each
+# supported observable. Derived from the same ``observable_default``
+# flag, so the Sim Explorer's plot list and the Save dialog's parameter
+# list stay in step with the observables the sensitivity pipeline
+# supports.
+SENSITIVITY_VARIANTS: dict[str, str] = {
+    f"{display} Sensitivity Analysis": sim_name
+    for display, sim_name in BY_DISPLAY_OBSERVABLE.items()
+}
+
+# Sensitivity observables that need a species choice.
+SPECIES_SENSITIVITY_OBSERVABLES: frozenset[str] = frozenset({"Y", "X", "conc"})
+
 
 def _build_variants_by_display() -> dict[str, tuple[ReactorVar, ...]]:
     out: dict[str, list[ReactorVar]] = {}

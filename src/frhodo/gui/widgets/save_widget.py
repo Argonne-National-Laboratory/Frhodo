@@ -31,6 +31,7 @@ import numpy as np
 from frhodo.common.units import PRESSURE_UNITS, pa_per_unit
 from frhodo.gui import session
 from frhodo.gui.state import SaveDialogState
+from frhodo.simulation.shock.reactor_output import SENSITIVITY_VARIANTS
 
 
 
@@ -298,6 +299,7 @@ class Save_Dialog(QDialog, QApplication):
             if "Laboratory Time" in reactor_vars:
                 del reactor_vars["Laboratory Time"]
             self.parameters_list_widget.addItems(reactor_vars.keys())
+            self.parameters_list_widget.addItems(SENSITIVITY_VARIANTS.keys())
             setSelected(self.parameters_list_widget, self.state.parameters)
 
             # set species list widget
