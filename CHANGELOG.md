@@ -22,6 +22,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 - CI lint step targeted a nonexistent `src/` directory and errored; it now lints
   `frhodo` and `tests`.
+- Optimized mechanisms whose names contain `(`, `)`, `+` or `[` overwrote
+  `- Opt 1` on every run, and an unbalanced bracket or a hand-renamed Opt file
+  stopped an optimization from starting.
+- The pre-optimization `- PreOpt N` file renamed mechanisms whose names contain
+  "Opt".
+- Non-ASCII folders were garbled by a session restore and could not be saved on
+  Windows. Directory files are now read and written as UTF-8.
 
 ## [2.0.0]
 

@@ -1,12 +1,32 @@
 """Path-settings controller — persists last-used directories + the ``Dir.ini`` file."""
 import configparser
+import locale
 import os
+import pathlib
 import re
 import shutil
 import stat
 
 import numpy as np
 from qtpy import QtCore
+
+
+
+def _read_directory_file(parser, path):
+    """Read the directory file at ``path`` into ``parser``.
+
+    Directory files are written as UTF-8, the one encoding that holds any
+    path, and a byte-order mark some editors add is ignored. A file in the
+    system encoding still reads: text that is not valid UTF-8 is decoded
+    with that encoding instead.
+    """
+    raw = pathlib.Path(path).read_bytes()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode(locale.getpreferredencoding(False))
+
+    parser.read_string(text, source=str(path))
 
 
 
@@ -298,21 +318,22 @@ class Path:
         mech_name = re.sub(
             r" - Opt \d+$", "", str(mech_name)
         )  # strip opt and trailing number
-        mech_name += " - Opt "  # add opt back in
 
+        # The name is matched literally and from the start of each filename: read as a
+        # pattern, characters such as ( + [ stop it matching its own files.
+        opt_file = re.compile(rf"{re.escape(mech_name)} - Opt \s*(\d+)")
         num = [0]
         for file in parent.path["mech_main"].glob("*"):
             if not file.is_file():
                 continue
 
-            num_found = re.findall(
-                r"{:s}\s*(-?\d+(?:\.\d+)?)".format(mech_name), file.name
-            )
-            if len(num_found) > 0:
-                num.append(*[int(num) for num in num_found])
+            match = opt_file.match(file.name)
+            if match:
+                num.append(int(match.group(1)))
 
-        opt_mech_file = "{:s}{:.0f}.mech".format(mech_name, np.max(num) + 1)
-        recast_mech_file = opt_mech_file.replace("Opt", "PreOpt")
+        next_num = np.max(num) + 1
+        opt_mech_file = "{:s} - Opt {:.0f}.mech".format(mech_name, next_num)
+        recast_mech_file = "{:s} - PreOpt {:.0f}.mech".format(mech_name, next_num)
         parent.path["Optimized_Mech.mech"] = parent.path["mech_main"] / opt_mech_file
         parent.path["Optimized_Mech_recast.mech"] = (
             parent.path["mech_main"] / recast_mech_file
@@ -328,7 +349,7 @@ class Path:
     def load_dir_file(self, file_path):
         parent = self.parent
         self.loading_dir_file = True
-        self.config.read(file_path)
+        _read_directory_file(self.config, file_path)
 
         # loading exp_main creates a new series
         parent.exp_main_box.setPlainText(self.config["Directories"]["exp_main"])
@@ -364,13 +385,13 @@ class Path:
             "sim_main": self.parent.path["sim_main"],
         }
 
-        with open(file_path, "w") as configfile:
+        with open(file_path, "w", encoding="utf-8") as configfile:
             self.config.write(configfile)
 
     def save_aliases(self, file_path):
         self.config.set("Species Default Aliases", "aliases", self._alias_str())
 
-        with open(file_path, "w") as configfile:
+        with open(file_path, "w", encoding="utf-8") as configfile:
             self.config.write(configfile)
 
     def _alias_str(self):

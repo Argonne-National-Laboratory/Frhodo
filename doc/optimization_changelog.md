@@ -6,6 +6,42 @@ entry: what changed, why, and how it was validated. Work that was
 validated and rejected is summarized at the end; the full development
 arc is in `revamp_history.md`.
 
+## 2026-09 — Directory-file encoding
+
+### Directory files are read and written as UTF-8
+Directory files are written as UTF-8 and read as UTF-8, with a byte-order
+mark ignored. A file that is not valid UTF-8 is read in the system encoding,
+so files saved in it still load. On Windows the system encoding is usually
+cp1252, which garbled non-ASCII folders from a session restore (written as
+UTF-8) and could not save folders outside cp1252 at all.
+- Validation: reader tests run under a simulated cp1252 system encoding
+  (UTF-8 intact, cp1252 file still read, byte-order mark ignored), and each
+  fails when its behaviour is reverted. GUI tests for a session restore and a
+  save with non-ASCII folders exercise the Windows failure on the Windows CI
+  leg.
+
+## 2026-09 — Optimized-mechanism file names
+
+### The next `- Opt N` number reads the name literally
+The number for the next optimized mechanism comes from the existing
+`<name> - Opt N` files, matched with the name taken literally and from the
+start of each filename. Names containing `(`, `)`, `+` or `[` were read as
+regular-expression syntax, so every optimization overwrote `- Opt 1`, and an
+unbalanced bracket or a hand-renamed `- Opt 2.0` copy stopped the run from
+starting. A longer name ending in this one no longer counts toward it.
+- Validation: tests over a plain name, each of those characters, an
+  unbalanced parenthesis, a hand-renamed copy, a longer name ending in this
+  one, and continuing from an Opt file. Removing the literal match or the
+  anchoring fails the matching cases.
+
+### The pre-optimization file keeps the mechanism's name
+The `- PreOpt N` file written before an optimization is named from the
+same base name and number as the `- Opt N` file. Replacing "Opt" with
+"PreOpt" across the whole filename renamed mechanisms containing "Opt",
+so `Optimized H2` gave `PreOptimized H2 - PreOpt 1.mech`.
+- Validation: tests over a plain name and names starting with or
+  containing "Opt". Restoring the replacement fails the two "Opt" cases.
+
 ## 2026-07 — Sensitivity ladder & local optimizer
 
 ### Smurf coarse global stage (DEFAULT global algorithm)
