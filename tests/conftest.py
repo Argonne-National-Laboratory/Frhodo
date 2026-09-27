@@ -13,6 +13,7 @@ import pytest  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXAMPLE_MECH_DIR = ROOT / "example" / "mechanism"
+MECH_FIXTURE_DIR = pathlib.Path(__file__).resolve().parent / "fixtures" / "mechanisms"
 
 
 @pytest.fixture(scope="session")
@@ -23,6 +24,12 @@ def repo_root():
 @pytest.fixture(scope="session")
 def example_mech_dir():
     return EXAMPLE_MECH_DIR
+
+
+@pytest.fixture(scope="session")
+def mech_fixture_dir():
+    """Mechanisms that exist only for the suite, kept out of ``example/``."""
+    return MECH_FIXTURE_DIR
 
 
 @pytest.fixture
@@ -36,6 +43,27 @@ def cycloheptane_paths(tmp_path):
         "mech": EXAMPLE_MECH_DIR / "cycloheptane.mech",
         "thermo": EXAMPLE_MECH_DIR / "cycloheptane.therm",
         "Cantera_Mech": tmp_path / "cyc7.yaml",
+    }
+
+
+@pytest.fixture
+def h2o2_chemkin_paths(tmp_path):
+    """Path dict for the H2/O2 Chemkin fixture, no transport file."""
+    return {
+        "mech": MECH_FIXTURE_DIR / "h2o2.mech",
+        "thermo": MECH_FIXTURE_DIR / "h2o2.therm",
+        "Cantera_Mech": tmp_path / "h2o2.yaml",
+    }
+
+
+@pytest.fixture
+def h2o2_transport_paths(tmp_path):
+    """Path dict for the H2/O2 Chemkin fixture, transport file included."""
+    return {
+        "mech": MECH_FIXTURE_DIR / "h2o2.mech",
+        "thermo": MECH_FIXTURE_DIR / "h2o2.therm",
+        "transport": MECH_FIXTURE_DIR / "h2o2.tran",
+        "Cantera_Mech": tmp_path / "h2o2.yaml",
     }
 
 

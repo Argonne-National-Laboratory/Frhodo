@@ -1,0 +1,62 @@
+! generator: yaml2ck
+! cantera-version: 3.2.0
+! date: Sun, 27 Sep 2026 00:43:16 -0400
+! input-files: ['h2o2.yaml']
+!
+! Hydrogen-Oxygen submechanism extracted from GRI-Mech 3.0. Modified from the original to include N2.  Redlich-Kwong
+! coefficients are based on tabulated critical properties or estimated according to the method of Joback and Reid,
+! "Estimation of pure- component properties from group-contributions," Chem. Eng. Comm. 57 (1987) 233-243
+
+ELEM
+O H Ar N
+END
+
+SPECIES
+AR  H  H2  H2O  H2O2  HO2  N2  O  O2  OH
+END
+
+REACTIONS CAL/MOLE MOLE
+2 O + M <=> O2 + M         1.2000000000000002e+17 -1.0 0.0
+AR/8.300E-01/ H2/2.400E+00/ H2O/1.540E+01/
+H + O + M <=> OH + M       5.000000000000001e+17 -1.0 0.0
+AR/7.000E-01/ H2/2.000E+00/ H2O/6.000E+00/
+H2 + O <=> H + OH          38700.0 2.7 6260.0
+HO2 + O <=> O2 + OH        20000000000000.004 0.0 0.0
+H2O2 + O <=> HO2 + OH      9630000.0 2.0 4000.0
+H + O2 + M <=> HO2 + M     2.8000000000000005e+18 -0.86 0.0
+AR/0.000E+00/ H2O/0.000E+00/ N2/0.000E+00/ O2/0.000E+00/
+H + O2 + O2 <=> HO2 + O2   2.0800000000000004e+19 -1.24 0.0
+H + O2 + H2O <=> HO2 + H2O 1.1260000000000002e+19 -0.76 0.0
+H + O2 + N2 <=> HO2 + N2   2.6000000000000004e+19 -1.24 0.0
+H + O2 + AR <=> HO2 + AR   7.000000000000001e+17 -0.8 0.0
+H + O2 <=> O + OH          2.6500000000000004e+16 -0.6707 17041.0
+2 H + M <=> H2 + M         1.0000000000000003e+18 -1.0 0.0
+AR/6.300E-01/ H2/0.000E+00/ H2O/0.000E+00/
+2 H + H2 <=> H2 + H2       9.000000000000002e+16 -0.6 0.0
+2 H + H2O <=> H2 + H2O     6.000000000000001e+19 -1.25 0.0
+H + OH + M <=> H2O + M     2.2000000000000004e+22 -2.0 0.0
+AR/3.800E-01/ H2/7.300E-01/ H2O/3.650E+00/
+H + HO2 <=> H2O + O        3970000000000.0005 0.0 671.0
+H + HO2 <=> H2 + O2        44800000000000.01 0.0 1068.0
+H + HO2 <=> 2 OH           84000000000000.02 0.0 635.0
+H + H2O2 <=> H2 + HO2      12100000.000000002 2.0 5200.0
+H + H2O2 <=> H2O + OH      10000000000000.002 0.0 3600.0
+H2 + OH <=> H + H2O        216000000.00000003 1.51 3430.0
+2 OH (+M) <=> H2O2 (+M)    74000000000000.02 -0.37 0.0
+LOW /2.3000000000000005e+18 -0.9 -1700.0/
+TROE /0.7346 94 1756 5182/
+AR/7.000E-01/ H2/2.000E+00/ H2O/6.000E+00/
+2 OH <=> H2O + O           35700.0 2.4 -2110.0
+HO2 + OH <=> H2O + O2      14500000000000.002 0.0 -500.0
+DUPLICATE
+H2O2 + OH <=> H2O + HO2    2000000000000.0002 0.0 427.0
+DUPLICATE
+H2O2 + OH <=> H2O + HO2    1.7000000000000003e+18 0.0 29410.000000000004
+DUPLICATE
+2 HO2 <=> H2O2 + O2        130000000000.00002 0.0 -1630.0
+DUPLICATE
+2 HO2 <=> H2O2 + O2        420000000000000.06 0.0 12000.0
+DUPLICATE
+HO2 + OH <=> H2O + O2      5000000000000001.0 0.0 17330.0
+DUPLICATE
+END
