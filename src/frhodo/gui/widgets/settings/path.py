@@ -28,6 +28,9 @@ def _is_conversion_artifact(file):
     return stem == "generated_mech" or stem.endswith(".converted")
 
 
+EXAMPLE_CONFIG = "example_config.ini"
+
+
 def _read_directory_file(parser, path):
     """Read the directory file at ``path`` into ``parser``.
 
@@ -43,6 +46,81 @@ def _read_directory_file(parser, path):
         text = raw.decode(locale.getpreferredencoding(False))
 
     parser.read_string(text, source=str(path))
+
+
+def _resolve_dir_entry(folder, entry):
+    """A directory-file entry as a path, reading a relative one against ``folder``.
+
+    Relative entries keep a directory file valid wherever it is copied. An
+    empty entry stays empty, so an unset directory never becomes the file's
+    own folder.
+    """
+    if not entry.strip() or pathlib.Path(entry).is_absolute():
+        return entry
+
+    resolved = str(folder / entry)
+
+    return resolved
+
+
+def _copy_file(source, target):
+    """Copy ``source`` to ``target`` whole or not at all, writable by the user.
+
+    Only the contents are copied, since an install's files can be read-only
+    and a copy that kept their permissions could not be edited. Writing a
+    ``.part`` sibling first means a copy killed partway never leaves a file
+    that looks finished.
+    """
+    partial = target.with_name(f"{target.name}.part")
+    shutil.copyfile(source, partial)
+    os.replace(partial, target)
+
+
+def _copy_missing(source, destination):
+    """Copy the files under ``source`` that ``destination`` does not have."""
+    destination.mkdir(parents=True, exist_ok=True)
+    for file in source.rglob("*"):
+        target = destination / file.relative_to(source)
+        if file.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+        elif not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            _copy_file(file, target)
+
+
+def copy_example(bundled, destination):
+    """Copy the bundled example somewhere writable and return its directory file.
+
+    Using a project writes into it: every optimization leaves a mechanism in
+    the mechanism folder, saving adds results to the simulation folder, and
+    editing aliases rewrites the directory file. An install folder can be
+    read-only, and an upgrade replaces it, so the example is opened from a
+    copy. Only the folders the directory file names are copied. The file
+    itself goes last, so finding it means an earlier copy finished; a copy
+    interrupted before that is completed without overwriting anything.
+
+    Returns:
+        The copied directory file, or None when the install carries no
+        example.
+    """
+    copied_config = destination / EXAMPLE_CONFIG
+    if copied_config.is_file():
+        return copied_config
+
+    bundled_config = bundled / EXAMPLE_CONFIG
+    if not bundled_config.is_file():
+        return None
+
+    destination.mkdir(parents=True, exist_ok=True)
+    config = configparser.RawConfigParser()
+    _read_directory_file(config, bundled_config)
+    for entry in config["Directories"].values():
+        if entry.strip() and not pathlib.Path(entry).is_absolute():
+            _copy_missing(bundled / entry, destination / entry)
+
+    _copy_file(bundled_config, copied_config)
+
+    return copied_config
 
 
 
@@ -355,13 +433,43 @@ class Path:
         else:
             raise ValueError(f"unexpected file_out: {file_out!r}")
 
+    def open_example(self):
+        """Adopt a writable copy of the bundled example as the directory file."""
+        parent = self.parent
+        runtime_paths = parent.runtime_paths
+        try:
+            directory_file = copy_example(runtime_paths.example, runtime_paths.user_example)
+        except OSError as e:
+            parent.log.append(
+                f"Could not copy the example project to {runtime_paths.user_example}:\n{e}",
+                alert=True,
+            )
+
+            return
+
+        if directory_file is None:
+            parent.log.append(
+                f"No example project was found in this install at {runtime_paths.example}.",
+                alert=True,
+            )
+
+            return
+
+        parent.path_file_box.setPlainText(str(directory_file))
+
     def load_dir_file(self, file_path):
         parent = self.parent
         self.loading_dir_file = True
         _read_directory_file(self.config, file_path)
 
+        folder = pathlib.Path(file_path).resolve().parent
+        directories = {
+            key: _resolve_dir_entry(folder, value)
+            for key, value in self.config["Directories"].items()
+        }
+
         # loading exp_main creates a new series
-        parent.exp_main_box.setPlainText(self.config["Directories"]["exp_main"])
+        parent.exp_main_box.setPlainText(directories["exp_main"])
 
         if (
             "exp_main" not in parent.directory.invalid
@@ -371,8 +479,8 @@ class Path:
                 exp_name, thermo_name = pair.split(": ")
                 parent.series.current["species_alias"][exp_name] = thermo_name
 
-        parent.mech_main_box.setPlainText(self.config["Directories"]["mech_main"])
-        parent.sim_main_box.setPlainText(self.config["Directories"]["sim_main"])
+        parent.mech_main_box.setPlainText(directories["mech_main"])
+        parent.sim_main_box.setPlainText(directories["sim_main"])
         if len(self.config["Experiment Set Name"]["name"]) > 0:
             parent.exp_series_name_box.setText(
                 self.config["Experiment Set Name"]["name"]
@@ -398,10 +506,23 @@ class Path:
             self.config.write(configfile)
 
     def save_aliases(self, file_path):
-        self.config.set("Species Default Aliases", "aliases", self._alias_str())
+        """Rewrite only the aliases in ``file_path``.
+
+        ``load_dir_file`` also reads files other than the adopted one into
+        ``self.config``, such as the file a session restore builds, so
+        writing that parser back whole would replace this file's folders.
+        """
+        aliases = self._alias_str()
+        self.config.set("Species Default Aliases", "aliases", aliases)
+
+        saved = configparser.RawConfigParser()
+        _read_directory_file(saved, file_path)
+        if not saved.has_section("Species Default Aliases"):
+            saved.add_section("Species Default Aliases")
+        saved.set("Species Default Aliases", "aliases", aliases)
 
         with open(file_path, "w", encoding="utf-8") as configfile:
-            self.config.write(configfile)
+            saved.write(configfile)
 
     def _alias_str(self):
         species_aliases_str = []

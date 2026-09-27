@@ -52,6 +52,53 @@ class TestMainWindowBoot:
         assert callable(main_window.plot.raw_sig.update)
 
 
+@pytest.fixture
+def unwritable_example_copy(isolated_path):
+    """Occupy the example copy's location with a file, so the copy cannot be made."""
+    (isolated_path["appdata"] / "example").write_text("not a folder\n")
+
+    return isolated_path
+
+
+class TestFirstRun:
+    def test_opens_a_copy_of_the_example(self, first_run_window, isolated_path):
+        copy = isolated_path["appdata"] / "example"
+
+        opened = {
+            key: first_run_window.path[key]
+            for key in ("path_file", "exp_main", "mech_main", "sim_main")
+        }
+
+        expected = {
+            "path_file": copy / "example_config.ini",
+            "exp_main": copy.resolve() / "experiment",
+            "mech_main": copy.resolve() / "mechanism",
+            "sim_main": copy.resolve() / "simulation",
+        }
+        assert opened == expected, f"got {opened}"
+
+    def test_loads_the_example_mechanism(self, first_run_window):
+        loaded = first_run_window.mech_select_comboBox.currentText()
+
+        assert loaded == "cycloheptane.mech", f"got {loaded!r}"
+        assert first_run_window.mech.isLoaded, "the example mechanism did not load"
+
+    def test_returning_user_is_not_given_the_example(self, main_window, isolated_path):
+        copy = isolated_path["appdata"] / "example"
+
+        assert not copy.exists(), "a boot with saved settings copied the example"
+
+    def test_copy_failure_is_logged_and_startup_continues(
+        self, unwritable_example_copy, first_run_window,
+    ):
+        log_text = first_run_window.log.log.toPlainText()
+
+        assert "Could not copy the example project" in log_text, f"log was: {log_text!r}"
+        assert first_run_window.path_file_box.toPlainText() == "", (
+            "a directory file was adopted although the copy failed"
+        )
+
+
 class TestMechWidgetPopulation:
     """Loading Cycloheptane populates ``mech_tree``."""
 
@@ -147,9 +194,9 @@ class TestAddSeriesToTable:
     """
 
     @pytest.fixture
-    def main_with_exp_main(self, main_with_loaded_mech, repo_root):
+    def main_with_exp_main(self, main_with_loaded_mech, example_dir):
         main = main_with_loaded_mech
-        main.path["exp_main"] = repo_root / "example" / "experiment"
+        main.path["exp_main"] = example_dir / "experiment"
 
         return main
 
@@ -164,7 +211,7 @@ class TestAddSeriesToTable:
         )
 
     def test_add_series_records_one_shock_row(self, main_with_exp_main):
-        """Bundled example/experiment has Shock1.exp; the table should
+        """The bundled example's experiment folder has Shock1.exp; the table should
         have one row keyed on shock number 1."""
         main = main_with_exp_main
         main.series.add_series()

@@ -6,6 +6,30 @@ entry: what changed, why, and how it was validated. Work that was
 validated and rejected is summarized at the end; the full development
 arc is in `revamp_history.md`.
 
+## 2026-09 — First-run example project
+
+### The bundled example opens on first launch
+The example project ships inside the package (`src/frhodo/example/`), so
+every install carries it. When Frhodo starts with no saved settings, it
+copies the example into the app folder (`%APPDATA%\Frhodo\example`,
+`~/Library/Application Support/Frhodo/example`, `~/.config/Frhodo/example`)
+and opens it from there. The copy exists because using a project writes
+into it (optimized mechanisms, saved results, alias edits), and an install
+folder can be read-only or replaced by an upgrade. `example_config.ini`
+names its folders relative to itself, and directory files resolve relative
+entries against their own folder.
+- Validation: tests cover the copy (read-only source, interrupted copy,
+  repeat run), resolution independent of the working directory, and the
+  first-run boot. A wheel built with `uv build` carries every example file.
+  Installed read-only into a separate folder, the copy opened on the
+  installed data and left the install unchanged.
+
+### Alias saves rewrite only the aliases
+`save_aliases` edits the aliases line of the adopted directory file rather
+than writing back the whole in-memory parser, which also holds folders read
+from other files such as a session restore's.
+- Validation: a regression test loads a second directory file before saving.
+
 ## 2026-09 — Mechanism import format fixes
 
 ### YAML source aliasing fixed

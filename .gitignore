@@ -143,5 +143,9 @@ claude_style_check.py
 .claude/
 
 # GUI-run outputs: optimized-mechanism artifacts never belong in the library
-example/mechanism/* - Opt *.mech
-example/mechanism/* - PreOpt *.mech
+src/frhodo/example/mechanism/* - Opt *.mech
+src/frhodo/example/mechanism/* - PreOpt *.mech
+src/frhodo/example/simulation/*
+!src/frhodo/example/simulation/readme.txt
+# load_mechanism's default conversion output, written beside its source
+*.converted.yaml

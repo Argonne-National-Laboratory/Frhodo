@@ -1,6 +1,6 @@
 """Chemkin -> Cantera mechanism load via ``ChemicalMechanism``.
 
-Snapshot values pinned to ``example/mechanism/cycloheptane``.
+Snapshot values pinned to ``src/frhodo/example/mechanism/cycloheptane``.
 """
 import collections
 

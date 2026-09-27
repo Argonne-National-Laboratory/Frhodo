@@ -210,10 +210,15 @@ class Main(QMainWindow):
 
         self.shock_selection = ShockSelectionState(current=1, previous=1)
 
+        # Settings are first saved during a session, so none on disk means Frhodo
+        # has not run here before.
+        first_run = not self.runtime_paths.default_config.exists()
         self.user_settings = config_io.GUI_settings(self)
         self.user_settings.load()
         self._size_directory_boxes()
         self._restore_window_layout()
+        if first_run:
+            self.path_set.open_example()
 
         self.load_state.load_full_series = self.load_full_series_box.isChecked()
 

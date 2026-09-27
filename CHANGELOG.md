@@ -19,6 +19,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   checkbox and list in the mechanism panel.
 - YAML mechanisms open from their own path, so files they include resolve
   against their folder.
+- On first launch Frhodo opens a copy of the bundled example project, which now
+  ships inside the package.
 
 ### Changed
 - Uncertainty band: curvature-adaptive centerline that tracks sharp features, and
@@ -30,6 +32,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Converter output, warnings included, is captured into load errors and the log.
 - Mechanisms serialize to YAML in memory, for saving and for worker processes,
   rather than through a temporary file.
+- Directory files resolve relative folder entries against their own location.
 
 ### Fixed
 - CI lint step targeted a nonexistent `src/` directory and errored; it now lints
@@ -47,6 +50,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   mechanisms that cannot use a separate file.
 - Conversion output (`generated_mech.*`, `<mech>.converted.yaml`) appeared in the
   mechanism list.
+- Saving species aliases rewrote the whole directory file, so a session restore
+  could replace its folders.
 
 ## [2.0.0]
 

@@ -34,6 +34,19 @@ class TestRuntimePathsFromPackage:
         paths = RuntimePaths.from_package(package=package, appdata=tmp_path)
         assert paths.main == tmp_path / "frhodo"
 
+    def test_example_ships_inside_the_package_root(self, tmp_path):
+        package = tmp_path / "frhodo" / "gui"
+        paths = RuntimePaths.from_package(package=package, appdata=tmp_path / "appdata")
+
+        assert paths.example == tmp_path / "frhodo" / "example"
+
+    def test_user_example_is_a_writable_copy_under_appdata(self, tmp_path):
+        paths = RuntimePaths.from_package(
+            package=tmp_path / "gui", appdata=tmp_path / "appdata",
+        )
+
+        assert paths.user_example == tmp_path / "appdata" / "example"
+
     def test_default_config_under_appdata(self, tmp_path):
         paths = RuntimePaths.from_package(
             package=tmp_path / "gui", appdata=tmp_path / "appdata",
@@ -87,7 +100,7 @@ class TestRuntimePathsFieldShape:
 
     @pytest.mark.parametrize("field", [
         "package", "main", "appdata", "default_config",
-        "cantera_mech", "graphics", "troe_captures",
+        "cantera_mech", "graphics", "troe_captures", "example", "user_example",
     ])
     def test_field_populated_after_from_package(self, tmp_path, field):
         paths = RuntimePaths.from_package(

@@ -14,13 +14,13 @@ pytestmark = pytest.mark.gui
 
 
 @pytest.fixture
-def main_two_shocks(main_with_loaded_mech, repo_root, tmp_path):
+def main_two_shocks(main_with_loaded_mech, example_dir, tmp_path):
     """Main with a 2-shock series (example shock duplicated)."""
     main = main_with_loaded_mech
     main.convert_units.mech = main.mech
     exp_dir = tmp_path / "exp"
     exp_dir.mkdir()
-    src = repo_root / "example" / "experiment"
+    src = example_dir / "experiment"
     for num in (1, 2):
         shutil.copy(src / "shock1.exp", exp_dir / f"Shock{num}.exp")
         shutil.copy(src / "shock1.rho", exp_dir / f"Shock{num}.rho")
