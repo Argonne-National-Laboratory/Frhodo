@@ -1,12 +1,32 @@
 """Path-settings controller — persists last-used directories + the ``Dir.ini`` file."""
 import configparser
+import locale
 import os
+import pathlib
 import re
 import shutil
 import stat
 
 import numpy as np
 from qtpy import QtCore
+
+
+
+def _read_directory_file(parser, path):
+    """Read the directory file at ``path`` into ``parser``.
+
+    Directory files are written as UTF-8, the one encoding that holds any
+    path, and a byte-order mark some editors add is ignored. A file in the
+    system encoding still reads: text that is not valid UTF-8 is decoded
+    with that encoding instead.
+    """
+    raw = pathlib.Path(path).read_bytes()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode(locale.getpreferredencoding(False))
+
+    parser.read_string(text, source=str(path))
 
 
 
@@ -329,7 +349,7 @@ class Path:
     def load_dir_file(self, file_path):
         parent = self.parent
         self.loading_dir_file = True
-        self.config.read(file_path)
+        _read_directory_file(self.config, file_path)
 
         # loading exp_main creates a new series
         parent.exp_main_box.setPlainText(self.config["Directories"]["exp_main"])
@@ -365,13 +385,13 @@ class Path:
             "sim_main": self.parent.path["sim_main"],
         }
 
-        with open(file_path, "w") as configfile:
+        with open(file_path, "w", encoding="utf-8") as configfile:
             self.config.write(configfile)
 
     def save_aliases(self, file_path):
         self.config.set("Species Default Aliases", "aliases", self._alias_str())
 
-        with open(file_path, "w") as configfile:
+        with open(file_path, "w", encoding="utf-8") as configfile:
             self.config.write(configfile)
 
     def _alias_str(self):
