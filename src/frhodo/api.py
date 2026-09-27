@@ -30,7 +30,7 @@ import numpy as np
 
 from frhodo.simulation.mechanism import ChemicalMechanism
 from frhodo.simulation.mechanism.coef_helpers import rates as compute_rates
-from frhodo.simulation.mechanism.mechanism_loader import MechanismLoader
+from frhodo.simulation.mechanism.mechanism_loader import FORMAT_TABLE, MechanismLoader
 from frhodo.simulation.shock import (
     RuntimeReactorState,
     ShockJumpSolver,
@@ -78,26 +78,29 @@ from frhodo.optimize.spec import (
 
 
 
-_YAML_SUFFIXES = (".yaml", ".yml")
-
-
 def load_mechanism(
     mech: str | Path,
     *,
     thermo: str | Path | None = None,
+    transport: str | Path | None = None,
     converted_yaml: str | Path | None = None,
 ) -> ChemicalMechanism:
-    """Load a Cantera mechanism from YAML, CTI, or Chemkin input.
+    """Load a Cantera mechanism from YAML, CTI, CTML/XML, or Chemkin input.
 
-    YAML inputs load directly. CTI and Chemkin inputs are converted to
-    YAML.
+    YAML inputs load directly. CTI, CTML/XML and Chemkin inputs are
+    converted to YAML. Suffix matching is case-insensitive; an
+    unrecognised suffix raises rather than being guessed at.
 
     Args:
         mech: Path to the mechanism source file.
         thermo: Optional Chemkin thermodynamic database; ignored for
             YAML inputs.
-        converted_yaml: Where to write the converted YAML. Defaults to
-            a sibling of ``mech`` with a ``.converted.yaml`` suffix.
+        transport: Optional Chemkin transport database; ignored for
+            YAML inputs.
+        converted_yaml: Where to write the converted YAML for the
+            converted formats. Defaults to a sibling of ``mech`` with a
+            ``.converted.yaml`` suffix. Ignored for YAML inputs, which
+            load in place and write nothing.
 
     Returns:
         A populated :class:`ChemicalMechanism` ready to feed the
@@ -105,7 +108,7 @@ def load_mechanism(
     """
     mech_path = Path(mech)
     if converted_yaml is None:
-        if mech_path.suffix in _YAML_SUFFIXES:
+        if FORMAT_TABLE.get(mech_path.suffix.lower()) == "native":
             converted_yaml_path = mech_path
         else:
             converted_yaml_path = mech_path.with_suffix(".converted.yaml")
@@ -117,9 +120,15 @@ def load_mechanism(
     else:
         thermo_path = None
 
+    if transport is not None:
+        transport_path = Path(transport)
+    else:
+        transport_path = None
+
     paths = {
         "mech": mech_path,
         "thermo": thermo_path,
+        "transport": transport_path,
         "Cantera_Mech": converted_yaml_path,
     }
 

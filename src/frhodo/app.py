@@ -12,6 +12,7 @@ import platform
 import multiprocessing
 import pathlib
 import ctypes
+import re
 import signal
 
 # Under WSLg, point Qt at the runtime dir that holds the wayland-0
@@ -32,7 +33,10 @@ from frhodo.simulation.mechanism import mech_fcns
 from frhodo.common import units as convert_units
 from frhodo import __version__
 from frhodo.common.errors import MechanismLoadError
-from frhodo.simulation.mechanism.mechanism_loader import MechanismLoader
+from frhodo.simulation.mechanism.mechanism_loader import (
+    FORMAT_TABLE,
+    MechanismLoader,
+)
 from frhodo.simulation.shock.incident_shock_reactor import run_incident_shock
 from frhodo.simulation.shock.reactor_output import ReactorOutput
 from frhodo.simulation.shock.zero_d_reactor import run_zero_d
@@ -92,6 +96,21 @@ _startup_failed = False
 def _mark_startup_failed():
     global _startup_failed
     _startup_failed = True
+
+
+# The Chemkin THERMO keyword opens a block and so must start its own line;
+# "THER" is the accepted abbreviation.
+_CHEMKIN_THERMO_KEYWORD = re.compile(r"\s*ther(mo?)?\b", re.IGNORECASE)
+
+
+def _chemkin_embeds_thermo(mech_path):
+    """True when a Chemkin mech file carries its own ``THERMO`` block."""
+    with open(mech_path, "r", errors="replace") as f:
+        for line in f:
+            if _CHEMKIN_THERMO_KEYWORD.match(line.split("!")[0]):
+                return True
+
+    return False
 
 
 class Main(QMainWindow):
@@ -255,21 +274,31 @@ class Main(QMainWindow):
         total = self.splitter.width()
         self.splitter.setSizes([panel_width, max(1, total - panel_width)])
 
+    def _configure_aux_control(self, checkbox, combobox, files_present, has_embedded):
+        """Set an auxiliary-file checkbox and its combobox to match the mech source.
+
+        ``has_embedded`` means the mechanism already carries the data, so the
+        separate file is optional: the checkbox only offers it when
+        ``files_present``, and an opt-in the user could make survives the reload
+        their own click triggers. Without it the checkbox is forced on and
+        locked so the user has to supply a file; that forced state is not a
+        choice, so it is dropped as soon as a mech carrying the data is
+        selected. Signals are blocked around the programmatic state change to
+        stop it triggering a second load.
+        """
+        checkbox.blockSignals(True)
+        if has_embedded:
+            opted_in = checkbox.isEnabled() and checkbox.isChecked()
+            checkbox.setEnabled(files_present)
+            checkbox.setChecked(opted_in and files_present)
+        else:
+            checkbox.setChecked(True)
+            checkbox.setDisabled(True)
+        checkbox.blockSignals(False)
+
+        combobox.setEnabled(checkbox.isChecked())
+
     def load_mech(self, event=None):
-        def mechhasthermo(mech_path):
-            with open(mech_path, "r", errors="replace") as f:
-                while True:
-                    line = f.readline()
-                    if "!" in line[0:2]:
-                        continue
-                    if "ther" in line.split("!")[0].strip().lower():
-                        return True
-
-                    if not line:
-                        break
-
-            return False
-
         if self.mech_select_comboBox.count() == 0:
             return  # if no items return, unsure if this is needed now
 
@@ -282,39 +311,38 @@ class Main(QMainWindow):
 
             return
 
-        # Check use thermo box viability
-        if mechhasthermo(self.path["mech"]):
-            if self.thermo_select_comboBox.count() == 0:
-                self.use_thermo_file_box.setDisabled(
-                    True
-                )  # disable checkbox if no thermo in mech file
-            else:
-                self.use_thermo_file_box.setEnabled(True)
-            # Autoselect checkbox off if thermo exists in mech
-            if (
-                self.sender() is None
-                or "use_thermo_file_box" not in self.sender().objectName()
-            ):
-                self.use_thermo_file_box.blockSignals(
-                    True
-                )  # stop set from sending signal, causing double load
-                self.use_thermo_file_box.setChecked(False)
-                self.use_thermo_file_box.blockSignals(False)  # allow signals again
-        else:
-            self.use_thermo_file_box.blockSignals(
-                True
-            )  # stop set from sending signal, causing double load
-            self.use_thermo_file_box.setChecked(True)
-            self.use_thermo_file_box.blockSignals(False)  # allow signals again
-            self.use_thermo_file_box.setDisabled(
-                True
-            )  # disable checkbox if no thermo in mech file
+        # Separate thermo/transport files only reach Cantera through the Chemkin
+        # converter; every other format carries that data inside the mech file.
+        is_chemkin = FORMAT_TABLE.get(self.path["mech"].suffix.lower()) == "chemkin"
+        thermo_files_present = is_chemkin and self.thermo_select_comboBox.count() > 0
+        mech_embeds_thermo = not is_chemkin or _chemkin_embeds_thermo(self.path["mech"])
 
-        # Enable thermo select based on use_thermo_file_box
-        if self.use_thermo_file_box.isChecked():
-            self.thermo_select_comboBox.setEnabled(True)
+        self._configure_aux_control(
+            self.use_thermo_file_box,
+            self.thermo_select_comboBox,
+            thermo_files_present,
+            mech_embeds_thermo,
+        )
+
+        # A missing transport block is not an error for the Chemkin converter, so a
+        # separate transport file is always optional and stays opt-in across loads.
+        transport_files_present = (
+            is_chemkin and self.transport_select_comboBox.count() > 0
+        )
+        self._configure_aux_control(
+            self.use_transport_file_box,
+            self.transport_select_comboBox,
+            transport_files_present,
+            True,
+        )
+
+        # Specify transport file path
+        if self.use_transport_file_box.isChecked():
+            self.path["transport"] = self.path["mech_main"] / str(
+                self.transport_select_comboBox.currentText()
+            )
         else:
-            self.thermo_select_comboBox.setDisabled(True)
+            self.path["transport"] = None
 
         # Specify thermo file path
         if self.use_thermo_file_box.isChecked():

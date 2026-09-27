@@ -271,6 +271,16 @@ class TestLoadMechanism:
         assert out.exists()
         assert mech.gas.n_reactions > 0
 
+    def test_chemkin_with_transport_sets_a_transport_model(self, tmp_path, mech_fixture_dir):
+        mech = load_mechanism(
+            mech_fixture_dir / "h2o2.mech",
+            thermo=mech_fixture_dir / "h2o2.therm",
+            transport=mech_fixture_dir / "h2o2.tran",
+            converted_yaml=tmp_path / "h2o2.yaml",
+        )
+
+        assert mech.gas.transport_model != "none"
+
 
 class TestParseComposition:
     @pytest.mark.parametrize(
