@@ -298,19 +298,20 @@ class Path:
         mech_name = re.sub(
             r" - Opt \d+$", "", str(mech_name)
         )  # strip opt and trailing number
-        mech_name += " - Opt "  # add opt back in
 
+        # The name is matched literally and from the start of each filename: read as a
+        # pattern, characters such as ( + [ stop it matching its own files.
+        opt_file = re.compile(rf"{re.escape(mech_name)} - Opt \s*(\d+)")
         num = [0]
         for file in parent.path["mech_main"].glob("*"):
             if not file.is_file():
                 continue
 
-            num_found = re.findall(
-                r"{:s}\s*(-?\d+(?:\.\d+)?)".format(mech_name), file.name
-            )
-            if len(num_found) > 0:
-                num.append(*[int(num) for num in num_found])
+            match = opt_file.match(file.name)
+            if match:
+                num.append(int(match.group(1)))
 
+        mech_name += " - Opt "  # add opt back in
         opt_mech_file = "{:s}{:.0f}.mech".format(mech_name, np.max(num) + 1)
         recast_mech_file = opt_mech_file.replace("Opt", "PreOpt")
         parent.path["Optimized_Mech.mech"] = parent.path["mech_main"] / opt_mech_file

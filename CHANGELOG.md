@@ -22,6 +22,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 - CI lint step targeted a nonexistent `src/` directory and errored; it now lints
   `frhodo` and `tests`.
+- Optimized mechanisms whose names contain `(`, `)`, `+` or `[` overwrote
+  `- Opt 1` on every run, and an unbalanced bracket or a hand-renamed Opt file
+  stopped an optimization from starting.
 
 ## [2.0.0]
 

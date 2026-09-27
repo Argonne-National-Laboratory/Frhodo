@@ -6,6 +6,20 @@ entry: what changed, why, and how it was validated. Work that was
 validated and rejected is summarized at the end; the full development
 arc is in `revamp_history.md`.
 
+## 2026-09 — Optimized-mechanism file names
+
+### The next `- Opt N` number reads the name literally
+The number for the next optimized mechanism comes from the existing
+`<name> - Opt N` files, matched with the name taken literally and from the
+start of each filename. Names containing `(`, `)`, `+` or `[` were read as
+regular-expression syntax, so every optimization overwrote `- Opt 1`, and an
+unbalanced bracket or a hand-renamed `- Opt 2.0` copy stopped the run from
+starting. A longer name ending in this one no longer counts toward it.
+- Validation: tests over a plain name, each of those characters, an
+  unbalanced parenthesis, a hand-renamed copy, a longer name ending in this
+  one, and continuing from an Opt file. Removing the literal match or the
+  anchoring fails the matching cases.
+
 ## 2026-07 — Sensitivity ladder & local optimizer
 
 ### Smurf coarse global stage (DEFAULT global algorithm)
