@@ -6,12 +6,17 @@ import shutil
 import pytest
 
 from frhodo.gui.widgets.settings.path import _read_directory_file
+from frhodo.simulation.mechanism.mechanism_loader import supported_mech_suffixes
 
 
 
 pytestmark = pytest.mark.gui
 
 NON_ASCII_FOLDER = "C:\\Users\\José Ω\\Frhodo\\mechanism"
+
+
+def _items(combobox):
+    return {combobox.itemText(i) for i in range(combobox.count())}
 
 
 def _write_directory_file(path, directories):
@@ -30,6 +35,83 @@ def _write_directory_file(path, directories):
 def windows_encoding(monkeypatch):
     """Report the system encoding of a default Windows install, where it is not UTF-8."""
     monkeypatch.setattr(locale, "getpreferredencoding", lambda do_setlocale=True: "cp1252")
+
+
+class TestPathMechListing:
+    def test_lists_only_supported_suffixes_and_skips_generated_mech(
+        self, main_window, tmp_path
+    ):
+        mech_dir = tmp_path / "mechs"
+        mech_dir.mkdir()
+
+        expected_mech_files = set()
+        for suffix in supported_mech_suffixes():
+            name = f"mech{suffix}"
+            (mech_dir / name).write_text("")
+            expected_mech_files.add(name)
+
+        for name in ("generated_mech.yaml", "generated_mech.cti"):
+            (mech_dir / name).write_text("")
+
+        (mech_dir / "therm.therm").write_text("")
+        (mech_dir / "tran.tran").write_text("")
+
+        main_window.path["mech_main"] = mech_dir
+        main_window.path_set.mech()
+
+        listed_mech_files = _items(main_window.mech_select_comboBox)
+        assert listed_mech_files == expected_mech_files, (
+            f"expected {expected_mech_files}, got {listed_mech_files}"
+        )
+
+    def test_skips_mechanisms_written_by_a_conversion(self, main_window, tmp_path):
+        mech_dir = tmp_path / "mechs"
+        mech_dir.mkdir()
+        (mech_dir / "cyc7.mech").write_text("")
+
+        artifacts = (
+            "generated_mech.yaml",
+            "generated_mech.cti",
+            "cyc7.converted.yaml",
+            "CYC7.CONVERTED.YAML",
+        )
+        for name in artifacts:
+            (mech_dir / name).write_text("")
+
+        main_window.path["mech_main"] = mech_dir
+        main_window.path_set.mech()
+
+        listed = _items(main_window.mech_select_comboBox)
+        assert listed == {"cyc7.mech"}, (
+            f"conversion output must stay out of the list, got {listed}"
+        )
+
+    def test_lists_therm_file_in_thermo_combobox(self, main_window, tmp_path):
+        mech_dir = tmp_path / "mechs"
+        mech_dir.mkdir()
+        (mech_dir / "therm.therm").write_text("")
+
+        main_window.path["mech_main"] = mech_dir
+        main_window.path_set.mech()
+
+        assert _items(main_window.thermo_select_comboBox) == {"therm.therm"}
+
+    def test_lists_tran_file_in_transport_combobox_only(self, main_window, tmp_path):
+        mech_dir = tmp_path / "mechs"
+        mech_dir.mkdir()
+        for name in ("mech.mech", "therm.therm", "tran.tran"):
+            (mech_dir / name).write_text("")
+
+        main_window.path["mech_main"] = mech_dir
+        main_window.path_set.mech()
+
+        assert _items(main_window.transport_select_comboBox) == {"tran.tran"}
+        assert _items(main_window.mech_select_comboBox) == {"mech.mech"}, (
+            "a .tran file is not a mechanism"
+        )
+        assert _items(main_window.thermo_select_comboBox) == {"therm.therm"}, (
+            "a .tran file is not a thermodynamics file"
+        )
 
 
 class TestReadDirectoryFile:

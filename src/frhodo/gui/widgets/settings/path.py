@@ -10,6 +10,22 @@ import stat
 import numpy as np
 from qtpy import QtCore
 
+from frhodo.simulation.mechanism.mechanism_loader import supported_mech_suffixes
+
+
+
+def _is_conversion_artifact(file):
+    """Is this a mechanism Frhodo wrote itself while converting one?
+
+    The GUI converts into ``generated_mech.yaml`` and ``load_mechanism``
+    defaults to ``<mech>.converted.yaml`` beside its input, so both land
+    where the next scan would find them. Offering a conversion back as a
+    source lets a stale copy shadow the file it came from, and the user
+    never asked for it to exist.
+    """
+    stem = file.stem.lower()
+
+    return stem == "generated_mech" or stem.endswith(".converted")
 
 
 def _read_directory_file(parser, path):
@@ -82,19 +98,10 @@ class Path:
 
             if ext == ".therm":
                 thermo_files.append(name)
-            if ext == ".tran":  # transport files preserved for future use
+            elif ext == ".tran":
                 trans_files.append(name)
-            elif ext in [
-                ".yaml",
-                ".yml",
-                ".cti",
-                ".ck",
-                ".mech",
-                ".inp",
-            ]:  #  '.ctml', '.xml' intentionally unsupported
-                if "generated_mech.yaml" == name:
-                    continue
-                elif "generated_mech.yml" == name:
+            elif ext in supported_mech_suffixes():
+                if _is_conversion_artifact(file):
                     continue
                 unsorted_mech_files.append(name)
 
@@ -129,14 +136,16 @@ class Path:
             mech_files.append(name)
 
         # Add items to combobox
-        for obj in [parent.mech_select_comboBox, parent.thermo_select_comboBox]:
+        combobox_items = {
+            parent.mech_select_comboBox: mech_files,
+            parent.thermo_select_comboBox: thermo_files,
+            parent.transport_select_comboBox: trans_files,
+        }
+        for obj, items in combobox_items.items():
             obj.blockSignals(True)
             oldText = obj.currentText()
             obj.clear()
-            if obj is parent.mech_select_comboBox:
-                obj.addItems(mech_files)
-            else:
-                obj.addItems(thermo_files)
+            obj.addItems(items)
 
             idx = obj.findText(oldText)  # if the previous selection exists, reselect it
             obj.blockSignals(False)

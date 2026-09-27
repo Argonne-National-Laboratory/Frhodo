@@ -344,6 +344,7 @@ class Directories(QtCore.QObject):
             parent.load_mech
         )  # call function if opened, even if not changed
         parent.use_thermo_file_box.stateChanged.connect(parent.load_mech)
+        parent.use_transport_file_box.stateChanged.connect(parent.load_mech)
 
         parent.load_full_series_box.stateChanged.connect(self.set_load_full_set)
         self.set_load_full_set()
