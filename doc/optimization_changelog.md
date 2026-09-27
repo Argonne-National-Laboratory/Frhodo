@@ -20,6 +20,14 @@ starting. A longer name ending in this one no longer counts toward it.
   one, and continuing from an Opt file. Removing the literal match or the
   anchoring fails the matching cases.
 
+### The pre-optimization file keeps the mechanism's name
+The `- PreOpt N` file written before an optimization is named from the
+same base name and number as the `- Opt N` file. Replacing "Opt" with
+"PreOpt" across the whole filename renamed mechanisms containing "Opt",
+so `Optimized H2` gave `PreOptimized H2 - PreOpt 1.mech`.
+- Validation: tests over a plain name and names starting with or
+  containing "Opt". Restoring the replacement fails the two "Opt" cases.
+
 ## 2026-07 — Sensitivity ladder & local optimizer
 
 ### Smurf coarse global stage (DEFAULT global algorithm)

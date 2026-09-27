@@ -311,9 +311,9 @@ class Path:
             if match:
                 num.append(int(match.group(1)))
 
-        mech_name += " - Opt "  # add opt back in
-        opt_mech_file = "{:s}{:.0f}.mech".format(mech_name, np.max(num) + 1)
-        recast_mech_file = opt_mech_file.replace("Opt", "PreOpt")
+        next_num = np.max(num) + 1
+        opt_mech_file = "{:s} - Opt {:.0f}.mech".format(mech_name, next_num)
+        recast_mech_file = "{:s} - PreOpt {:.0f}.mech".format(mech_name, next_num)
         parent.path["Optimized_Mech.mech"] = parent.path["mech_main"] / opt_mech_file
         parent.path["Optimized_Mech_recast.mech"] = (
             parent.path["mech_main"] / recast_mech_file

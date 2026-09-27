@@ -25,6 +25,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Optimized mechanisms whose names contain `(`, `)`, `+` or `[` overwrote
   `- Opt 1` on every run, and an unbalanced bracket or a hand-renamed Opt file
   stopped an optimization from starting.
+- The pre-optimization `- PreOpt N` file renamed mechanisms whose names contain
+  "Opt".
 
 ## [2.0.0]
 
