@@ -6,6 +6,57 @@ entry: what changed, why, and how it was validated. Work that was
 validated and rejected is summarized at the end; the full development
 arc is in `revamp_history.md`.
 
+## 2026-09 — Mechanism import format fixes
+
+### YAML source aliasing fixed
+`load_mechanism` on a YAML source now reads the YAML path it resolved
+instead of unconditionally reading `Cantera_Mech`, which previously
+held whatever mechanism had last been converted through the GUI. A
+YAML selection now loads the file the caller actually chose. It is
+opened by path, so files it includes resolve against its own folder. On
+Windows the load error names a non-ASCII path as the likely cause of a
+failure, since Cantera may not open one.
+
+### CTML/XML accepted, suffix matching case-insensitive
+The supported format table now dispatches `.ctml` and `.xml` through
+Cantera's `ctml2yaml`, so those mechanisms load instead of being
+rejected as unknown. Suffix lookup is lowercased first, so `.YAML` or
+`.Mech` resolve the same as their lowercase spellings. The GUI mechanism
+dropdown lists whatever the table dispatches rather than its own
+hardcoded subset.
+
+### `transport=` on `load_mechanism`, transport file in the GUI
+`load_mechanism` takes a new keyword-only `transport=` argument, a
+Chemkin transport database passed through to the converter alongside
+`thermo=` and ignored for YAML inputs. The GUI gains the matching "Use
+Separate File Transport" checkbox and `.tran` file dropdown. The
+transport files the folder scan already collected are now selectable
+rather than held for future use.
+
+### Converter diagnostics travel with the failure
+Cantera's converters split their output between stdout and the
+`cantera` logger and call `sys.exit` on malformed input, which unwound
+past callers and left a bare exit code. Both channels are captured for
+the duration of a conversion; a converter exit becomes a
+`MechanismLoadError` carrying the collected diagnostics, and the
+scratch `.tmp` file is removed on failure instead of being left behind.
+
+### Unsupported suffix now raises (API break)
+`load_mechanism` on a suffix outside the supported format table
+(YAML/YML, CTI, CTML/XML, Chemkin `.inp`/`.ck`/`.mech`) raises
+`MechanismLoadError` instead of falling through to the Chemkin
+converter. A Chemkin file saved under an unlisted extension (`.txt`,
+say) that previously loaded via the fallback now needs renaming to a
+recognized suffix or explicit conversion first.
+
+### Mechanisms serialize to YAML in memory
+`to_yaml_text`, which saves mechanisms as YAML and carries them to worker
+processes, builds its YAML with Cantera's in-memory writer rather than through
+a temporary file.
+- Validation: the output matches the file-based writer's apart from the
+  timestamp line, with default and custom units, and serializing works
+  with no usable temporary directory.
+
 ## 2026-09 — Directory-file encoding
 
 ### Directory files are read and written as UTF-8

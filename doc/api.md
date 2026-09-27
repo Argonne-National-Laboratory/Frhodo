@@ -40,25 +40,53 @@ if result.success:
 
 ## 2. Mechanism loading
 
-### `load_mechanism(mech, *, thermo=None, converted_yaml=None) -> ChemicalMechanism`
+### `load_mechanism(mech, *, thermo=None, transport=None, converted_yaml=None) -> ChemicalMechanism`
 
-Loads a Cantera mechanism from YAML, CTI, or Chemkin input.
+Loads a Cantera mechanism from YAML, CTI, CTML/XML, or Chemkin input.
 
-- YAML inputs (`.yaml` / `.yml`) load directly.
-- CTI and Chemkin inputs are converted to YAML on the fly. The output
-  path defaults to `<mech>.converted.yaml` next to the input; override
-  with `converted_yaml=`.
-- `thermo` is the Chemkin thermodynamic database file (ignored for
-  YAML inputs).
+- YAML inputs (`.yaml` / `.yml`) load directly from their path, so files
+  they include resolve against their own folder. On Windows, Cantera may
+  fail to open a path containing non-ASCII characters.
+- CTI, CTML/XML, and Chemkin inputs are converted to YAML on the fly.
+  The output path defaults to `<mech>.converted.yaml` next to the
+  input; override with `converted_yaml=`.
+- `thermo` and `transport` are Chemkin-only auxiliary files, ignored
+  for every other source.
+- An unrecognized suffix raises `MechanismLoadError` rather than being
+  guessed at.
 
 ```python
 mech = load_mechanism("mech.yaml")
 mech = load_mechanism("mech.inp", thermo="thermo.dat")
 mech = load_mechanism(
-    "mech.inp", thermo="thermo.dat",
+    "mech.inp", thermo="thermo.dat", transport="tran.dat",
     converted_yaml="/tmp/converted.yaml",
 )
 ```
+
+#### Supported formats
+
+| Suffix               | Handling                  |
+|-----------------------|--------------------------|
+| `.yaml`, `.yml`        | loaded natively           |
+| `.cti`                 | converted to YAML         |
+| `.ctml`, `.xml`        | converted to YAML         |
+| `.inp`, `.ck`, `.mech` | Chemkin, converted to YAML |
+
+Any other suffix is refused.
+
+#### Transport data
+
+`transport` points at a Chemkin transport database (for example
+`tran.dat`) to fold into the conversion alongside `thermo`. Transport
+properties (viscosity, thermal conductivity, and the mixture/thermal
+diffusion models) never enter a simulation result: `frhodo` accepts
+them only for mechanism-export fidelity, so a Chemkin mechanism loaded
+with `transport=` round-trips through `to_chemkin` with the same
+transport data intact. `to_chemkin` writes that data back as an inline
+`TRANSPORT` block in the exported mechanism file rather than a
+separate transport file, so a user who imports `mech.inp` plus
+`tran.dat` exports a single file with transport data inside it.
 
 ---
 

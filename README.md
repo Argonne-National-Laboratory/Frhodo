@@ -19,7 +19,7 @@ data and optimize chemical kinetics mechanisms using
   - 0D closed, homogeneous, constant-volume reactor
   - 0D closed, homogeneous, constant-pressure reactor
   - Custom incident-shock reactor for reactions behind incident shock waves
-- Import Cantera-valid mechanisms (CTML/XML input is not supported)
+- Import YAML, CTI, CTML/XML, or Chemkin mechanisms
 - Read an experimental directory to switch quickly between conditions and measured data
 - Overlay simulated observables on experimental data
 - Edit mechanisms in memory and re-simulate automatically
