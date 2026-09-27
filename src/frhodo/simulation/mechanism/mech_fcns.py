@@ -9,8 +9,6 @@ flags, coefficient names). Loaders populate it via
 :class:`~frhodo.simulation.mechanism.mechanism_loader.MechanismLoader`.
 """
 import contextlib
-import pathlib
-import tempfile
 import threading
 from copy import deepcopy
 
@@ -1253,7 +1251,7 @@ class ChemicalMechanism:
         return recast
 
     def to_yaml_text(self, units: dict | None = None) -> str:
-        """Serialize the current mechanism to a Cantera YAML string.
+        """Serialize the current mechanism to a Cantera YAML string, in memory.
 
         Args:
             units: Custom unit-system dict, or ``None`` for Cantera
@@ -1267,19 +1265,15 @@ class ChemicalMechanism:
             YAML serialization of the gas, including any in-place
             coefficient modifications.
         """
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
-            tmp = pathlib.Path(f.name)
-        try:
-            if units is None:
-                self.gas.write_yaml(str(tmp))
-            else:
-                self.gas.write_yaml(str(tmp), units=units)
+        writer = ct.YamlWriter()
+        writer.set_header(self.gas)
+        writer.add_solution(self.gas)
+        if units is not None:
+            writer.output_units = units
 
-            return tmp.read_text()
-        finally:
-            tmp.unlink(missing_ok=True)
+        text = writer.to_string()
+
+        return text
 
     def to_chemkin(self, mech_path, sort_species: str = "molar-mass") -> None:
         """Write the current mechanism to a Chemkin ``.mech`` file.

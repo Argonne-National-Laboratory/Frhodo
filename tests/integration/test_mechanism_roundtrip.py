@@ -2,6 +2,7 @@
 ``to_chemkin``. Locks down the optimize-and-checkpoint contract for ML.
 """
 import pathlib
+import tempfile
 
 import cantera as ct
 import numpy as np
@@ -53,6 +54,30 @@ class TestToYamlText:
         finally:
             mech.coeffs[target][0]["pre_exponential_factor"] = original_A
             mech.modify_reactions(mech.coeffs, rxnIdxs=[target])
+
+
+    def test_serializes_when_no_temporary_file_can_be_made(
+        self, loaded_cycloheptane, tmp_path, monkeypatch,
+    ):
+        monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "missing"))
+
+        text = loaded_cycloheptane.to_yaml_text()
+
+        rebuilt = ct.Solution(yaml=text)
+        assert rebuilt.n_species == loaded_cycloheptane.gas.n_species, (
+            f"{rebuilt.n_species} species vs {loaded_cycloheptane.gas.n_species}"
+        )
+
+    def test_custom_units_reach_the_serialized_text(self, cycloheptane_paths):
+        # A fresh load: Cantera cannot apply custom units once rates are modified.
+        mech = MechanismLoader(silent=True).load(cycloheptane_paths)
+        units = {"length": "cm", "quantity": "mol", "activation-energy": "cal/mol"}
+
+        text = mech.to_yaml_text(units=units)
+
+        header = text.split("phases:")[0]
+        for name, value in units.items():
+            assert f"{name}: {value}" in header, f"{name}: {value} missing from {header!r}"
 
 
 class TestToChemkin:
