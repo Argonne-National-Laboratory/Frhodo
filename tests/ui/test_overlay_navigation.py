@@ -14,13 +14,13 @@ pytestmark = pytest.mark.gui
 
 
 @pytest.fixture
-def main_two_shocks(main_with_loaded_mech, repo_root, tmp_path):
+def main_two_shocks(main_with_loaded_mech, example_dir, tmp_path):
     """Main with a 2-shock series (example shock duplicated)."""
     main = main_with_loaded_mech
     main.convert_units.mech = main.mech
     exp_dir = tmp_path / "exp"
     exp_dir.mkdir()
-    src = repo_root / "example" / "experiment"
+    src = example_dir / "experiment"
     for num in (1, 2):
         shutil.copy(src / "shock1.exp", exp_dir / f"Shock{num}.exp")
         shutil.copy(src / "shock1.rho", exp_dir / f"Shock{num}.rho")
@@ -75,7 +75,6 @@ def _run_tiny_optimization(main, qapp, max_eval=8, multiprocessing=False):
     coef_name = next(iter(main.mech.coeffs_bnds[0][bnds_key]))
     main.optimizables.set_coefficient_optimizable(0, bnds_key, coef_name, True)
 
-    print("INVALID >>>", main.directory.invalid, {k: main.path.get(k) for k in ("exp_main", "mech_main", "sim_main")})
     main.optimize.start_threads()
     deadline = QtCore.QDeadlineTimer(180_000)
     while main.run_control.optimize_running and not deadline.hasExpired():

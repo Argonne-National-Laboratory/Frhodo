@@ -1,17 +1,26 @@
 """``settings.Path``: the mechanism listings, and the directory files that set the folders."""
 import configparser
 import locale
+import os
+import pathlib
 import shutil
 
 import pytest
 
-from frhodo.gui.widgets.settings.path import _read_directory_file
+from frhodo.gui.runtime_paths import RuntimePaths
+from frhodo.gui.widgets.settings.path import (
+    EXAMPLE_CONFIG,
+    _read_directory_file,
+    _resolve_dir_entry,
+    copy_example,
+)
 from frhodo.simulation.mechanism.mechanism_loader import supported_mech_suffixes
 
 
 
 pytestmark = pytest.mark.gui
 
+EXAMPLE_FOLDERS = {"exp_main": "experiment", "mech_main": "mechanism", "sim_main": "simulation"}
 NON_ASCII_FOLDER = "C:\\Users\\José Ω\\Frhodo\\mechanism"
 
 
@@ -29,6 +38,22 @@ def _write_directory_file(path, directories):
         config.write(f)
 
     return path
+
+
+def _files_under(folder):
+    return {p.relative_to(folder).as_posix() for p in folder.rglob("*") if p.is_file()}
+
+
+def _bundle(root):
+    """A minimal bundled example: the three named folders plus a walkthrough nothing names."""
+    for folder, name in (("experiment", "shock1.exp"), ("mechanism", "mech.mech"),
+                         ("simulation", "readme.txt")):
+        (root / folder).mkdir(parents=True)
+        (root / folder / name).write_text(f"{folder}\n")
+    (root / "walkthrough.md").write_text("read me\n")
+    _write_directory_file(root / EXAMPLE_CONFIG, EXAMPLE_FOLDERS)
+
+    return root
 
 
 @pytest.fixture
@@ -114,6 +139,25 @@ class TestPathMechListing:
         )
 
 
+class TestResolveDirEntry:
+    def test_relative_entry_reads_against_the_file_folder(self, tmp_path):
+        resolved = _resolve_dir_entry(tmp_path, "experiment")
+
+        assert resolved == str(tmp_path / "experiment"), f"got {resolved}"
+
+    def test_absolute_entry_is_kept(self, tmp_path):
+        absolute = str(tmp_path / "elsewhere" / "experiment")
+
+        resolved = _resolve_dir_entry(tmp_path / "ini_folder", absolute)
+
+        assert resolved == absolute, f"got {resolved}"
+
+    def test_empty_entry_stays_empty(self, tmp_path):
+        resolved = _resolve_dir_entry(tmp_path, "")
+
+        assert resolved == "", f"an unset directory became {resolved!r}"
+
+
 class TestReadDirectoryFile:
     def test_utf8_file_reads_intact(self, tmp_path, windows_encoding):
         path = tmp_path / "directories.ini"
@@ -147,7 +191,175 @@ class TestReadDirectoryFile:
         assert read == "mechanism", f"got {read!r}"
 
 
+class TestCopyExample:
+    def test_copies_only_the_folders_the_directory_file_names(self, tmp_path):
+        bundled = _bundle(tmp_path / "bundled")
+        destination = tmp_path / "appdata" / "example"
+
+        copied = copy_example(bundled, destination)
+
+        assert copied == destination / EXAMPLE_CONFIG, f"got {copied}"
+        expected = {EXAMPLE_CONFIG, "experiment/shock1.exp", "mechanism/mech.mech",
+                    "simulation/readme.txt"}
+        assert _files_under(destination) == expected, f"got {_files_under(destination)}"
+
+    def test_existing_copy_is_returned_without_overwriting_it(self, tmp_path):
+        bundled = _bundle(tmp_path / "bundled")
+        destination = tmp_path / "example"
+        copy_example(bundled, destination)
+        edited = destination / "mechanism" / "mech.mech"
+        edited.write_text("edited by the user\n")
+
+        again = copy_example(bundled, destination)
+
+        assert again == destination / EXAMPLE_CONFIG, f"got {again}"
+        assert edited.read_text() == "edited by the user\n", "a repeat copy overwrote an edit"
+
+    def test_interrupted_copy_is_completed_without_overwriting(self, tmp_path):
+        bundled = _bundle(tmp_path / "bundled")
+        destination = tmp_path / "example"
+        (destination / "mechanism").mkdir(parents=True)
+        already_there = destination / "mechanism" / "mech.mech"
+        already_there.write_text("already here\n")
+
+        copied = copy_example(bundled, destination)
+
+        assert copied.is_file(), "the directory file was not written"
+        assert (destination / "experiment" / "shock1.exp").is_file(), "a folder was not copied"
+        assert already_there.read_text() == "already here\n", "an existing file was overwritten"
+
+    def test_empty_entries_copy_no_folder(self, tmp_path):
+        # An empty entry must not read as the bundle itself, which would copy all of it.
+        bundled = tmp_path / "bundled"
+        bundled.mkdir()
+        (bundled / "walkthrough.md").write_text("read me\n")
+        _write_directory_file(
+            bundled / EXAMPLE_CONFIG, {"exp_main": "", "mech_main": "", "sim_main": ""},
+        )
+        destination = tmp_path / "example"
+
+        copy_example(bundled, destination)
+
+        assert _files_under(destination) == {EXAMPLE_CONFIG}, f"got {_files_under(destination)}"
+
+    def test_absolute_entries_are_not_copied(self, tmp_path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "shock1.exp").write_text("x\n")
+        bundled = tmp_path / "bundled"
+        bundled.mkdir()
+        _write_directory_file(
+            bundled / EXAMPLE_CONFIG,
+            {"exp_main": str(outside), "mech_main": "", "sim_main": ""},
+        )
+        destination = tmp_path / "example"
+
+        copy_example(bundled, destination)
+
+        assert _files_under(destination) == {EXAMPLE_CONFIG}, f"got {_files_under(destination)}"
+
+    def test_copy_of_a_read_only_install_is_writable(self, tmp_path):
+        bundled = _bundle(tmp_path / "bundled")
+        for file in bundled.rglob("*"):
+            if file.is_file():
+                file.chmod(0o444)
+        destination = tmp_path / "example"
+
+        copy_example(bundled, destination)
+
+        unwritable = sorted(name for name in _files_under(destination)
+                            if not os.access(destination / name, os.W_OK))
+        assert unwritable == [], f"copied without write permission: {unwritable}"
+
+    def test_copy_killed_partway_leaves_no_file_that_looks_finished(self, tmp_path, monkeypatch):
+        bundled = _bundle(tmp_path / "bundled")
+        destination = tmp_path / "example"
+
+        def killed_partway(source, target):
+            pathlib.Path(target).write_text("half")
+            raise OSError("disk full")
+
+        monkeypatch.setattr(shutil, "copyfile", killed_partway)
+
+        with pytest.raises(OSError):
+            copy_example(bundled, destination)
+
+        finished = sorted(name for name in _files_under(destination)
+                          if not name.endswith(".part"))
+        assert finished == [], f"an interrupted copy left finished-looking files: {finished}"
+
+    def test_leftover_part_file_is_replaced_by_the_full_copy(self, tmp_path):
+        bundled = _bundle(tmp_path / "bundled")
+        destination = tmp_path / "example"
+        (destination / "mechanism").mkdir(parents=True)
+        (destination / "mechanism" / "mech.mech.part").write_text("half")
+
+        copy_example(bundled, destination)
+
+        copied = (destination / "mechanism" / "mech.mech").read_text()
+        assert copied == "mechanism\n", f"got {copied!r}"
+
+    def test_install_without_an_example_returns_none(self, tmp_path):
+        bundled = tmp_path / "bundled"
+        bundled.mkdir()
+        destination = tmp_path / "example"
+
+        copied = copy_example(bundled, destination)
+
+        assert copied is None, f"got {copied}"
+        assert not destination.exists(), "a folder was created with nothing to copy"
+
+
+class TestShippedExample:
+    @pytest.mark.parametrize("key", sorted(EXAMPLE_FOLDERS))
+    def test_directory_file_names_a_relative_folder_that_ships(self, example_dir, key):
+        config = configparser.RawConfigParser()
+        config.read(example_dir / EXAMPLE_CONFIG)
+        entry = config["Directories"][key]
+
+        assert entry and not pathlib.Path(entry).is_absolute(), f"{key} = {entry!r} is not relative"
+        assert (example_dir / entry).is_dir(), f"{key} names {entry!r}, which does not ship"
+
+
 class TestDirectoryFile:
+    def test_relative_entries_resolve_against_the_file_not_the_working_directory(
+        self, main_window, example_dir, tmp_path, monkeypatch,
+    ):
+        directory_file = copy_example(example_dir, tmp_path / "project")
+        # Read against the working directory instead, the entries would land in tmp_path.
+        monkeypatch.chdir(tmp_path)
+
+        main_window.path_set.load_dir_file(directory_file)
+
+        project = directory_file.parent.resolve()
+        loaded = {key: main_window.path[key] for key in EXAMPLE_FOLDERS}
+        expected = {key: project / folder for key, folder in EXAMPLE_FOLDERS.items()}
+        assert loaded == expected, f"got {loaded}"
+
+    def test_alias_save_after_loading_another_file_keeps_this_files_settings(
+        self, main_window, example_dir, tmp_path,
+    ):
+        directory_file = copy_example(example_dir, tmp_path / "project")
+        main_window.path_set.load_dir_file(directory_file)
+        # A session restore reads a file of its own through load_dir_file.
+        session = tmp_path / "session"
+        session.mkdir()
+        session_file = _write_directory_file(session / EXAMPLE_CONFIG, {
+            "exp_main": "",
+            "mech_main": str(directory_file.parent / "mechanism"),
+            "sim_main": str(tmp_path / "elsewhere"),
+        })
+        main_window.path_set.load_dir_file(session_file)
+
+        main_window.path_set.save_aliases(directory_file)
+
+        config = configparser.RawConfigParser()
+        config.read(directory_file)
+        saved = dict(config["Directories"])
+        assert saved == EXAMPLE_FOLDERS, f"the file took the session's folders: {saved}"
+        name = config["Experiment Set Name"]["name"]
+        assert name == "Example Input Files", f"the file took the session's set name: {name!r}"
+
     def test_non_ascii_folders_from_a_session_restore_load_intact(
         self, main_window, example_mech_dir, tmp_path,
     ):
@@ -179,6 +391,31 @@ class TestDirectoryFile:
 
         text = saved.read_bytes().decode("utf-8")
         assert "José Ω" in text, f"the saved folders lost their characters: {text!r}"
+
+
+    def test_alias_save_keeps_the_entries_relative(self, main_window, example_dir, tmp_path):
+        directory_file = copy_example(example_dir, tmp_path / "project")
+        main_window.path_set.load_dir_file(directory_file)
+
+        main_window.path_set.save_aliases(directory_file)
+
+        config = configparser.RawConfigParser()
+        config.read(directory_file)
+        saved = dict(config["Directories"])
+        assert saved == EXAMPLE_FOLDERS, f"a save made the copy location-bound: {saved}"
+
+
+class TestOpenExample:
+    def test_install_without_the_example_is_logged(self, main_window, tmp_path):
+        main_window.runtime_paths = RuntimePaths.from_package(
+            package=tmp_path / "gui", appdata=tmp_path / "appdata",
+        )
+
+        main_window.path_set.open_example()
+
+        log_text = main_window.log.log.toPlainText()
+        assert "No example project was found" in log_text, f"log was: {log_text!r}"
+        assert main_window.path_file_box.toPlainText() == "", "a directory file was adopted"
 
 
 class TestOptimizedMechNumbering:

@@ -1,6 +1,7 @@
 """UI-layer fixtures: Qt platform, isolated config paths, Main() boot."""
 import pytest
 
+from frhodo.common.config import FrhodoConfig
 from frhodo.simulation.mechanism.mechanism_loader import MechanismLoader
 
 
@@ -36,14 +37,37 @@ def isolated_path(tmp_path, repo_root):
     }
 
 
-@pytest.fixture
-def main_window(qtbot, isolated_path):
-    """Boot a fresh ``Main`` window. The fixture handles cleanup via qtbot."""
+def _boot(qtbot, path):
+    """Boot a fresh ``Main`` window; qtbot handles cleanup."""
     from qtpy.QtWidgets import QApplication
 
     from frhodo import app as main_module
 
     qapp = QApplication.instance() or QApplication([])
-    win = main_module.Main(qapp, isolated_path)
+    win = main_module.Main(qapp, path)
     qtbot.addWidget(win)
+
+    return win
+
+
+@pytest.fixture
+def main_window(qtbot, isolated_path):
+    """Boot ``Main`` as a returning user.
+
+    Saved settings are what mark a returning user. Without them every boot
+    would be a first run and open the bundled example.
+    """
+    (isolated_path["appdata"] / "default_config.yaml").write_text(
+        FrhodoConfig().to_yaml_text(), encoding="utf-8",
+    )
+    win = _boot(qtbot, isolated_path)
+
+    return win
+
+
+@pytest.fixture
+def first_run_window(qtbot, isolated_path):
+    """Boot ``Main`` with no saved settings, as on Frhodo's first run."""
+    win = _boot(qtbot, isolated_path)
+
     return win

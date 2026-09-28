@@ -1,6 +1,6 @@
 """Tests for the Tranter shock-experiment file loader.
 
-The bundled ``example/experiment/shock1.exp`` is the v1 (Tranter) format:
+The bundled ``src/frhodo/example/experiment/shock1.exp`` is the v1 (Tranter) format:
 ConfigParser-style ``[Mixture]`` and ``[Expt Params]`` sections. The
 loader converts T1/P1/u1/P4 into Cantera units (K, Pa, m/s, Pa) on the
 way out.

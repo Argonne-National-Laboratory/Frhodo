@@ -1,17 +1,24 @@
 # First-Time Use
 
-A short walkthrough of loading the bundled example and running an optimization.
-Paths below are relative to the repository's `example/` folder.
+A short walkthrough of the bundled example and running an optimization.
 
 ## Loading an analysis (Files tab)
 
-1. Set the **Experiment Directory** to `example/experiment`.
+The first time Frhodo starts, it copies this example into its app folder and
+opens it from there, so the directories are already set:
+
+1. The **Experiment Directory** is the copy's `experiment` folder.
    - Some data should appear on screen.
-2. Set the **Mechanism Directory** to `example/mechanism`.
-   - A blue line appears — the initial simulated data.
-3. Set the **Simulation Directory** to `example/simulation`.
-   - Nothing happens yet; this is where results are exported once you run a
+2. The **Mechanism Directory** is its `mechanism` folder.
+   - A blue line appears: the initial simulated data.
+3. The **Simulation Directory** is its `simulation` folder.
+   - Nothing happens yet. This is where results are exported once you run a
      parameter estimation.
+
+The copy lives in `%APPDATA%\Frhodo\example` on Windows,
+`~/Library/Application Support/Frhodo/example` on macOS, and
+`~/.config/Frhodo/example` on Linux. To open it again later, load its
+`example_config.ini` in the **Directory Settings File** box.
 
 ## Running an analysis (Optimization tab)
 
@@ -49,9 +56,10 @@ Paths below are relative to the repository's `example/` folder.
    during optimization, so they differ from the originals.
 2. Click **Save** at the top of the window, then **Save** again in the dialog
    without changing any settings.
-   - In the simulation directory you specified, a new folder appears with a
-     `Sim1` subdirectory holding the optimized mechanism file (including the
-     optimized rate constants).
-     - Running another optimization creates `Sim2`, and so on.
+   - In the simulation directory, Frhodo creates `Example Input Files/Shock 1`
+     (the experiment set name, then the shock) holding the optimized mechanism
+     file, including the optimized rate constants.
+     - Saving again adds a `Sim 2` folder and moves the first save into
+       `Sim 1`, and so on.
      - The final mechanism after each optimization is also stored in the
        mechanism directory.

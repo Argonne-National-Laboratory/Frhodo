@@ -37,6 +37,13 @@ class RuntimePaths(BaseModel):
     troe_captures: Path = Field(
         description="``appdata/troe_captures`` — default destination for NN training-data capture.",
     )
+    example: Path = Field(
+        description="``main/example``: the example project shipped in the package, "
+                    "read-only in an install.",
+    )
+    user_example: Path = Field(
+        description="``appdata/example``: the writable copy of the example that a first run opens.",
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
@@ -55,6 +62,8 @@ class RuntimePaths(BaseModel):
             cantera_mech=appdata / "generated_mech.yaml",
             graphics=package / "ui" / "graphics",
             troe_captures=appdata / "troe_captures",
+            example=package.parent / "example",
+            user_example=appdata / "example",
         )
 
         return paths

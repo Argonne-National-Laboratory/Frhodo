@@ -12,7 +12,8 @@ os.environ.setdefault("XDG_RUNTIME_DIR", "/tmp")
 import pytest  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-EXAMPLE_MECH_DIR = ROOT / "example" / "mechanism"
+EXAMPLE_DIR = ROOT / "src" / "frhodo" / "example"
+EXAMPLE_MECH_DIR = EXAMPLE_DIR / "mechanism"
 MECH_FIXTURE_DIR = pathlib.Path(__file__).resolve().parent / "fixtures" / "mechanisms"
 
 
@@ -22,13 +23,19 @@ def repo_root():
 
 
 @pytest.fixture(scope="session")
+def example_dir():
+    """The example project shipped inside the package."""
+    return EXAMPLE_DIR
+
+
+@pytest.fixture(scope="session")
 def example_mech_dir():
     return EXAMPLE_MECH_DIR
 
 
 @pytest.fixture(scope="session")
 def mech_fixture_dir():
-    """Mechanisms that exist only for the suite, kept out of ``example/``."""
+    """Mechanisms that exist only for the suite, kept out of the shipped example."""
     return MECH_FIXTURE_DIR
 
 

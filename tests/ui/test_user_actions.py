@@ -154,9 +154,9 @@ class TestThermoMixShockArg:
     """
 
     @pytest.fixture
-    def main_with_series(self, main_with_loaded_mech, repo_root):
+    def main_with_series(self, main_with_loaded_mech, example_dir):
         main = main_with_loaded_mech
-        main.path["exp_main"] = repo_root / "example" / "experiment"
+        main.path["exp_main"] = example_dir / "experiment"
         main.series.add_series()
         return main
 

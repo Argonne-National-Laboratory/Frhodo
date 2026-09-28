@@ -9,7 +9,7 @@ import pytest
 from frhodo.simulation.shock.incident_shock_reactor import run_incident_shock
 from frhodo.simulation.shock.shock_solver import ShockJumpSolver
 
-# Inputs match example/experiment/shock1.exp.
+# Inputs match src/frhodo/example/experiment/shock1.exp.
 T1_K = 294.15
 P1_PA = 5.01 * 133.322368421
 U1_MPS = 120e-3 / 116.557292e-6
