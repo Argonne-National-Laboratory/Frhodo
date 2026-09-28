@@ -6,6 +6,24 @@ entry: what changed, why, and how it was validated. Work that was
 validated and rejected is summarized at the end; the full development
 arc is in `revamp_history.md`.
 
+## 2026-09 — Log-tab blink timer
+
+### The blink timer cannot outlive the log
+`Log` creates its blink timer once, parented to the tab widget, and
+connects it to a bound method. PyQt holds a bound method's instance
+weakly, so a blinking log is freed by reference counting. The timer had
+been created per blink without a parent and called a lambda that
+captured the log, which made a cycle only the garbage collector could
+free. When that collection ran on a worker thread, the C++ timer
+outlived the cleared lambda, and the next event pass on the GUI thread
+crashed with a segmentation fault (seen in CI on macOS with Python
+3.10).
+- Validation: a regression test checks that a blinking log is freed by
+  reference counting, and it fails against the previous timer. A probe
+  that collects a blinking log on a worker thread and then processes
+  GUI-thread events crashed with the previous timer and ran cleanly with
+  this one (Python 3.11).
+
 ## 2026-09 — First-run example project
 
 ### The bundled example opens on first launch

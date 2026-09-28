@@ -43,6 +43,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   mechanism list.
 - Saving species aliases rewrote the whole directory file, so a session restore
   could replace its folders.
+- The log tab's blink timer could outlive a discarded window and crash Frhodo with
+  a segmentation fault.
 
 ## [2.0.0]
 

@@ -1192,6 +1192,10 @@ class Log:
         }
         self.current_color = self.color["base"]
         self.blink_status = False
+        # A bound method, not a lambda: PyQt holds it weakly, so the log is
+        # never in a cycle that only the garbage collector can free.
+        self.timer = QtCore.QTimer(self.tab_widget)
+        self.timer.timeout.connect(self._blink_tick)
         self.log.setTabStopWidth(
             int(QtGui.QFontMetricsF(self.log.font()).width(" ")) * 6
         )
@@ -1213,11 +1217,12 @@ class Log:
         if event == self.log_tab_idx:
             self._blink(False)
 
+    def _blink_tick(self):
+        self._blink(True)
+
     def _blink(self, blink_on):
         if blink_on:
-            if not self.blink_status:  # if not blinking, set timer and start
-                self.timer = QtCore.QTimer()
-                self.timer.timeout.connect(lambda: self._blink(True))
+            if not self.blink_status:  # if not blinking, start the timer
                 self.timer.start(500)
 
             self.blink_status = True
@@ -1233,8 +1238,7 @@ class Log:
                 self.current_color = self.color["base"]
         elif not blink_on or self.blink_status:
             self.blink_status = False
-            if hasattr(self, "timer"):
-                self.timer.stop()
+            self.timer.stop()
             self.tab_widget.tabBar().setTabTextColor(
                 self.log_tab_idx, self.color["base"]
             )
