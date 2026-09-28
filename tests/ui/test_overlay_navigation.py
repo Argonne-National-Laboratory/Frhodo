@@ -75,7 +75,6 @@ def _run_tiny_optimization(main, qapp, max_eval=8, multiprocessing=False):
     coef_name = next(iter(main.mech.coeffs_bnds[0][bnds_key]))
     main.optimizables.set_coefficient_optimizable(0, bnds_key, coef_name, True)
 
-    print("INVALID >>>", main.directory.invalid, {k: main.path.get(k) for k in ("exp_main", "mech_main", "sim_main")})
     main.optimize.start_threads()
     deadline = QtCore.QDeadlineTimer(180_000)
     while main.run_control.optimize_running and not deadline.hasExpired():
