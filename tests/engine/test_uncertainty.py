@@ -358,3 +358,71 @@ class TestCorrelationLength:
             y, scale=Scale("Linear", calibration_data=y), window_weights=window,
         )
         assert tau == 1.0
+
+
+class TestShortTraceBoundary:
+    """Traces just above ``_MIN_N_FOR_ESTIMATE``.
+
+    The 4th-order difference in ``_noise_sigma`` consumes 4 samples, so
+    the Lepski estimator behind it needs ``_MIN_N_FOR_ESTIMATE + 4``
+    samples. These lengths used to raise ``ValueError: cannot convert
+    float NaN to integer`` from the bandwidth, instead of falling back
+    to the documented short-trace result.
+    """
+
+    @staticmethod
+    def _trace(n):
+        rng = np.random.default_rng(0)
+
+        return np.linspace(1.0, 2.0, n) + rng.normal(0.0, 0.01, n)
+
+    @pytest.mark.parametrize("n", [16, 17, 18, 19])
+    def test_pointwise_sigma_returns_nan(self, n):
+        y = self._trace(n)
+
+        est = estimate_pointwise_sigma(y, scale=LINEAR)
+
+        assert est.shape == (n,)
+        assert np.isnan(est).all()
+
+    @pytest.mark.parametrize("n", [16, 17, 18, 19])
+    def test_centerline_returns_forward_y(self, n):
+        y = self._trace(n)
+
+        mu = smooth_centerline(y, scale=LINEAR)
+
+        np.testing.assert_array_equal(mu, LINEAR.forward(y))
+
+    @pytest.mark.parametrize("n", [16, 17, 18, 19])
+    def test_sigma_bar_returns_nan(self, n):
+        y = self._trace(n)
+
+        result = sigma_bar(y, scale=LINEAR, window_weights=np.ones(n))
+
+        assert np.isnan(result)
+
+    @pytest.mark.parametrize("n", [16, 17, 18, 19])
+    def test_correlation_length_falls_back_to_one(self, n):
+        y = self._trace(n)
+
+        assert correlation_length(
+            y, scale=LINEAR, window_weights=np.ones(n),
+        ) == 1.0
+
+    @pytest.mark.parametrize("n", [16, 19])
+    def test_log_family_still_estimates(self, n):
+        """The log path does not use the 4th-order difference, so it keeps
+        working at these lengths and must not be caught by the guard."""
+        y = self._trace(n)
+
+        est = estimate_pointwise_sigma(y, scale=Scale("AbsoluteLog"))
+
+        assert est.shape == (n,)
+        assert np.isfinite(est).all()
+
+    def test_twenty_samples_still_estimates(self):
+        y = self._trace(20)
+
+        est = estimate_pointwise_sigma(y, scale=LINEAR)
+
+        assert np.isfinite(est).all()
