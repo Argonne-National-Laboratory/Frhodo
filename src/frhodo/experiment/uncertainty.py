@@ -44,6 +44,10 @@ from frhodo.common.scale import Scale
 
 _Q25_TO_SIGMA = 1.0 / 0.3186  # Q25(|X|)=0.3186σ for X~N(0,σ²) → σ̂ = Q25/0.3186
 _MIN_N_FOR_ESTIMATE = 16
+# d⁴ in _noise_sigma consumes 4 samples, so the Lepski estimator behind it
+# only sees n-4. Below this the estimate is all-NaN and the bandwidth it
+# feeds cannot be turned into a window length.
+_MIN_N_FOR_NOISE_SIGMA = _MIN_N_FOR_ESTIMATE + 4
 _MIN_LEPSKI_BANDWIDTH = 32
 _LEPSKI_GROWTH = 1.5
 _LEPSKI_CONFIDENCE = 2.5
@@ -277,6 +281,8 @@ def smooth_centerline(y: np.ndarray, *, scale: Scale) -> np.ndarray:
     if scale.mode in _LOG_FAMILY_MODES:
         center, _ = _bounded_robust_band(z, finite, n)
     else:
+        if n < _MIN_N_FOR_NOISE_SIGMA:
+            return z
         sigma = _noise_sigma(z, finite, n)
         center = _curvature_adaptive_centerline(z, sigma, finite, n)
 
@@ -308,6 +314,8 @@ def estimate_pointwise_sigma(y: np.ndarray, *, scale: Scale) -> np.ndarray:
     if scale.mode in _LOG_FAMILY_MODES:
         _, sigma = _bounded_robust_band(z, finite, n)
     else:
+        if n < _MIN_N_FOR_NOISE_SIGMA:
+            return nan_result
         sigma_noise = _noise_sigma(z, finite, n)
         center = _curvature_adaptive_centerline(z, sigma_noise, finite, n)
         residual = np.where(finite, z - center, 0.0)
